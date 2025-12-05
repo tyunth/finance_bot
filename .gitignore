@@ -1,0 +1,11 @@
+node_modules/
+old/
+.env
+google_key.json
+finance_export.json
+export_data.py
+index.hmtl
+finance.db
+finance.db-journal
+*.log
+.DS_Store

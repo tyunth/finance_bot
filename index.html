@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансовый Трекер (Web)</title>
+    <!-- Подключение Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Установка шрифта Inter -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f9;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <!-- Компонент Уведомлений (Замена alert()) -->
+    <div id="notification-area" class="fixed top-0 left-1/2 transform -translate-x-1/2 mt-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div id="notification-content" class="px-4 py-2 rounded-lg text-white font-semibold shadow-xl"></div>
+    </div>
+    
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="mb-8 p-4 bg-white shadow-xl rounded-xl">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-800">Личный Финансовый Трекер</h1>
+                
+                <!-- Кнопка Импорта -->
+                <label for="import-file" class="cursor-pointer p-2 px-4 bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-300 transition duration-200 shadow-md">
+                    Импорт данных (JSON)
+                </label>
+                <input type="file" id="import-file" accept=".json" class="hidden">
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Данные хранятся в Firebase Firestore в реальном времени.</p>
+        </header>
+
+        <!-- Статус загрузки / Баланс -->
+        <div id="loading-spinner" class="text-center py-10 text-xl font-medium text-blue-500 hidden">
+            Загрузка данных...
+        </div>
+
+        <div id="main-content" class="hidden">
+            <!-- Секция Баланса -->
+            <div class="mb-8 p-6 bg-blue-600 text-white rounded-xl shadow-lg">
+                <h2 class="text-lg font-semibold mb-2">Общий Баланс</h2>
+                <p id="total-balance" class="text-5xl font-extrabold">0.00 ₸</p>
+                <div id="user-id" class="text-xs mt-2 opacity-75 truncate">ID Пользователя: Загрузка...</div>
+            </div>
+
+            <!-- Секция Ввода Транзакций -->
+            <div class="grid grid-cols-1 lg:cols-3 gap-6 mb-8">
+                <!-- Форма Дохода -->
+                <div class="lg:col-span-1 p-6 bg-white rounded-xl shadow-lg border border-green-100">
+                    <h3 class="text-2xl font-semibold mb-4 text-green-700">Доход (+)</h3>
+                    <form id="income-form">
+                        <input type="number" id="income-amount" placeholder="Сумма (₸)" required class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500">
+                        <select id="income-category" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"></select>
+                        <button type="submit" class="w-full p-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition duration-200 shadow-md">Записать Доход</button>
+                    </form>
+                </div>
+                
+                <!-- Форма Расхода -->
+                <div class="lg:col-span-2 p-6 bg-white rounded-xl shadow-lg border border-red-100">
+                    <h3 class="text-2xl font-semibold mb-4 text-red-700">Расход (-)</h3>
+                    <form id="expense-form">
+                        <input type="number" id="expense-amount" placeholder="Сумма (₸)" required class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500">
+                        <input type="text" id="expense-description" placeholder="Описание (необязательно)" class="w-full p-3 mb-3 border border-gray-300 rounded-lg">
+                        <select id="expense-category" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" required>
+                            <option value="" disabled selected>Выберите категорию</option>
+                        </select>
+                        <button type="submit" class="w-full p-3 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition duration-200 shadow-md">Записать Расход</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Секция Счетов (Accounts) -->
+            <div class="mb-8 p-6 bg-white rounded-xl shadow-lg">
+                <h3 class="text-2xl font-semibold mb-4 text-gray-800">Ваши Счета</h3>
+                <div id="accounts-list" class="space-y-3">
+                    <!-- Счета будут загружены сюда -->
+                </div>
+            </div>
+            
+            <!-- Секция Последних Транзакций -->
+            <div class="p-6 bg-white rounded-xl shadow-lg">
+                <h3 class="text-2xl font-semibold mb-4 text-gray-800">Последние Транзакции</h3>
+                <div id="transactions-list" class="space-y-2">
+                    <!-- Транзакции будут загружены сюда -->
+                    <p class="text-gray-500 italic" id="no-transactions">Транзакций пока нет.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- КОНФИГУРАЦИЯ БОТА (ПЕРЕНЕСЕНО ИЗ bot.js) ---
+        const CURRENCY = '₸';
+
+        const FIXED_INCOME_AMOUNTS = {
+            'Репетиторство': 4000,
+            'Стипендия': 96600,
+            'Другой Доход': 0, // Плейсхолдер для произвольного дохода
+        };
+        
+        const AUTO_TAGS = {
+            'Сладости': 'Еда', 'Мясо': 'Еда', 'Фрукты': 'Еда', 'Молочка': 'Еда', 'Снеки': 'Еда', 'Прочая еда': 'Еда',
+            'Столовая': 'Еда вне дома', 'Готовая еда': 'Еда вне дома', 'Кафе и рестораны': 'Еда вне дома', 'Доставки': 'Еда вне дома',
+            'Одежда': 'Товары', 'Обувь': 'Товары', 'Бытовая химия': 'Хозтовары', 'Хозтовары': 'Хозтовары',
+            'Техника': 'Техника',
+            'Автобус': 'Транспорт', 'Такси': 'Транспорт', 'Путешествия': 'Транспорт и Путешествия',
+            'Коммуналка': 'Ежемесячные платежи', 'Кредиты': 'Ежемесячные платежи', 'Интернет': 'Ежемесячные платежи', 'OLX': 'Ежемесячные платежи', 'Подписки': 'Ежемесячные платежи',
+            'Развлечения': 'Развлечения', 'Подарки': 'Подарки', 'Ремонт и реновация': 'Дом/Ремонт',
+            'Другое': 'Другое',
+        };
+
+        const EXPENSE_CATEGORIES_FLAT = [
+            'Сладости', 'Мясо', 'Фрукты', 'Молочка', 'Снеки', 'Прочая еда',
+            'Столовая', 'Готовая еда', 'Кафе и рестораны', 'Доставки',
+            'Автобус', 'Такси', 'Одежда', 'Обувь',
+            'Бытовая химия', 'Хозтовары', 'Развлечения', 'Подарки',
+            'Техника', 'Путешествия', 'Ремонт и реновация',
+            'Коммуналка', 'Кредиты', 'Интернет', 'OLX', 'Подписки', 'Другое'
+        ].sort(); // Сортируем для удобства в выпадающем списке
+
+        // --- FIREBASE ИНИЦИАЛИЗАЦИЯ ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let mainAccountId = null;
+        let isAuthReady = false;
+
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const mainContent = document.getElementById('main-content');
+        const totalBalanceEl = document.getElementById('total-balance');
+        const userIdEl = document.getElementById('user-id');
+        const accountsListEl = document.getElementById('accounts-list');
+        const transactionsListEl = document.getElementById('transactions-list');
+        const noTransactionsEl = document.getElementById('no-transactions');
+        
+        // Элементы для уведомлений
+        const notificationArea = document.getElementById('notification-area');
+        const notificationContent = document.getElementById('notification-content');
+        const importFileInput = document.getElementById('import-file');
+
+        /** Отображает всплывающее уведомление (замена alert()). */
+        function showNotification(message, type = 'success') {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500'
+            };
+
+            notificationContent.className = `px-4 py-2 rounded-lg text-white font-semibold shadow-xl ${colors[type]}`;
+            notificationContent.textContent = message;
+            notificationArea.classList.remove('opacity-0', 'pointer-events-none');
+            notificationArea.classList.add('opacity-100');
+
+            setTimeout(() => {
+                notificationArea.classList.remove('opacity-100');
+                notificationArea.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Функция для показа/скрытия контента
+        function setUILoading(isLoading) {
+            if (isLoading) {
+                loadingSpinner.classList.remove('hidden');
+                mainContent.classList.add('hidden');
+            } else {
+                loadingSpinner.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+            }
+        }
+
+        // --- DB PATHS ---
+        // Эти функции будут работать только если isAuthReady == true
+        const getAccountRef = (accountId) => doc(db, `artifacts/${appId}/users/${userId}/accounts`, String(accountId));
+        const getAccountsCollection = () => collection(db, `artifacts/${appId}/users/${userId}/accounts`);
+        const getTransactionsCollection = () => collection(db, `artifacts/${appId}/users/${userId}/transactions`);
+
+        // --- ГЕНЕРАЦИЯ UI СПИСКОВ ---
+
+        function populateCategorySelects() {
+            const expenseSelect = document.getElementById('expense-category');
+            EXPENSE_CATEGORIES_FLAT.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                expenseSelect.appendChild(option);
+            });
+
+            const incomeSelect = document.getElementById('income-category');
+            // Очищаем и добавляем фиксированные доходы
+            incomeSelect.innerHTML = '';
+            Object.keys(FIXED_INCOME_AMOUNTS).forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                incomeSelect.appendChild(option);
+            });
+            // Устанавливаем "Другой Доход" как выбранный по умолчанию
+            incomeSelect.value = 'Другой Доход';
+        }
+
+        // --- CRUD ЛОГИКА ---
+
+        /** Обеспечивает наличие основного счета. */
+        async function ensureMainAccount() {
+            if (!isAuthReady) return; // Пропускаем, если Firebase не готов
+            
+            const mainAccountDoc = await getDoc(getAccountRef(1)); // Используем фиксированный ID 1 для "Основного"
+            
+            if (!mainAccountDoc.exists()) {
+                await setDoc(getAccountRef(1), {
+                    user_id: userId,
+                    name: 'Основной',
+                    balance: 0.0,
+                    is_deposit: 0,
+                    created_at: serverTimestamp()
+                });
+            }
+            mainAccountId = 1;
+        }
+
+        /** Обновляет баланс счета. */
+        async function updateAccountBalance(accountId, amount) {
+            if (!isAuthReady) return; // Пропускаем, если Firebase не готов
+
+            const accountRef = getAccountRef(accountId);
+            const accountDoc = await getDoc(accountRef);
+            if (accountDoc.exists()) {
+                const currentBalance = accountDoc.data().balance || 0;
+                await updateDoc(accountRef, {
+                    balance: currentBalance + amount
+                });
+            } else {
+                console.error(`Account ${accountId} not found for balance update.`);
+            }
+        }
+
+        /** Записывает транзакцию и обновляет балансы счетов. */
+        async function recordTransaction(tr) {
+            if (!isAuthReady) {
+                showNotification("Невозможно сохранить данные: Firebase не инициализирован.", 'error');
+                return false;
+            }
+            try {
+                // 1. Обновление балансов
+                if (tr.sourceAccountId) {
+                    await updateAccountBalance(tr.sourceAccountId, -tr.amount);
+                }
+                if (tr.targetAccountId) {
+                    await updateAccountBalance(tr.targetAccountId, tr.amount);
+                }
+
+                // 2. Запись транзакции
+                await addDoc(getTransactionsCollection(), {
+                    user_id: userId,
+                    type: tr.type,
+                    amount: tr.amount,
+                    category: tr.category,
+                    description: tr.description,
+                    tags: tr.tags,
+                    source_account_id: tr.sourceAccountId || null,
+                    target_account_id: tr.targetAccountId || null,
+                    date: serverTimestamp()
+                });
+
+                return true;
+            } catch (error) {
+                console.error("Ошибка при записи транзакции:", error);
+                showNotification("Ошибка при записи транзакции.", 'error');
+                return false;
+            }
+        }
+        
+        // --- Локальные данные для отображения, если Firebase недоступен ---
+        let localAccounts = [];
+        let localTransactions = [];
+        let currentBalance = 0.0;
+
+        /** Обновляет локальный баланс (для UI). */
+        function updateLocalBalance(amount) {
+            currentBalance += amount;
+            totalBalanceEl.textContent = `${currentBalance.toFixed(2)} ${CURRENCY}`;
+            // Также обновляем локальный счет, если он существует
+            const mainAccount = localAccounts.find(a => a.id === 1);
+            if (mainAccount) {
+                mainAccount.balance = currentBalance;
+            }
+            renderLocalData();
+        }
+
+        /** Обновляет UI на основе локальных данных. */
+        function renderLocalData() {
+            // Обновление Счетов
+            accountsListEl.innerHTML = '';
+            localAccounts.forEach(data => {
+                const balance = data.balance || 0;
+                const type = 'Основной счет'; 
+                const colorClass = balance >= 0 ? 'text-gray-800' : 'text-red-500';
+                const accountCard = `
+                    <div class="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center shadow-sm">
+                        <div>
+                            <p class="text-sm text-gray-500">${type}</p>
+                            <p class="text-lg font-medium">${data.name}</p>
+                        </div>
+                        <p class="text-xl font-bold ${colorClass}">${balance.toFixed(2)} ${CURRENCY}</p>
+                    </div>
+                `;
+                accountsListEl.innerHTML += accountCard;
+            });
+
+            // Обновление Транзакций (только последние 10)
+            transactionsListEl.innerHTML = '';
+            const recentTransactions = [...localTransactions]
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 10);
+            
+            if (recentTransactions.length === 0) {
+                noTransactionsEl.classList.remove('hidden');
+            } else {
+                 noTransactionsEl.classList.add('hidden');
+            }
+
+            recentTransactions.forEach(data => {
+                const isIncome = data.type === 'income';
+                const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+                const sign = isIncome ? '+' : '-';
+                const description = data.description ? ` (${data.description})` : '';
+
+                const transactionItem = `
+                    <div class="flex justify-between items-center p-3 border-b border-gray-100 last:border-b-0">
+                        <div>
+                            <p class="font-medium ${colorClass}">${data.category}${description}</p>
+                            <p class="text-xs text-gray-400">${data.tags || 'Нет тега'}</p>
+                        </div>
+                        <p class="text-lg font-bold ${colorClass}">${sign}${data.amount.toFixed(2)} ${CURRENCY}</p>
+                    </div>
+                `;
+                transactionsListEl.innerHTML += transactionItem;
+            });
+            
+            totalBalanceEl.textContent = `${currentBalance.toFixed(2)} ${CURRENCY}`;
+        }
+        
+        // --- ОБНОВЛЕНИЕ UI В РЕАЛЬНОМ ВРЕМЕНИ (ONSNAPSHOT) ---
+
+        /** Слушатель для счетов. */
+        function setupAccountsListener() {
+            if (!isAuthReady) return; // Пропускаем, если Firebase не готов
+            
+            const q = query(getAccountsCollection());
+            onSnapshot(q, (snapshot) => {
+                let totalBalance = 0;
+                localAccounts = []; // Обновляем локальные данные при получении из Firebase
+                accountsListEl.innerHTML = '';
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const balance = data.balance || 0;
+                    totalBalance += balance;
+                    localAccounts.push({ id: Number(doc.id), ...data });
+
+                    // ... (генерация UI-карточек счетов)
+                    const type = data.is_deposit 
+                        ? 'Депозит' 
+                        : 'Основной счет';
+                    const colorClass = balance >= 0 ? 'text-gray-800' : 'text-red-500';
+
+                    const accountCard = `
+                        <div class="p-4 border border-gray-200 rounded-lg bg-gray-50 flex justify-between items-center shadow-sm">
+                            <div>
+                                <p class="text-sm text-gray-500">${type}</p>
+                                <p class="text-lg font-medium">${data.name}</p>
+                            </div>
+                            <p class="text-xl font-bold ${colorClass}">${balance.toFixed(2)} ${CURRENCY}</p>
+                        </div>
+                    `;
+                    accountsListEl.innerHTML += accountCard;
+                });
+                
+                currentBalance = totalBalance; // Обновляем текущий баланс из Firebase
+                totalBalanceEl.textContent = `${currentBalance.toFixed(2)} ${CURRENCY}`;
+            }, (error) => {
+                console.error("Ошибка при получении счетов:", error);
+                accountsListEl.innerHTML = `<p class="text-red-500">Ошибка загрузки счетов.</p>`;
+            });
+        }
+
+        /** Слушатель для транзакций. */
+        function setupTransactionsListener() {
+            if (!isAuthReady) return; // Пропускаем, если Firebase не готов
+
+            // Запрашиваем 10 последних транзакций по дате
+            const q = query(getTransactionsCollection(), orderBy("date", "desc"), limit(10));
+            onSnapshot(q, (snapshot) => {
+                localTransactions = []; // Обновляем локальные данные при получении из Firebase
+                transactionsListEl.innerHTML = '';
+
+                if (snapshot.empty) {
+                    noTransactionsEl.classList.remove('hidden');
+                    return;
+                }
+                noTransactionsEl.classList.add('hidden');
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    localTransactions.push(data);
+                    // ... (генерация UI-элементов транзакций)
+                    const isIncome = data.type === 'income';
+                    const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+                    const sign = isIncome ? '+' : '-';
+                    const description = data.description ? ` (${data.description})` : '';
+
+                    const transactionItem = `
+                        <div class="flex justify-between items-center p-3 border-b border-gray-100 last:border-b-0">
+                            <div>
+                                <p class="font-medium ${colorClass}">${data.category}${description}</p>
+                                <p class="text-xs text-gray-400">${data.tags || 'Нет тега'}</p>
+                            </div>
+                            <p class="text-lg font-bold ${colorClass}">${sign}${data.amount.toFixed(2)} ${CURRENCY}</p>
+                        </div>
+                    `;
+                    transactionsListEl.innerHTML += transactionItem;
+                });
+            }, (error) => {
+                console.error("Ошибка при получении транзакций:", error);
+                transactionsListEl.innerHTML = `<p class="text-red-500">Ошибка загрузки транзакций.</p>`;
+            });
+        }
+        
+        // --- ОБРАБОТЧИКИ ФОРМ (обновлены для работы с локальным состоянием) ---
+
+        document.getElementById('expense-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const amount = parseFloat(document.getElementById('expense-amount').value);
+            const category = document.getElementById('expense-category').value;
+            const description = document.getElementById('expense-description').value.trim();
+
+            if (isNaN(amount) || amount <= 0 || !category) {
+                showNotification('Пожалуйста, введите корректную сумму и выберите категорию.', 'warning');
+                return;
+            }
+
+            const autoTag = AUTO_TAGS[category] || 'Другое';
+
+            const transaction = {
+                userId,
+                type: 'expense',
+                amount: amount,
+                category: category,
+                description: description,
+                tags: autoTag,
+                sourceAccountId: mainAccountId,
+                targetAccountId: null,
+            };
+
+            if (isAuthReady) {
+                const success = await recordTransaction(transaction);
+                if (success) e.target.reset();
+            } else {
+                // Локальное обновление
+                localTransactions.push({ ...transaction, date: new Date(), source_account_id: mainAccountId });
+                updateLocalBalance(-amount);
+                e.target.reset(); 
+                document.getElementById('expense-category').value = "";
+                showNotification('Расход записан локально. Данные не сохранены в облаке.', 'warning');
+            }
+        });
+
+        document.getElementById('income-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            let amount = parseFloat(document.getElementById('income-amount').value);
+            const category = document.getElementById('income-category').value;
+            
+            if (FIXED_INCOME_AMOUNTS[category] && FIXED_INCOME_AMOUNTS[category] > 0) {
+                amount = FIXED_INCOME_AMOUNTS[category];
+            } else if (isNaN(amount) || amount <= 0) {
+                 showNotification('Пожалуйста, введите корректную сумму дохода.', 'warning');
+                return;
+            }
+
+            const transaction = {
+                userId,
+                type: 'income',
+                amount: amount,
+                category: category,
+                description: '',
+                tags: '',
+                sourceAccountId: null,
+                targetAccountId: mainAccountId,
+            };
+            
+            if (isAuthReady) {
+                const success = await recordTransaction(transaction);
+                if (success) e.target.reset(); 
+            } else {
+                // Локальное обновление
+                localTransactions.push({ ...transaction, date: new Date(), target_account_id: mainAccountId });
+                updateLocalBalance(amount);
+                e.target.reset();
+                document.getElementById('income-category').value = 'Другой Доход';
+                showNotification('Доход записан локально. Данные не сохранены в облаке.', 'warning');
+            }
+        });
+
+        /** Обработчик импорта JSON файла. */
+        async function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Мы убрали жесткую проверку isAuthReady, чтобы позволить загрузку для UI.
+            if (!isAuthReady) {
+                 showNotification("Firebase не инициализирован. Данные будут загружены только локально в UI.", 'warning');
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const jsonText = e.target.result;
+                    const data = JSON.parse(jsonText);
+
+                    if (!Array.isArray(data.accounts) || !Array.isArray(data.transactions)) {
+                        showNotification("Неверный формат JSON. Ожидаются массивы 'accounts' и 'transactions'.", 'error');
+                        return;
+                    }
+
+                    showNotification("Начало импорта...", 'warning');
+
+                    // 1. Импорт Счетов
+                    const mainAccountData = data.accounts.find(a => a.id === 1 || a.name === 'Основной');
+                    if (mainAccountData) {
+                        localAccounts = [{ id: 1, name: mainAccountData.name, balance: mainAccountData.balance }];
+                        currentBalance = mainAccountData.balance;
+
+                        if (isAuthReady) {
+                            // Сохранение в Firebase
+                            await setDoc(getAccountRef(1), {
+                                user_id: userId,
+                                name: mainAccountData.name,
+                                balance: mainAccountData.balance,
+                                is_deposit: 0, 
+                                created_at: serverTimestamp()
+                            });
+                        }
+                    } else {
+                         showNotification("В импортируемых данных не найден Основной счет. Баланс сброшен.", 'warning');
+                         localAccounts = [];
+                         currentBalance = 0.0;
+                    }
+
+
+                    // 2. Импорт Транзакций 
+                    let importCount = 0;
+                    localTransactions = [];
+                    for (const tr of data.transactions) {
+                        localTransactions.push(tr);
+                        if (isAuthReady) {
+                            // Сохранение в Firebase
+                            await addDoc(getTransactionsCollection(), {
+                                user_id: userId,
+                                type: tr.type,
+                                amount: tr.amount,
+                                category: tr.category,
+                                description: tr.description || '',
+                                tags: tr.tags || '',
+                                source_account_id: tr.source_account_id || null,
+                                target_account_id: tr.target_account_id || 1, 
+                                date: tr.date ? new Date(tr.date) : serverTimestamp()
+                            });
+                        }
+                        importCount++;
+                    }
+                    
+                    // Обновление UI
+                    renderLocalData();
+
+                    showNotification(`Успешно импортировано: ${mainAccountData ? '1 счет и ' : ''}${importCount} транзакций!`, 'success');
+
+                    event.target.value = ''; 
+
+                } catch (error) {
+                    console.error("Ошибка при обработке импорта:", error);
+                    showNotification(`Ошибка импорта: Неверный формат файла. ${error.message}`, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        importFileInput.addEventListener('change', importData);
+        
+        // --- ГЛАВНАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ---
+
+        async function initialize() {
+            setUILoading(true);
+            setLogLevel('Debug'); // Добавляем логирование для отладки
+
+            try {
+                // 1. Инициализация Firebase
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase config is empty. Using defaults.");
+                }
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // 2. Аутентификация
+                let userCredential;
+                if (initialAuthToken) {
+                    userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    userCredential = await signInAnonymously(auth);
+                }
+                userId = userCredential.user.uid;
+                userIdEl.textContent = `ID Пользователя: ${userId}`;
+                isAuthReady = true;
+
+                // 3. Обеспечение наличия основного счета
+                await ensureMainAccount();
+                
+                // 4. Заполнение выпадающих списков
+                populateCategorySelects();
+
+                // 5. Установка слушателей в реальном времени
+                setupAccountsListener();
+                setupTransactionsListener();
+
+            } catch (error) {
+                // Обработка ошибок, если Firebase не инициализирован
+                console.error("Ошибка при инициализации/аутентификации:", error);
+                
+                let displayMessage = `Сбой инициализации. Проверьте консоль.`;
+                if (error.message.includes("projectId")) {
+                    displayMessage = `Ошибка Firebase: Не найдена конфигурация проекта. Данные доступны только через Импорт.`;
+                } else if (error.code && error.code.startsWith('auth/')) {
+                     displayMessage = `Ошибка Аутентификации: ${error.code}`;
+                }
+                
+                userIdEl.textContent = displayMessage;
+                // Инициализируем локальные данные, чтобы UI не был полностью пустым
+                localAccounts = [{ id: 1, name: 'Основной Счет', balance: 0.0 }];
+                renderLocalData();
+                showNotification("Не удалось подключиться к Firebase. Работа в режиме локального просмотра.", 'warning');
+
+            } finally {
+                // Гарантирует, что спиннер всегда будет скрыт.
+                setUILoading(false);
+            }
+        }
+
+        window.onload = initialize;
+    </script>
+</body>
+</html>

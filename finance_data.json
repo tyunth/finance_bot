@@ -1,0 +1,51 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "name": "Основной Счет",
+      "balance": 185000.75
+    }
+  ],
+  "transactions": [
+    {
+      "type": "income",
+      "amount": 96600.00,
+      "category": "Стипендия",
+      "description": "Ежемесячная выплата",
+      "tags": "Доход",
+      "source_account_id": null,
+      "target_account_id": 1,
+      "date": "2024-11-25T12:00:00Z"
+    },
+    {
+      "type": "expense",
+      "amount": 2500.00,
+      "category": "Автобус",
+      "description": "Проездной на неделю",
+      "tags": "Транспорт",
+      "source_account_id": 1,
+      "target_account_id": null,
+      "date": "2024-11-27T08:30:00Z"
+    },
+    {
+      "type": "expense",
+      "amount": 12000.50,
+      "category": "Техника",
+      "description": "Новая клавиатура",
+      "tags": "Техника",
+      "source_account_id": 1,
+      "target_account_id": null,
+      "date": "2024-11-28T19:45:00Z"
+    },
+    {
+      "type": "expense",
+      "amount": 450.25,
+      "category": "Сладости",
+      "description": "Кофе и круассан",
+      "tags": "Еда",
+      "source_account_id": 1,
+      "target_account_id": null,
+      "date": "2024-11-28T20:00:00Z"
+    }
+  ]
+}
