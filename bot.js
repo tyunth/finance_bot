@@ -137,6 +137,7 @@ bot.start(async (ctx) => {
 
 const HELP_MSG = `
 Команды:
+/students - Список отслеживаемых учеников
 /day 05.12 - Траты за дату
 /latest 10 - Последние транзакции
 /debts - Список долгов учеников
@@ -151,6 +152,12 @@ bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
 
 // --- CALENDAR COMMANDS ---
 bot.command('sync', (ctx) => runCalendarCheck(ctx));
+
+// НОВАЯ КОМАНДА: Список учеников
+bot.command('students', (ctx) => {
+    const list = config.KEYWORDS.map(k => `- ${k}`).join('\n');
+    ctx.reply(`🕵️‍♂️ **Я ищу в календаре события с этими словами:**\n\n${list}`, { parse_mode: 'Markdown' });
+});
 
 // --- CALENDAR ACTIONS ---
 
