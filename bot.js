@@ -7,6 +7,7 @@ const config = require('./config');
 const db = require('./db');
 const kb = require('./keyboards');
 const gcal = require('./calendar');
+const ocr = require('./ocr_service'); 
 
 // ---------------- UTILS ----------------
 
@@ -19,6 +20,11 @@ function parseAmount(text) {
     const cleaned = text.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
     const amount = parseFloat(cleaned);
     return isNaN(amount) ? null : Math.abs(amount);
+}
+
+function escapeMarkdown(text) {
+    if (!text) return '';
+    return text.replace(/[*_`\[\]()]/g, ''); 
 }
 
 function formatTransactionRow(t) {
@@ -47,12 +53,8 @@ bot.use((ctx, next) => {
     return next();
 });
 
-// ---------------- CALENDAR POLLING LOGIC ----------------
+// ---------------- CALENDAR POLLING ----------------
 
-/**
- * Запускает проверку календаря.
- * @param {object} ctx - Контекст Telegraf (если вызвано вручную) или null (если по таймеру)
- */
 async function runCalendarCheck(ctx = null) {
     const adminId = config.ADMIN_ID || (ctx ? ctx.from.id : null);
     
@@ -61,27 +63,20 @@ async function runCalendarCheck(ctx = null) {
         return;
     }
 
-    // Функция для отправки логов (только в консоль при авто-режиме)
     const log = async (msg) => {
         console.log(msg);
-        if (ctx) { 
-            // Если запуск ручной - шлем в чат тихо
-            await ctx.reply(`⚙️ ${msg}`, { disable_notification: true });
-        }
+        if (ctx) await ctx.reply(`LOG: ${msg}`, { disable_notification: true });
     };
 
     try {
         const events = await gcal.getRecentLessons(log);
         
-        if (events.length === 0) {
-            return;
-        }
+        if (events.length === 0) return;
         
         for (const event of events) {
-            // Пропускаем, если уже обработали
             const processed = await db.isEventProcessed(event.id);
             if (processed) {
-                await log(`-- Событие "${event.summary}" уже было обработано ранее.`);
+                await log(`-- Событие "${event.summary}" уже было обработано.`);
                 continue;
             }
 
@@ -89,23 +84,21 @@ async function runCalendarCheck(ctx = null) {
             const { studentName, subject } = gcal.parseLessonInfo(summary);
             const amount = config.LESSON_PRICE;
 
-            // Отправляем интерактивное уведомление
             await bot.telegram.sendMessage(adminId, 
-                `🔔 **Урок завершен:** ${summary}\n` +
+                `Урок завершен: ${summary}\n` +
                 `Студент: ${studentName}\n` +
                 `Предмет: ${subject}\n\n` +
                 `Что делаем?`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
-                        [Markup.button.callback(`✅ Был, оплачен (+${amount})`, `cal_paid_${event.id}`)],
-                        [Markup.button.callback(`⏳ Был, не оплачен (Долг)`, `cal_debt_${event.id}`)],
-                        [Markup.button.callback(`❌ Не было (Удалить)`, `cal_del_${event.id}`)]
+                        [Markup.button.callback(`Был, оплачен (+${amount})`, `cal_paid_${event.id}`)],
+                        [Markup.button.callback(`Был, не оплачен (Долг)`, `cal_debt_${event.id}`)],
+                        [Markup.button.callback(`Не было (Удалить)`, `cal_del_${event.id}`)]
                     ])
                 }
             );
         }
-
     } catch (e) {
         console.error('Ошибка при проверке календаря:', e);
         if (e.message.includes('google_key.json')) {
@@ -114,7 +107,7 @@ async function runCalendarCheck(ctx = null) {
     }
 }
 
-// Запускаем интервал проверки (каждые 15 минут)
+// Проверка раз в 15 минут
 setInterval(() => runCalendarCheck(), 15 * 60 * 1000);
 
 // ---------------- HANDLERS ----------------
@@ -130,13 +123,12 @@ bot.start(async (ctx) => {
         if (name === 'Основной' || bal > 0) msg += `\n${name}: ${formatAmount(bal)}`;
     }
     ctx.reply(msg, kb.MAIN_KEYBOARD);
-    
-    // Тихий запуск проверки при старте
     runCalendarCheck(); 
 });
 
 const HELP_MSG = `
 Команды:
+/show - Показать сырой текст последнего чека
 /day 05.12 - Траты за дату
 /latest 10 - Последние транзакции
 /debts - Список долгов учеников
@@ -144,112 +136,29 @@ const HELP_MSG = `
 /delete_deposit - Удалить депозит
 /edit ID - Редактировать запись
 /delete ID - Удалить запись
-/sync - Принудительная проверка календаря
+/sync - Проверить календарь вручную
+/export - скачать базу данных
 `;
 
 bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
 
-// --- CALENDAR COMMANDS ---
+// --- COMMANDS ---
 bot.command('sync', (ctx) => runCalendarCheck(ctx));
 
-// --- CALENDAR ACTIONS ---
-
-bot.action(/cal_paid_(.+)/, async (ctx) => {
-    const eventId = ctx.match[1];
-    const msgLines = ctx.callbackQuery.message.text.split('\n');
-    const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
-    const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
-    
-    const { studentName, subject } = gcal.parseLessonInfo(summary);
-    const amount = config.LESSON_PRICE;
-
-    await db.addTransaction({
-        userId: ctx.from.id,
-        type: 'income',
-        amount: amount,
-        category: 'Репетиторство',
-        tag: `Ученик: ${studentName}`,
-        comment: `${subject} (${summary})`,
-        sourceAccount: null,
-        targetAccount: 'Основной'
-    });
-
-    await db.markEventProcessed(eventId, summary, 'paid');
-    ctx.editMessageText(`✅ Урок "${summary}" оплачен. +${formatAmount(amount)}`);
-});
-
-bot.action(/cal_debt_(.+)/, async (ctx) => {
-    const eventId = ctx.match[1];
-    const msgLines = ctx.callbackQuery.message.text.split('\n');
-    const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
-    const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
-    
-    const { studentName, subject } = gcal.parseLessonInfo(summary);
-
-    await db.addDebt(ctx.from.id, studentName, subject, config.LESSON_PRICE, eventId);
-    await db.markEventProcessed(eventId, summary, 'debt');
-
-    ctx.editMessageText(`⏳ Урок "${summary}" записан в долги.`);
-});
-
-bot.action(/cal_del_(.+)/, async (ctx) => {
-    const eventId = ctx.match[1];
-    const success = await gcal.deleteEvent(eventId);
-    
-    if (success) {
-        await db.markEventProcessed(eventId, 'Deleted Event', 'cancelled');
-        ctx.editMessageText(`❌ Событие удалено из календаря.`);
-    } else {
-        ctx.reply('Ошибка при удалении из календаря. Проверьте права сервисного аккаунта.');
+bot.command('show', (ctx) => {
+    const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Нет сохраненного текста чека. Отправьте фото сначала.';
+    if (raw.length > 4000) {
+         return ctx.replyWithDocument({ source: Buffer.from(raw), filename: 'receipt.txt' });
     }
+    return ctx.reply(raw);
 });
-
-// --- ДОЛГИ ---
-bot.command('debts', async (ctx) => {
-    const debts = await db.getDebts(ctx.from.id);
-    if (!debts.length) return ctx.reply('Долгов нет.', kb.MAIN_KEYBOARD);
-    
-    let msg = '*Неоплаченные уроки:*\n';
-    const buttons = debts.map(d => [Markup.button.callback(`Оплачено: ${d.student_name} (${d.date.slice(0,10)})`, `pay_debt_${d.id}`)]);
-    
-    debts.forEach(d => {
-        msg += `\n- ${d.student_name} (${d.subject}): ${formatAmount(d.amount)} от ${d.date.slice(0,10)}`;
-    });
-    
-    ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
-});
-
-bot.action(/pay_debt_(.+)/, async (ctx) => {
-    const debtId = ctx.match[1];
-    const debt = await db.dbGet('SELECT * FROM debts WHERE id = ?', [debtId]);
-    if (!debt) return ctx.reply('Не найдено.');
-
-    await db.addTransaction({
-        userId: ctx.from.id,
-        type: 'income',
-        amount: debt.amount,
-        category: 'Репетиторство',
-        tag: `Ученик: ${debt.student_name}`,
-        comment: `Оплата долга за ${debt.date.slice(0,10)} (${debt.subject})`,
-        sourceAccount: null,
-        targetAccount: 'Основной'
-    });
-
-    await db.dbRun('UPDATE debts SET is_paid = 1 WHERE id = ?', [debtId]);
-    ctx.editMessageText(`✅ Долг ${debt.student_name} оплачен!`);
-});
-
-
-// --- КОМАНДЫ (REGEX) ---
 
 bot.hears(/^(?:\/)?day\s+(.+)$/i, async (ctx) => {
     const text = ctx.match[1];
     const dateStr = parseDate(text);
     if (!dateStr) return ctx.reply('Неверный формат. Пример: day 05.12');
-
     const rows = await db.dbAll('SELECT * FROM transactions WHERE user_id = ? AND date LIKE ? ORDER BY date DESC', [ctx.from.id, `${dateStr}%`]);
     if (!rows.length) return ctx.reply(`Нет операций за ${dateStr}.`);
-    
     const report = rows.map(r => formatTransactionRow(r)).join('\n\n');
     ctx.reply(`Операции за ${dateStr}:\n\n${report}`);
 });
@@ -267,26 +176,17 @@ bot.command('export', async (ctx) => {
     else ctx.reply('БД не найдена.');
 });
 
-// --- РЕДАКТИРОВАНИЕ И УДАЛЕНИЕ ---
-
+// --- EDIT & DELETE ---
 const handleEdit = async (ctx, text) => {
     const parts = text.split(/\s+/);
     const txId = parseInt(parts[1]); 
     if (isNaN(txId)) return ctx.reply('Укажите ID: edit 123');
-    
     const t = await db.dbGet('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [txId, ctx.from.id]);
     if (!t) return ctx.reply('Не найдено.');
-
     const editType = t.type === 'income' ? 'edit_income' : 'edit_expense';
-
-    ctx.session.state = {
-        type: editType, 
-        txId,
-        step: config.STATE.EDIT_AWAITING_AMOUNT
-    };
+    ctx.session.state = { type: editType, txId, step: config.STATE.EDIT_AWAITING_AMOUNT };
     ctx.reply(`Редактирование ID ${txId}.\nВведите новую сумму (или 0 чтобы оставить ${t.amount}):`, kb.BACK_KEYBOARD);
 };
-
 bot.command(['edit', 'editor'], (ctx) => handleEdit(ctx, ctx.message.text));
 bot.hears(/^edit\s+(\d+)$/i, (ctx) => handleEdit(ctx, ctx.message.text));
 
@@ -297,32 +197,36 @@ const handleDelete = async (ctx, text) => {
     await db.dbRun('DELETE FROM transactions WHERE id = ? AND user_id = ?', [txId, ctx.from.id]);
     ctx.reply(`Запись ${txId} удалена.`);
 };
-
 bot.command('delete', (ctx) => handleDelete(ctx, ctx.message.text));
 bot.hears(/^delete\s+(\d+)$/i, (ctx) => handleDelete(ctx, ctx.message.text));
 
-
-// --- ДЕПОЗИТЫ ---
-
+// --- DEPOSITS ---
 bot.command('add_deposit', (ctx) => {
     ctx.session.state = { step: config.STATE.AWAITING_DEPOSIT_NAME };
     ctx.reply('Название депозита:', kb.BACK_KEYBOARD);
 });
-
 const startDeleteDeposit = async (ctx) => {
     const list = await db.dbAll('SELECT name FROM accounts WHERE user_id = ? AND is_deposit = 1', [ctx.from.id]);
     if (!list.length) return ctx.reply('Нет депозитов.', kb.MAIN_KEYBOARD);
-    
     ctx.session.state = { step: config.STATE.AWAITING_DEPOSIT_DELETION };
     const buttons = list.map(a => [a.name]);
     buttons.push(['Отмена']);
     ctx.reply('Выберите депозит для удаления:', Markup.keyboard(buttons).resize());
 };
-
 bot.command('delete_deposit', (ctx) => startDeleteDeposit(ctx));
 bot.hears('delete_deposit', (ctx) => startDeleteDeposit(ctx));
 
-// --- СЧЕТА ---
+// --- DEBTS ---
+bot.command('debts', async (ctx) => {
+    const debts = await db.getDebts(ctx.from.id);
+    if (!debts.length) return ctx.reply('Долгов нет.', kb.MAIN_KEYBOARD);
+    let msg = '*Неоплаченные уроки:*\n';
+    const buttons = debts.map(d => [Markup.button.callback(`Оплачено: ${d.student_name} (${d.date.slice(0,10)})`, `pay_debt_${d.id}`)]);
+    debts.forEach(d => { msg += `\n- ${d.student_name} (${d.subject}): ${formatAmount(d.amount)} от ${d.date.slice(0,10)}`; });
+    ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
+});
+
+// --- MENU ACTIONS ---
 bot.hears('Счета', async (ctx) => {
     const { balances, accountsList } = await db.getBalances(ctx.from.id);
     let msg = `Ваши счета:`;
@@ -336,19 +240,14 @@ bot.hears('Счета', async (ctx) => {
 bot.hears('Отчеты', async (ctx) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    
     const rows = await db.dbAll(`SELECT type, amount FROM transactions WHERE user_id = ? AND date >= ?`, [ctx.from.id, startOfMonth]);
     let income = 0, expense = 0;
     rows.forEach(r => r.type === 'income' ? income += r.amount : (r.type === 'expense' ? expense += r.amount : 0));
-
     const catStats = await db.getCategoryStats(ctx.from.id, startOfMonth);
     let catMsg = '';
     Object.entries(catStats).sort(([,a], [,b]) => b - a).forEach(([cat, amt]) => catMsg += `\n${cat}: ${formatAmount(amt)}`);
-
     ctx.reply(`Отчет за текущий месяц:\n\nДоход: ${formatAmount(income)}\nРасход: ${formatAmount(expense)}\nИтого: ${formatAmount(income - expense)}\n\nПо категориям:${catMsg}`);
 });
-
-// --- ГЛАВНОЕ МЕНЮ ---
 
 bot.hears('Доход', (ctx) => {
     ctx.session.state = { type: 'income', step: config.STATE.AWAITING_CATEGORY };
@@ -366,82 +265,202 @@ bot.hears('Перевод', async (ctx) => {
     ctx.reply('С какого счета переводим?', keyb);
 });
 
-// --- CALLBACKS ---
+// --- CALLBACK QUERIES ---
 bot.on('callback_query', async (ctx) => {
     const data = ctx.callbackQuery.data;
     await ctx.answerCbQuery();
 
-    if (data === 'cancel_op') {
-        ctx.session.state = {};
-        return ctx.editMessageText('Отменено.');
+    if (data === 'cancel_op') { ctx.session.state = {}; return ctx.editMessageText('Отменено.'); }
+    if (data === 'btn_add_deposit') { ctx.session.state = { step: config.STATE.AWAITING_DEPOSIT_NAME }; return ctx.reply('Название депозита:', kb.BACK_KEYBOARD); }
+    if (data === 'btn_del_deposit') { return startDeleteDeposit(ctx); }
+    
+    if (data === 'show_raw_ocr') {
+        const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Текст не сохранен.';
+        return ctx.reply(raw.substring(0, 4000));
     }
-    if (data === 'btn_add_deposit') {
-        ctx.session.state = { step: config.STATE.AWAITING_DEPOSIT_NAME };
-        return ctx.reply('Название депозита:', kb.BACK_KEYBOARD);
+
+    // Календарь
+    if (data.startsWith('cal_')) {
+        const eventId = data.split('_')[2]; 
+        const action = data.split('_')[1]; 
+        
+        if (action === 'del') {
+            const success = await gcal.deleteEvent(eventId);
+            if (success) {
+                await db.markEventProcessed(eventId, 'Deleted', 'cancelled');
+                return ctx.editMessageText('Событие удалено.');
+            } else return ctx.reply('Ошибка удаления.');
+        }
+
+        const msgLines = ctx.callbackQuery.message.text.split('\n');
+        const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
+        const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
+        const { studentName, subject } = gcal.parseLessonInfo(summary);
+
+        if (action === 'paid') {
+            await db.addTransaction({
+                userId: ctx.from.id, type: 'income', amount: config.LESSON_PRICE, category: 'Репетиторство',
+                tag: `Ученик: ${studentName}`, comment: `${subject} (${summary})`, sourceAccount: null, targetAccount: 'Основной'
+            });
+            await db.markEventProcessed(eventId, summary, 'paid');
+            return ctx.editMessageText(`Оплачено: ${summary}`);
+        }
+        if (action === 'debt') {
+            await db.addDebt(ctx.from.id, studentName, subject, config.LESSON_PRICE, eventId);
+            await db.markEventProcessed(eventId, summary, 'debt');
+            return ctx.editMessageText(`В долги: ${summary}`);
+        }
     }
-    if (data === 'btn_del_deposit') {
-        return startDeleteDeposit(ctx);
+
+    if (data.startsWith('pay_debt_')) {
+        const debtId = data.replace('pay_debt_', '');
+        const debt = await db.dbGet('SELECT * FROM debts WHERE id = ?', [debtId]);
+        if (!debt) return ctx.reply('Не найдено.');
+        await db.addTransaction({
+            userId: ctx.from.id, type: 'income', amount: debt.amount, category: 'Репетиторство',
+            tag: `Ученик: ${debt.student_name}`, comment: `Оплата долга (${debt.subject})`, sourceAccount: null, targetAccount: 'Основной'
+        });
+        await db.dbRun('UPDATE debts SET is_paid = 1 WHERE id = ?', [debtId]);
+        return ctx.editMessageText(`Долг ${debt.student_name} оплачен!`);
     }
 });
 
-// --- TEXT HANDLER ---
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text.trim();
-    if (text.startsWith('/')) return;
+// --- PHOTO HANDLER (OCR) ---
+bot.on('photo', async (ctx) => {
+    try {
+        ctx.reply('🔍 Анализирую чек...');
+        const photo = ctx.message.photo.pop();
+        const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+        
+        const response = await fetch(fileLink.href);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const receiptData = await ocr.parseReceipt(buffer);
+        
+        ctx.session.receipt = {
+            rawText: receiptData.rawText,
+            shopName: receiptData.shopName || 'Unknown',
+            address: receiptData.address,
+            date: receiptData.date,
+            items: [],
+            currentIndex: 0,
+            totalSum: receiptData.total || 0,
+			totalWarning: receiptData.totalWarning
+        };
+
+        if (receiptData.error || !receiptData.items || receiptData.items.length === 0) {
+             return ctx.reply('Товары не найдены или ошибка.', Markup.inlineKeyboard([
+                 Markup.button.callback('Показать сырой текст (Debug)', 'show_raw_ocr')
+             ]));
+        }
+
+        const itemsToProcess = [];
+        for (const item of receiptData.items) {
+            let category = await db.getProductCategory(item.name);
+            if (!category) {
+                const shopKey = Object.keys(config.SHOP_MAPPINGS).find(key => 
+                    receiptData.shopName.toLowerCase().includes(key.toLowerCase())
+                );
+                if (shopKey) category = config.SHOP_MAPPINGS[shopKey];
+            }
+            item.category = category; 
+            itemsToProcess.push(item);
+        }
+
+        ctx.session.receipt.items = itemsToProcess;
+        await processNextReceiptItem(ctx);
+
+    } catch (e) {
+        console.error(e);
+        ctx.reply('Ошибка обработки фото.');
+    }
+});
+
+async function processNextReceiptItem(ctx) {
+    const receipt = ctx.session.receipt;
+    const itemIndex = receipt.items.findIndex(i => !i.category);
     
+    if (itemIndex === -1) return finalizeReceipt(ctx);
+
+    const item = receipt.items[itemIndex];
+    ctx.session.state = { step: 'AWAITING_RECEIPT_CATEGORY', currentItemIndex: itemIndex };
+
+    const msg = `**${escapeMarkdown(receipt.shopName)}**\nТовар: **${escapeMarkdown(item.name)}**\nЦена: ${formatAmount(item.price)}\n\nКатегория?`;
+    await ctx.replyWithMarkdown(msg, kb.generateReplyKeyboard(config.EXPENSE_CATEGORIES));
+}
+
+async function finalizeReceipt(ctx) {
+    const receipt = ctx.session.receipt;
+    const grouped = {};
+    for (const item of receipt.items) {
+        if (!grouped[item.category]) grouped[item.category] = { sum: 0, items: [] };
+        grouped[item.category].sum += item.price;
+        grouped[item.category].items.push(item);
+    }
+
+    const displayDate = new Date(receipt.date).toLocaleDateString('ru-RU');
+    let reportMsg = `**Чек из ${escapeMarkdown(receipt.shopName)}** (${displayDate})\n`;
+    if (receipt.address) reportMsg += `Адрес: ${escapeMarkdown(receipt.address)}\n\n`;
+	if (receipt.totalWarning) {
+        reportMsg += `\n${receipt.totalWarning}\n`;
+    }
+    reportMsg += `\n`;
+    for (const [category, data] of Object.entries(grouped)) {
+        const tag = config.AUTO_TAGS[category] || 'Разное';
+        const itemNames = data.items.map(i => escapeMarkdown(i.name)).join(', ');
+        const addrSuffix = receipt.address ? ` (${escapeMarkdown(receipt.address)})` : '';
+        const comment = `Чек ${escapeMarkdown(receipt.shopName)}: ${itemNames.substring(0, 30)}...${addrSuffix}`;
+
+        const result = await db.addTransaction({
+            userId: ctx.from.id,
+            type: 'expense',
+            amount: data.sum,
+            category: category,
+            tag: tag,
+            comment: comment,
+            sourceAccount: 'Основной',
+            targetAccount: null,
+            date: receipt.date 
+        });
+        
+        if (result.lastID) await db.saveReceiptItems(result.lastID, receipt.shopName, data.items, receipt.date);
+        reportMsg += `- ${category}: ${formatAmount(data.sum)}\n`;
+    }
+    
+    const { balances } = await db.getBalances(ctx.from.id);
+    reportMsg += `\nБаланс: ${formatAmount(balances['Основной'])}`;
+    
+    const debugKeyboard = Markup.inlineKeyboard([
+        Markup.button.callback('Показать сырой текст (Debug)', 'show_raw_ocr')
+    ]);
+
+    delete ctx.session.receipt;
+    ctx.session.state = {};
+    await ctx.replyWithMarkdown(reportMsg, debugKeyboard);
+}
+
+// --- TEXT HANDLER ---
+async function handleStandardTextFlow(ctx) {
+    const text = ctx.message.text.trim();
     const state = ctx.session.state;
     const userId = ctx.from.id;
 
-    if (['Отмена', 'В меню'].includes(text)) {
-        ctx.session.state = {};
-        return ctx.reply('В меню.', kb.MAIN_KEYBOARD);
-    }
-
-    if (text === 'Назад') {
-        if (state.step === config.STATE.AWAITING_EXPENSE_COMMENT) {
-            state.step = config.STATE.AWAITING_EXPENSE_AMOUNT;
-            return ctx.reply('Сумма расхода:', kb.BACK_KEYBOARD);
-        }
-        if (state.step === config.STATE.AWAITING_CATEGORY && state.type === 'expense') {
-            state.step = config.STATE.AWAITING_EXPENSE_COMMENT;
-            return ctx.reply('Комментарий:', kb.SKIP_COMMENT_KEYBOARD);
-        }
-        if (state.step === config.STATE.AWAITING_INCOME_AMOUNT) {
-            state.step = config.STATE.AWAITING_CATEGORY;
-            return ctx.reply('Категория дохода:', kb.generateReplyKeyboard(config.INCOME_CATEGORIES, true));
-        }
-        if (state.step === config.STATE.AWAITING_TRANSFER_TARGET) {
-            state.step = config.STATE.AWAITING_TRANSFER_SOURCE;
-            const keyb = await kb.generateAccountReplyKeyboard(db, userId, null, false);
-            return ctx.reply('С какого счета?', keyb);
-        }
-        if (state.step === config.STATE.AWAITING_TRANSFER_AMOUNT) {
-            state.step = config.STATE.AWAITING_TRANSFER_TARGET;
-            const keyb = await kb.generateAccountReplyKeyboard(db, userId, state.sourceAccount, true);
-            return ctx.reply('На какой счет?', keyb);
-        }
-        
-        ctx.session.state = {};
-        return ctx.reply('В меню.', kb.MAIN_KEYBOARD);
-    }
-
     if (!state || !state.step) return ctx.reply('Используйте меню.', kb.MAIN_KEYBOARD);
+    if (text === 'Назад') return goBack(ctx);
 
-    // --- УДАЛЕНИЕ ДЕПОЗИТА ---
+    // УДАЛЕНИЕ ДЕПОЗИТА
     if (state.step === config.STATE.AWAITING_DEPOSIT_DELETION) {
         try {
             const acc = await db.dbGet('SELECT id FROM accounts WHERE name = ? AND user_id = ? AND is_deposit = 1', [text, userId]);
             if (!acc) return ctx.reply('Такой депозит не найден.');
-            
             await db.dbRun('DELETE FROM accounts WHERE id = ?', [acc.id]);
             ctx.session.state = {};
             return ctx.reply(`Депозит "${text}" удален.`, kb.MAIN_KEYBOARD);
-        } catch (e) {
-            return ctx.reply('Ошибка удаления.');
-        }
+        } catch (e) { return ctx.reply('Ошибка.'); }
     }
 
-    // --- ДЕПОЗИТ ---
+    // ДЕПОЗИТ (СОЗДАНИЕ)
     if (state.step === config.STATE.AWAITING_DEPOSIT_NAME) {
         state.depositName = text;
         state.step = config.STATE.AWAITING_DEPOSIT_BANK;
@@ -450,14 +469,14 @@ bot.on('text', async (ctx) => {
     if (state.step === config.STATE.AWAITING_DEPOSIT_BANK) {
         state.depositBank = text;
         state.step = config.STATE.AWAITING_DEPOSIT_RATE;
-        return ctx.reply('Процентная ставка (число):', kb.BACK_KEYBOARD);
+        return ctx.reply('Процентная ставка:', kb.BACK_KEYBOARD);
     }
     if (state.step === config.STATE.AWAITING_DEPOSIT_RATE) {
         const rate = parseFloat(text.replace(',', '.'));
-        if (isNaN(rate)) return ctx.reply('Введите число.');
+        if (isNaN(rate)) return ctx.reply('Число.');
         state.depositRate = rate;
         state.step = config.STATE.AWAITING_DEPOSIT_TERM;
-        return ctx.reply('Срок (например, 01.01.2025):', kb.BACK_KEYBOARD);
+        return ctx.reply('Срок (31.12.2025):', kb.BACK_KEYBOARD);
     }
     if (state.step === config.STATE.AWAITING_DEPOSIT_TERM) {
         try {
@@ -465,24 +484,24 @@ bot.on('text', async (ctx) => {
                 [userId, state.depositName, state.depositRate, text, state.depositBank]);
             ctx.session.state = {};
             return ctx.reply('Депозит создан.', kb.MAIN_KEYBOARD);
-        } catch (e) { return ctx.reply('Ошибка. Такое имя уже есть.'); }
+        } catch (e) { return ctx.reply('Имя занято.'); }
     }
 
-    // --- ПЕРЕВОД ---
+    // ПЕРЕВОД
     if (state.step === config.STATE.AWAITING_TRANSFER_SOURCE) {
         const acc = await db.dbGet('SELECT * FROM accounts WHERE user_id = ? AND name = ?', [userId, text]);
         if (!acc) return ctx.reply('Выберите счет из меню.');
         state.sourceAccount = text;
         state.step = config.STATE.AWAITING_TRANSFER_TARGET;
         const keyb = await kb.generateAccountReplyKeyboard(db, userId, text, true);
-        return ctx.reply(`Списано с: ${text}. Куда зачислить?`, keyb);
+        return ctx.reply(`Списано с: ${text}. Куда?`, keyb);
     }
     if (state.step === config.STATE.AWAITING_TRANSFER_TARGET) {
         const acc = await db.dbGet('SELECT * FROM accounts WHERE user_id = ? AND name = ?', [userId, text]);
         if (!acc) return ctx.reply('Выберите счет из меню.');
         state.targetAccount = text;
         state.step = config.STATE.AWAITING_TRANSFER_AMOUNT;
-        return ctx.reply(`Перевод: ${state.sourceAccount} -> ${state.targetAccount}. Введите сумму:`, kb.BACK_KEYBOARD);
+        return ctx.reply(`Перевод: ${state.sourceAccount} -> ${state.targetAccount}. Сумма:`, kb.BACK_KEYBOARD);
     }
     if (state.step === config.STATE.AWAITING_TRANSFER_AMOUNT) {
         const amount = parseAmount(text);
@@ -492,7 +511,7 @@ bot.on('text', async (ctx) => {
         return ctx.reply('Перевод выполнен.', kb.MAIN_KEYBOARD);
     }
 
-    // --- РАСХОД ---
+    // РАСХОД
     if (state.step === config.STATE.AWAITING_EXPENSE_AMOUNT) {
         const amount = parseAmount(text);
         if (!amount) return ctx.reply('Число.');
@@ -500,13 +519,35 @@ bot.on('text', async (ctx) => {
         state.step = config.STATE.AWAITING_EXPENSE_COMMENT;
         return ctx.reply('Комментарий:', kb.SKIP_COMMENT_KEYBOARD);
     }
+    
+    // --- ИЗМЕНЕНИЯ ТУТ: ПРОВЕРКА КОММЕНТАРИЯ НА АВТО-КАТЕГОРИЮ ---
     if (state.step === config.STATE.AWAITING_EXPENSE_COMMENT) {
         state.comment = text === 'Пропустить' ? '' : text;
+        
+        // 1. Пробуем найти категорию по слову
+        const autoCategory = await db.getCategoryByComment(state.comment);
+
+        if (autoCategory) {
+            // Если узнали — сохраняем сразу!
+            const tag = config.AUTO_TAGS[autoCategory] || 'Разное';
+            await db.addTransaction({ 
+                userId, type: 'expense', amount: state.amount, category: autoCategory, 
+                tag: tag, comment: state.comment, sourceAccount: 'Основной', targetAccount: null 
+            });
+            
+            ctx.session.state = {};
+            const { balances } = await db.getBalances(userId);
+            return ctx.reply(
+                `🧠 Узнал "${escapeMarkdown(state.comment)}"! Записал в "${autoCategory}".\nБаланс: ${formatAmount(balances['Основной'])}`, 
+                kb.MAIN_KEYBOARD
+            );
+        }
+
         state.step = config.STATE.AWAITING_CATEGORY;
         return ctx.reply('Категория:', kb.generateReplyKeyboard(config.EXPENSE_CATEGORIES, true));
     }
 
-    // --- ДОХОД ---
+    // ДОХОД
     if (state.step === config.STATE.AWAITING_INCOME_AMOUNT) {
         const amount = parseAmount(text);
         if (!amount) return ctx.reply('Число.');
@@ -525,7 +566,7 @@ bot.on('text', async (ctx) => {
         return ctx.reply(`Доход записан.\nБаланс (Основной): ${formatAmount(balances['Основной'])}`, kb.MAIN_KEYBOARD);
     }
 
-    // --- КАТЕГОРИЯ ---
+    // КАТЕГОРИЯ
     if (state.step === config.STATE.AWAITING_CATEGORY) {
         const cat = text.split(' (')[0];
         const allCats = [...config.EXPENSE_CATEGORIES.flat(), ...config.INCOME_CATEGORIES.flat()].map(c => c.split(' (')[0]);
@@ -543,6 +584,12 @@ bot.on('text', async (ctx) => {
             }
             if (state.type === 'expense') {
                 const tag = config.AUTO_TAGS[cat] || 'Разное';
+                
+                // --- ИЗМЕНЕНИЯ ТУТ: ОБУЧЕНИЕ ---
+                if (state.comment && state.comment.length > 0) {
+                    await db.learnKeyword(state.comment, cat);
+                }
+
                 await db.addTransaction({ userId, type: 'expense', amount: state.amount, category: cat, tag: tag, comment: state.comment, sourceAccount: 'Основной', targetAccount: null });
                 ctx.session.state = {};
                 return ctx.reply(`Расход записан: ${cat}`, kb.MAIN_KEYBOARD);
@@ -551,7 +598,7 @@ bot.on('text', async (ctx) => {
         return ctx.reply('Выберите категорию кнопкой.');
     }
 
-    // --- РЕДАКТИРОВАНИЕ ---
+    // РЕДАКТИРОВАНИЕ
     if (state.type && state.type.startsWith('edit_')) {
         const isExpenseEdit = state.type === 'edit_expense';
         const keyb = isExpenseEdit ? config.EXPENSE_CATEGORIES : config.INCOME_CATEGORIES;
@@ -582,8 +629,46 @@ bot.on('text', async (ctx) => {
     }
 
     ctx.reply('Не понял.', kb.MAIN_KEYBOARD);
+}
+
+bot.on('text', async (ctx) => {
+    const text = ctx.message.text.trim();
+    if (text.startsWith('/')) return;
+    
+    if (text === 'Отмена') {
+        ctx.session.state = {};
+        delete ctx.session.receipt;
+        return ctx.reply('Отменено.', kb.MAIN_KEYBOARD);
+    }
+
+    if (ctx.session.state && ctx.session.state.step === 'AWAITING_RECEIPT_CATEGORY' && ctx.session.receipt) {
+        const catClean = text.split(' (')[0];
+        const allCats = config.EXPENSE_CATEGORIES.flat();
+        
+        if (allCats.includes(catClean)) {
+            const itemIndex = ctx.session.state.currentItemIndex;
+            const item = ctx.session.receipt.items[itemIndex];
+            await db.learnProductCategory(item.name, catClean);
+            ctx.session.receipt.items[itemIndex].category = catClean;
+            ctx.reply(`Запомнил: "${escapeMarkdown(item.name)}" -> ${catClean}`);
+            return processNextReceiptItem(ctx);
+        } else {
+            return ctx.reply('Выберите категорию из кнопок.');
+        }
+    }
+
+    handleStandardTextFlow(ctx);
 });
 
-bot.launch().then(() => console.log('Бот работает'));
+async function goBack(ctx) {
+    const state = ctx.session.state;
+    ctx.session.state = {};
+    return ctx.reply('В меню.', kb.MAIN_KEYBOARD);
+}
+
+bot.launch().then(() => {
+    console.log('Бот работает');
+    console.log('helloworld');
+});
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
