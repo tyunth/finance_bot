@@ -98,6 +98,7 @@ async function runCalendarCheck(ctx = null) {
                     ])
                 }
             );
+			await db.markEventProcessed(event.id, summary, 'pending');
         }
     } catch (e) {
         console.error('Ошибка при проверке календаря:', e);
@@ -220,9 +221,17 @@ bot.hears('delete_deposit', (ctx) => startDeleteDeposit(ctx));
 bot.command('debts', async (ctx) => {
     const debts = await db.getDebts(ctx.from.id);
     if (!debts.length) return ctx.reply('Долгов нет.', kb.MAIN_KEYBOARD);
+    
     let msg = '*Неоплаченные уроки:*\n';
-    const buttons = debts.map(d => [Markup.button.callback(`Оплачено: ${d.student_name} (${d.date.slice(0,10)})`, `pay_debt_${d.id}`)]);
+    
+    // ИЗМЕНЕНИЕ: Теперь создаем по 2 кнопки на каждый долг (Оплатить и Простить)
+    const buttons = debts.map(d => [
+        Markup.button.callback(`Оплатить`, `pay_debt_${d.id}`),
+        Markup.button.callback(`Простить`, `cancel_debt_${d.id}`)
+    ]);
+
     debts.forEach(d => { msg += `\n- ${d.student_name} (${d.subject}): ${formatAmount(d.amount)} от ${d.date.slice(0,10)}`; });
+    
     ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
 });
 
@@ -322,6 +331,12 @@ bot.on('callback_query', async (ctx) => {
         });
         await db.dbRun('UPDATE debts SET is_paid = 1 WHERE id = ?', [debtId]);
         return ctx.editMessageText(`Долг ${debt.student_name} оплачен!`);
+    }
+	if (data.startsWith('cancel_debt_')) {
+        const debtId = data.replace('cancel_debt_', '');
+        // Удаляем долг из базы
+        await db.dbRun('DELETE FROM debts WHERE id = ?', [debtId]);
+        return ctx.editMessageText(`Долг удален (прощен).`);
     }
 });
 
