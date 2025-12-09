@@ -338,6 +338,35 @@ bot.on('callback_query', async (ctx) => {
         await db.dbRun('DELETE FROM debts WHERE id = ?', [debtId]);
         return ctx.editMessageText(`Долг удален (прощен).`);
     }
+	// Подтверждение процентов
+    if (data.startsWith('interest_confirm_')) {
+        const parts = data.split('_');
+        const accName = parts[2];
+        const amount = parseFloat(parts[3]);
+
+        await db.addTransaction({
+            userId: ctx.from.id,
+            type: 'income',
+            amount: amount,
+            category: 'Проценты',
+            tag: 'Депозит',
+            comment: 'Ежемесячная капитализация',
+            sourceAccount: null,
+            targetAccount: accName
+        });
+        
+        return ctx.editMessageText(`Начислено ${formatAmount(amount)} на "${accName}".`);
+    }
+
+    // Ручной ввод процентов
+    if (data.startsWith('interest_edit_')) {
+        const accName = data.replace('interest_edit_', '');
+        ctx.session.state = { 
+            step: config.STATE.AWAITING_INTEREST_CORRECTION, 
+            targetAccount: accName 
+        };
+        return ctx.reply(`Введите реальную сумму процентов от банка для "${accName}":`);
+    }
 });
 
 // --- PHOTO HANDLER (OCR) ---
@@ -488,18 +517,52 @@ async function handleStandardTextFlow(ctx) {
     }
     if (state.step === config.STATE.AWAITING_DEPOSIT_RATE) {
         const rate = parseFloat(text.replace(',', '.'));
-        if (isNaN(rate)) return ctx.reply('Число.');
+        if (isNaN(rate)) return ctx.reply('Введите число.');
         state.depositRate = rate;
-        state.step = config.STATE.AWAITING_DEPOSIT_TERM;
-        return ctx.reply('Срок (31.12.2025):', kb.BACK_KEYBOARD);
+        
+        state.step = config.STATE.AWAITING_DEPOSIT_AMOUNT;
+        return ctx.reply('Начальная сумма вклада:', kb.BACK_KEYBOARD);
     }
+
+    if (state.step === config.STATE.AWAITING_DEPOSIT_AMOUNT) {
+        const amount = parseAmount(text);
+        if (amount === null) return ctx.reply('Введите число.');
+        state.depositAmount = amount;
+
+        state.step = config.STATE.AWAITING_DEPOSIT_TERM;
+        return ctx.reply('Дата окончания (например: 31.12.2025):', kb.BACK_KEYBOARD);
+    }
+
     if (state.step === config.STATE.AWAITING_DEPOSIT_TERM) {
         try {
-            await db.dbRun('INSERT INTO accounts (user_id, name, is_deposit, rate, term_date, bank_name) VALUES (?, ?, 1, ?, ?, ?)',
-                [userId, state.depositName, state.depositRate, text, state.depositBank]);
+            const startDate = new Date().toISOString();
+            
+            // 1. Создаем счет
+            await db.dbRun(
+                'INSERT INTO accounts (user_id, name, is_deposit, rate, term_date, bank_name, start_date) VALUES (?, ?, 1, ?, ?, ?, ?)',
+                [userId, state.depositName, state.depositRate, text, state.depositBank, startDate]
+            );
+
+            // 2. Зачисляем деньги "из воздуха" (sourceAccount = null)
+            if (state.depositAmount > 0) {
+                await db.addTransaction({
+                    userId, 
+                    type: 'income', // Доход
+                    amount: state.depositAmount, 
+                    category: 'Депозит', // Категория
+                    tag: 'Депозит', 
+                    comment: 'Открытие вклада (Начальный остаток)', 
+                    sourceAccount: null, // ИЗ ВОЗДУХА
+                    targetAccount: state.depositName // НА ДЕПОЗИТ
+                });
+            }
+
             ctx.session.state = {};
-            return ctx.reply('Депозит создан.', kb.MAIN_KEYBOARD);
-        } catch (e) { return ctx.reply('Имя занято.'); }
+            return ctx.reply(`Депозит "${state.depositName}" создан.\nСумма: ${formatAmount(state.depositAmount)}\nСтавка: ${state.depositRate}%`, kb.MAIN_KEYBOARD);
+        } catch (e) { 
+            console.error(e);
+            return ctx.reply('Ошибка: возможно, такое имя уже есть.'); 
+        }
     }
 
     // ПЕРЕВОД
@@ -641,6 +704,24 @@ async function handleStandardTextFlow(ctx) {
             ctx.session.state = {};
             return ctx.reply('Обновлено!', kb.MAIN_KEYBOARD);
         }
+		if (state.step === config.STATE.AWAITING_INTEREST_CORRECTION) {
+        const amount = parseAmount(text);
+        if (!amount) return ctx.reply('Введите число.');
+        
+        await db.addTransaction({
+            userId: ctx.from.id,
+            type: 'income',
+            amount: amount,
+            category: 'Проценты',
+            tag: 'Депозит',
+            comment: 'Ручная капитализация',
+            sourceAccount: null,
+            targetAccount: state.targetAccount
+        });
+        
+        ctx.session.state = {};
+        return ctx.reply(`Начислено ${formatAmount(amount)} на "${state.targetAccount}".`, kb.MAIN_KEYBOARD);
+    	}
     }
 
     ctx.reply('Не понял.', kb.MAIN_KEYBOARD);
@@ -680,6 +761,48 @@ async function goBack(ctx) {
     ctx.session.state = {};
     return ctx.reply('В меню.', kb.MAIN_KEYBOARD);
 }
+
+// --- ЕЖЕМЕСЯЧНАЯ ПРОВЕРКА ПРОЦЕНТОВ ---
+async function runMonthlyInterestCheck() {
+    const now = new Date();
+    // Проверяем, что сегодня 1-е число (now.getDate() === 1)
+    if (now.getDate() !== 1) return;
+
+    // Чтобы не будить ночью, проверяем время (например, с 10 утра)
+    if (now.getHours() < 10) return;
+
+    const adminId = config.ADMIN_ID; 
+    const { accountsList, balances } = await db.getBalances(adminId);
+
+    for (const acc of accountsList) {
+        // Только для депозитов с деньгами
+        if (acc.is_deposit && balances[acc.name] > 0) {
+            // Проверяем, начисляли ли уже в этом месяце
+            const alreadyPaid = await db.wasInterestPaidThisMonth(adminId, acc.name);
+            if (alreadyPaid) continue;
+
+            // Расчет за месяц: (Сумма * Ставка / 100) / 12
+            const estimatedInterest = Math.round(balances[acc.name] * (acc.rate / 100) / 12);
+
+            // Шлем уведомление
+            await bot.telegram.sendMessage(adminId, 
+                `1-е число месяца. Пора начислить проценты по вкладу "${acc.name}".\n\n` +
+                `Текущий баланс: ${formatAmount(balances[acc.name])}\n` +
+                `Расчетная сумма: ${formatAmount(estimatedInterest)}\n\n` +
+                `Все верно?`,
+                {
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback(`Да, начислить ${estimatedInterest}`, `interest_confirm_${acc.name}_${estimatedInterest}`)],
+                        [Markup.button.callback(`Нет, ввести вручную`, `interest_edit_${acc.name}`)]
+                    ])
+                }
+            );
+        }
+    }
+}
+
+// Запускаем проверку раз в 12 часов
+setInterval(runMonthlyInterestCheck, 60 * 60 * 1000 * 12);
 
 bot.launch().then(() => {
     console.log('Бот работает');
