@@ -77,21 +77,22 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
     // 3. POST /transactions/edit
-    else if (req.url === '/transactions/edit' && req.method === 'POST') {
+else if (req.url === '/transactions/edit' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const { id, amount, category, comment } = JSON.parse(body);
+                // ДОБАВИЛИ tag в разбор
+                const { id, amount, category, comment, tag } = JSON.parse(body);
+                
                 if (!id || !amount) throw new Error('No Data');
                 
-                // ВНИМАНИЕ: Я убрал updated_at, так как у тебя его может не быть в базе.
-                // Если ты добавил колонку updated_at, верни строку обратно.
-                const sql = `UPDATE transactions SET amount = ?, category = ?, comment = ? WHERE id = ?`;
+                // ОБНОВИЛИ SQL: добавили запись тега
+                const sql = `UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`;
                 
-                await dbRun(sql, [amount, category, comment, id]);
+                await dbRun(sql, [amount, category, comment, tag, id]);
                 
-                // Обучение (опционально): запоминаем категорию для комментария
+                // Обучение (опционально)
                 if (comment && category) {
                     const dbWrite = new sqlite3.Database(DB_PATH);
                     dbWrite.run('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [comment.trim().toLowerCase(), category]);
