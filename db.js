@@ -126,7 +126,8 @@ async function isEventProcessed(eventId) {
 }
 async function markEventProcessed(eventId, summary, status) {
     const date = new Date().toISOString();
-    await dbRun('INSERT INTO processed_events (event_id, summary, date, status) VALUES (?, ?, ?, ?)', [eventId, summary, date, status]);
+    // ИЗМЕНЕНИЕ: Добавили OR REPLACE, чтобы обновлять статус с 'pending' на 'paid'
+    await dbRun('INSERT OR REPLACE INTO processed_events (event_id, summary, date, status) VALUES (?, ?, ?, ?)', [eventId, summary, date, status]);
 }
 async function addDebt(userId, studentName, subject, amount, eventId) {
     const date = new Date().toISOString();
