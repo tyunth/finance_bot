@@ -115,9 +115,13 @@ function renderAnalytics(data) {
         if (!monthMap[monthKey]) monthMap[monthKey] = { income: 0, expense: 0 };
 
         if (t.type === 'income') {
-            totalIncome += amount;
-            monthMap[monthKey].income += amount;
-        } else if (t.type === 'expense') {
+            // ИСКЛЮЧЕНИЕ: Не считаем "Депозит" как заработанные деньги
+            if (t.category !== 'Депозит') {
+                totalIncome += amount;
+                monthMap[monthKey].income += amount;
+            }
+        }
+        else if (t.type === 'expense') {
             totalExpense += amount;
             monthMap[monthKey].expense += amount;
             
