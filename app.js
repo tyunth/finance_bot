@@ -315,9 +315,13 @@ function renderTable(data) {
     headerRow.innerHTML = '';
     body.innerHTML = '';
 
+    // Расширенный набор колонок
     const keys = [
         {k: 'date', label: 'Дата'}, 
+        {k: 'type', label: 'Тип'},          
         {k: 'category', label: 'Категория'}, 
+        {k: 'tag', label: 'Тег'},           // <-- Видим теги
+        {k: 'account', label: 'Счет'},      
         {k: 'comment', label: 'Комментарий'}, 
         {k: 'amount', label: 'Сумма'}
     ];
@@ -325,47 +329,55 @@ function renderTable(data) {
     keys.forEach(col => {
         const th = document.createElement('th');
         th.textContent = col.label.toUpperCase();
-        th.className = 'px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider';
+        th.className = 'px-6 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider';
         headerRow.appendChild(th);
     });
     headerRow.innerHTML += '<th class="px-6 py-3"></th>'; 
 
+    // Берем последние 100 записей
     const dataToShow = data.slice(0, 100); 
 
     dataToShow.forEach(item => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50 transition border-b border-gray-100 ' + 
-            (item.type === 'income' ? 'border-l-4 border-l-green-400' : (item.type === 'expense' ? 'border-l-4 border-l-red-400' : ''));
+        // Цветная полоска слева в зависимости от типа
+        const borderClass = item.type === 'income' ? 'border-l-green-500' : (item.type === 'expense' ? 'border-l-red-500' : 'border-l-gray-400');
+        tr.className = `hover:bg-gray-50 transition border-b border-gray-100 border-l-4 ${borderClass}`;
 
         keys.forEach(col => {
             const td = document.createElement('td');
             td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
-            let val = item[col.k];
             
             if (col.k === 'amount') {
-                td.textContent = formatCurrency(val);
+                td.textContent = formatCurrency(item.amount);
                 td.className += ' font-bold';
             } else if (col.k === 'date') {
-                td.textContent = new Date(val).toLocaleDateString('ru-RU');
+                td.textContent = new Date(item.date).toLocaleDateString('ru-RU');
+            } else if (col.k === 'type') {
+                const typeMap = {'income': 'Доход', 'expense': 'Расход', 'transfer': 'Перевод'};
+                td.textContent = typeMap[item.type] || item.type;
+            } else if (col.k === 'account') {
+                // Красивое отображение счетов
+                if (item.type === 'transfer') {
+                    td.textContent = `${item.source_account || '?'} → ${item.target_account || '?'}`;
+                } else if (item.type === 'income') {
+                    td.textContent = item.target_account || 'Основной';
+                } else {
+                    td.textContent = item.source_account || 'Основной';
+                }
+                td.className += ' text-xs text-gray-500';
             } else {
-                td.textContent = val || '—';
+                td.textContent = item[col.k] || '—';
             }
             tr.appendChild(td);
         });
 
         const tdAct = document.createElement('td');
         tdAct.className = 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium';
-        tdAct.innerHTML = `<button onclick='openEditModal(${JSON.stringify(item)})' class="text-blue-600 hover:text-blue-900">Изм.</button>`;
+        tdAct.innerHTML = `<button onclick='openEditModal(${JSON.stringify(item)})' class="text-blue-600 hover:text-blue-900 font-bold">ИЗМ.</button>`;
         tr.appendChild(tdAct);
 
         body.appendChild(tr);
     });
-    
-    if (data.length > 100) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" class="text-center py-4 text-gray-400 text-sm">Показаны первые 100 записей из ${data.length}</td>`;
-        body.appendChild(tr);
-    }
 }
 
 // --- РЕДАКТИРОВАНИЕ ---
@@ -373,6 +385,9 @@ function openEditModal(item) {
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-amount').value = item.amount;
     document.getElementById('edit-comment').value = item.comment || '';
+    
+    // Подставляем тег
+    document.getElementById('edit-tag').value = item.tag || ''; 
     
     const select = document.getElementById('edit-category');
     select.innerHTML = '';
@@ -387,6 +402,31 @@ function openEditModal(item) {
     document.getElementById('edit-modal').classList.remove('hidden');
     document.getElementById('edit-modal').classList.add('flex');
 }
+
+document.getElementById('edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value;
+    const amount = parseFloat(document.getElementById('edit-amount').value);
+    const category = document.getElementById('edit-category').value;
+    const comment = document.getElementById('edit-comment').value;
+    
+    // Забираем значение тега
+    const tag = document.getElementById('edit-tag').value; 
+
+    try {
+        const res = await fetch(API_URL_EDIT, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id, amount, category, comment, tag}) // Отправляем тег
+        });
+        if(res.ok) {
+            closeModal();
+            init();
+        } else {
+            alert('Ошибка сохранения');
+        }
+    } catch(e) { alert('Ошибка сети'); }
+});
 
 function closeModal() {
     document.getElementById('edit-modal').classList.add('hidden');
