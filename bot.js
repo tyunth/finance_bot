@@ -249,9 +249,15 @@ bot.hears('Счета', async (ctx) => {
 bot.hears('Отчеты', async (ctx) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const rows = await db.dbAll(`SELECT type, amount FROM transactions WHERE user_id = ? AND date >= ?`, [ctx.from.id, startOfMonth]);
-    let income = 0, expense = 0;
-    rows.forEach(r => r.type === 'income' ? income += r.amount : (r.type === 'expense' ? expense += r.amount : 0));
+	const rows = await db.dbAll(`SELECT type, amount, category FROM transactions WHERE user_id = ? AND date >= ?`, [ctx.from.id, startOfMonth]);    let income = 0, expense = 0;
+    rows.forEach(r => {
+        if (r.type === 'income') {
+            // Игнорируем депозиты в подсчете дохода
+            if (r.category !== 'Депозит') income += r.amount;
+        } else if (r.type === 'expense') {
+            expense += r.amount;
+        }
+    });
     const catStats = await db.getCategoryStats(ctx.from.id, startOfMonth);
     let catMsg = '';
     Object.entries(catStats).sort(([,a], [,b]) => b - a).forEach(([cat, amt]) => catMsg += `\n${cat}: ${formatAmount(amt)}`);
