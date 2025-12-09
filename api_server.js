@@ -1,130 +1,119 @@
 const http = require('http');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const DB_PATH = path.resolve(__dirname, 'finance.db');
+const fs = require('fs'); // <--- 1. ВАЖНО: Добавили модуль для чтения файлов
 
-const HOST = '127.0.0.1'; // Слушаем только локальный хост (Nginx будет проксировать)
+const DB_PATH = path.resolve(__dirname, 'finance.db');
+const HOST = '127.0.0.1'; 
 const PORT = 4000;
 
-// Промисификация dbAll для выборки данных (SELECT)
+// Хелперы для БД
 const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-        if (err) return reject(err);
-    });
-    db.all(sql, params, (err, rows) => {
-        db.close();
-        if (err) return reject(err);
-        resolve(rows);
-    });
+    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, err => err ? reject(err) : null);
+    db.all(sql, params, (err, rows) => { db.close(); err ? reject(err) : resolve(rows); });
 });
 
-// НОВАЯ ФУНКЦИЯ: Промисификация dbRun для выполнения (INSERT, UPDATE, DELETE)
+// Исправленный dbRun (для UPDATE/INSERT)
 const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, (err) => {
-        if (err) return reject(err);
-    });
-    db.run(sql, params, function(err) { // Используем function(err) для доступа к this.changes
-        db.close();
-        if (err) return reject(err);
-        resolve({ changes: this.changes, lastID: this.lastID });
+    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, err => err ? reject(err) : null);
+    db.run(sql, params, function(err) { 
+        db.close(); 
+        err ? reject(err) : resolve({ changes: this.changes, lastID: this.lastID }); 
     });
 });
 
+// <--- 2. ВАЖНО: Функция, которая читает HTML/JS файлы с диска и отправляет браузеру
+const serveStatic = (res, filePath, contentType) => {
+    const fullPath = path.join(__dirname, filePath);
+    fs.readFile(fullPath, (err, content) => {
+        if (err) {
+            console.error(`Error serving ${filePath}:`, err);
+            res.writeHead(500);
+            res.end(`Server Error: Could not load ${filePath}`);
+        } else {
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(content, 'utf-8');
+        }
+    });
+};
 
 const server = http.createServer(async (req, res) => {
-    // Разрешаем CORS (критично для доступа с браузера)
+    // CORS (Разрешаем запросы, если вдруг будем стучаться с другого домена)
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Добавили POST
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
-        return;
-    }
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-    // 1. GET /transactions (Получение всех транзакций)
-    if (req.url === '/transactions' && req.method === 'GET') {
+    // --- 3. ВАЖНО: БЛОК РАЗДАЧИ СТАТИКИ (САЙТА) ---
+    
+    // Если просят корень сайта "/" -> отдаем index.html
+    if (req.url === '/' && req.method === 'GET') {
+        serveStatic(res, 'index.html', 'text/html');
+    } 
+    // Если просят скрипт "/app.js" -> отдаем app.js
+    else if (req.url === '/app.js' && req.method === 'GET') {
+        serveStatic(res, 'app.js', 'application/javascript');
+    }
+    
+    // --- API (РАБОТА С ДАННЫМИ) ---
+
+    // 1. GET /transactions
+    else if (req.url === '/transactions' && req.method === 'GET') {
         try {
             const transactions = await dbAll('SELECT * FROM transactions ORDER BY date DESC');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(transactions));
-        } catch (e) {
-            console.error('Ошибка API при чтении транзакций:', e);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Database read failed' }));
-        }
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     } 
-    // 2. GET /categories (Получение уникальных категорий для выпадающего списка)
+    // 2. GET /categories
     else if (req.url === '/categories' && req.method === 'GET') {
         try {
-            const categories = await dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод" ORDER BY category ASC');
-            const categoryNames = categories.map(row => row.category);
+            const cats = await dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод" ORDER BY category ASC');
+            // Превращаем [{category: 'Еда'}, {category: 'Такси'}] в ['Еда', 'Такси']
+            const catList = cats.map(c => c.category);
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(categoryNames));
-        } catch (e) {
-             res.writeHead(500, { 'Content-Type': 'application/json' });
-             res.end(JSON.stringify({ error: 'Failed to fetch categories.', details: e.message }));
-        }
+            res.end(JSON.stringify(catList));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
-    // 3. POST /transactions/edit (Редактирование транзакции)
+    // 3. POST /transactions/edit
     else if (req.url === '/transactions/edit' && req.method === 'POST') {
         let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
-        
+        req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const data = JSON.parse(body);
-                // Требуемые поля для обновления
-                const { id, amount, category, comment } = data; 
-
-                if (!id || !amount || !category || typeof comment === 'undefined') {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Missing required fields: id, amount, category, or comment.' }));
-                    return;
-                }
-
-                // Выполняем UPDATE в базе данных
-                const sql = `
-                    UPDATE transactions 
-                    SET 
-                        amount = ?, 
-                        category = ?, 
-                        comment = ?,
-                        updated_at = datetime('now', 'localtime')
-                    WHERE 
-                        id = ?
-                `;
-                const params = [amount, category, comment, id];
-
-                const result = await dbRun(sql, params);
-
-                if (result.changes === 0) {
-                     res.writeHead(404, { 'Content-Type': 'application/json' });
-                     res.end(JSON.stringify({ message: 'Transaction ID not found or no changes made.' }));
-                     return;
-                }
+                const { id, amount, category, comment } = JSON.parse(body);
+                if (!id || !amount) throw new Error('No Data');
                 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ message: 'Transaction updated successfully.', id: id, changes: result.changes }));
+                // ВНИМАНИЕ: Я убрал updated_at, так как у тебя его может не быть в базе.
+                // Если ты добавил колонку updated_at, верни строку обратно.
+                const sql = `UPDATE transactions SET amount = ?, category = ?, comment = ? WHERE id = ?`;
+                
+                await dbRun(sql, [amount, category, comment, id]);
+                
+                // Обучение (опционально): запоминаем категорию для комментария
+                if (comment && category) {
+                    const dbWrite = new sqlite3.Database(DB_PATH);
+                    dbWrite.run('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [comment.trim().toLowerCase(), category]);
+                    dbWrite.close();
+                }
 
-            } catch (e) {
-                console.error('Ошибка API при редактировании транзакции:', e);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Failed to update transaction.', details: e.message }));
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { 
+                console.error(e);
+                res.writeHead(500); 
+                res.end(JSON.stringify({ error: e.message })); 
             }
         });
     }
-    // 4. 404/Неподдерживаемый маршрут
+    // 404
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ message: 'Endpoint not found or method not allowed' }));
+        res.end(JSON.stringify({ error: 'Not Found' }));
     }
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`API Server running at http://${HOST}:${PORT}/`);
-    console.log(`Endpoints: /transactions (GET), /categories (GET), /transactions/edit (POST)`);
+    console.log(`Finance Server running at http://${HOST}:${PORT}/`);
 });

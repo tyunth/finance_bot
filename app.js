@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://igro-kon.ru:4000'; 
+const API_BASE_URL = '/budzet'; 
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
 const API_URL_CATEGORIES = API_BASE_URL + '/categories';
