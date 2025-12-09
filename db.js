@@ -58,7 +58,7 @@ function initializeTables() {
         };
 
         ['comment', 'tag', 'source_account', 'target_account'].forEach(c => runMigration('transactions', c));
-        ['rate', 'term_date', 'bank_name'].forEach(c => runMigration('accounts', c));
+        ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
     });
 }
 
@@ -83,7 +83,9 @@ async function addTransaction(data) {
 }
 
 async function getBalances(userId) {
-    const accountsList = await dbAll('SELECT name, is_deposit, rate, term_date, bank_name FROM accounts WHERE user_id = ?', [userId]);
+    // Получаем список счетов (start_date нам тут уже не нужен для расчетов, но пусть будет)
+    const accountsList = await dbAll('SELECT name, is_deposit, rate, term_date, bank_name, start_date FROM accounts WHERE user_id = ?', [userId]);
+    
     const balances = {};
     accountsList.forEach(a => balances[a.name] = 0);
     if (!balances['Основной']) balances['Основной'] = 0;
@@ -97,6 +99,7 @@ async function getBalances(userId) {
             if (t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
         }
     });
+
     return { balances, accountsList };
 }
 
@@ -174,12 +177,27 @@ async function learnKeyword(comment, category) {
     await dbRun('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [cleanComment, category]);
     console.log(` Выучил: "${cleanComment}" -> ${category}`);
 }
+async function wasInterestPaidThisMonth(userId, accountName) {
+    const now = new Date();
+    // Формат YYYY-MM
+    const currentMonth = now.toISOString().slice(0, 7); 
+    
+    const row = await dbGet(
+        `SELECT id FROM transactions 
+         WHERE user_id = ? 
+         AND category = 'Проценты' 
+         AND target_account = ? 
+         AND date LIKE ?`, 
+        [userId, accountName, `${currentMonth}%`]
+    );
+    return !!row;
+}
 
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
     isEventProcessed, markEventProcessed, addDebt, getDebts,
     getProductCategory, learnProductCategory, saveReceiptItems,
-    getCategoryByComment, learnKeyword, // <-- Экспортируем новые функции
+    getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     DB_PATH
 };
