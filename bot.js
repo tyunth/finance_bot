@@ -664,14 +664,19 @@ async function finalizeReceipt(ctx) {
 // ---------------- TEXT FALLBACK (MUST BE LAST) ----------------
 bot.on('text', async (ctx) => {
     const text = ctx.message.text.trim();
-    if (text.startsWith('/')) return; // Ignore commands caught by generic listener
+    if (text.startsWith('/')) return; // Игнорируем команды
     
+    // --- ВОТ ТУТ БЫЛО ПРОПУЩЕНО ---
+    if (text === 'Назад') return goBack(ctx);
+    // -----------------------------
+
     if (text === 'Отмена') {
         ctx.session.state = {};
         delete ctx.session.receipt;
         return ctx.reply('Отменено.', kb.MAIN_KEYBOARD);
     }
 
+    // Если мы в режиме OCR (ждем категорию для товара из чека)
     if (ctx.session.state && ctx.session.state.step === 'AWAITING_RECEIPT_CATEGORY' && ctx.session.receipt) {
         const catClean = text.split(' (')[0];
         const allCats = config.EXPENSE_CATEGORIES.flat();
@@ -688,6 +693,7 @@ bot.on('text', async (ctx) => {
         }
     }
 
+    // Если ничего из вышеперечисленного - идем в обычную логику
     handleStandardTextFlow(ctx);
 });
 
