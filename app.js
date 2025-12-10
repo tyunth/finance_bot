@@ -2,7 +2,10 @@ const API_BASE_URL = '/budzet';
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
 const API_URL_CATEGORIES = API_BASE_URL + '/categories';
-const API_URL_BALANCES = API_BASE_URL + '/balances'; // НОВОЕ
+const API_URL_BALANCES = API_BASE_URL + '/balances'; 
+const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
+const API_URL_STUDENTS = API_BASE_URL + '/students';
+const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
 
 const CURRENCY = 'T';
 
@@ -16,14 +19,16 @@ let CHART_DATA_CACHE = {};
 function formatCurrency(amount) {
     return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
 }
-
 function switchTab(tabName) {
-    ['analytics', 'transactions'].forEach(t => {
+    ['analytics', 'transactions', 'students', 'calendar'].forEach(t => { // <-- Добавил students, calendar
         document.getElementById(`tab-${t}`).classList.add('hidden');
         document.getElementById(`btn-${t}`).classList.remove('active');
     });
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-    document.getElementById(`btn-${tabName}`).classList.add('active');
+    document.getElementById(`btn-${tabName}`).classList.add('active');   
+    // Ленивая загрузка календаря (чтобы не тормозил старт)
+    if (tabName === 'calendar') loadCalendar();
+    if (tabName === 'students') loadStudents();
 }
 
 async function init() {
@@ -403,6 +408,124 @@ function openEditModal(item) {
 function closeModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     document.getElementById('edit-modal').classList.remove('flex');
+}
+
+let calendarLoaded = false;
+function loadCalendar() {
+    if (calendarLoaded) return;
+    const iframe = document.getElementById('google-calendar-frame');
+    // Вставь сюда реальный ID вместо заглушки, если переменная выше не работает
+    iframe.src = `https://calendar.google.com/calendar/embed?src=${CALENDAR_EMBED_ID}&ctz=Asia/Almaty&mode=WEEK`; 
+    calendarLoaded = true;
+}
+
+async function loadStudents() {
+    try {
+        const res = await fetch(API_URL_STUDENTS);
+        const students = await res.json();
+        renderStudents(students);
+    } catch(e) { console.error('Ошибка загрузки учеников', e); }
+}
+
+function renderStudents(students) {
+    const grid = document.getElementById('students-grid');
+    if (students.length === 0) {
+        grid.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-10">Список пуст</div>';
+        return;
+    }
+    
+    grid.innerHTML = students.map(s => `
+        <div class="card p-5 hover:shadow-md transition cursor-pointer group" onclick='openStudentModal(${JSON.stringify(s)})'>
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${s.subject || '—'}</span>
+            </div>
+            <div class="text-sm text-gray-600 space-y-1">
+                <p>🏫 ${s.school || '-'} (${s.grade || '-'})</p>
+                <p>📞 ${s.phone || '-'}</p>
+                <p>👨‍👩‍👧 ${s.parents || '-'}</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openStudentModal(s = null) {
+    const modal = document.getElementById('student-modal');
+    const form = document.getElementById('student-form');
+    const delBtn = document.getElementById('btn-delete-student');
+    
+    form.reset();
+    
+    if (s) {
+        document.getElementById('student-modal-title').textContent = 'Редактировать ученика';
+        document.getElementById('student-id').value = s.id;
+        document.getElementById('st-name').value = s.name;
+        document.getElementById('st-subject').value = s.subject || '';
+        document.getElementById('st-parents').value = s.parents || '';
+        document.getElementById('st-phone').value = s.phone || '';
+        document.getElementById('st-school').value = s.school || '';
+        document.getElementById('st-grade').value = s.grade || '';
+        document.getElementById('st-teacher').value = s.teacher || '';
+        document.getElementById('st-address').value = s.address || '';
+        document.getElementById('st-notes').value = s.notes || '';
+        delBtn.classList.remove('hidden');
+    } else {
+        document.getElementById('student-modal-title').textContent = 'Новый ученик';
+        document.getElementById('student-id').value = '';
+        delBtn.classList.add('hidden');
+    }
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeStudentModal() {
+    document.getElementById('student-modal').classList.add('hidden');
+    document.getElementById('student-modal').classList.remove('flex');
+}
+
+document.getElementById('student-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('student-id').value;
+    const action = id ? 'edit' : 'add';
+    
+    const payload = {
+        action, id,
+        name: document.getElementById('st-name').value,
+        subject: document.getElementById('st-subject').value,
+        parents: document.getElementById('st-parents').value,
+        phone: document.getElementById('st-phone').value,
+        school: document.getElementById('st-school').value,
+        grade: document.getElementById('st-grade').value,
+        teacher: document.getElementById('st-teacher').value,
+        address: document.getElementById('st-address').value,
+        notes: document.getElementById('st-notes').value,
+    };
+
+    try {
+        await fetch(API_URL_STUDENT_ACTION, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        closeStudentModal();
+        loadStudents();
+    } catch(e) { alert('Ошибка'); }
+});
+
+async function deleteStudent() {
+    const id = document.getElementById('student-id').value;
+    if (!confirm('Удалить ученика?')) return;
+    
+    try {
+        await fetch(API_URL_STUDENT_ACTION, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'delete', id })
+        });
+        closeStudentModal();
+        loadStudents();
+    } catch(e) { alert('Ошибка'); }
 }
 
 document.getElementById('edit-form').addEventListener('submit', async (e) => {
