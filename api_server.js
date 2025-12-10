@@ -45,6 +45,7 @@ const server = http.createServer(async (req, res) => {
     // --- STATIC ---
     if (req.url === '/' && req.method === 'GET') serveStatic(res, 'index.html', 'text/html');
     else if (req.url === '/app.js' && req.method === 'GET') serveStatic(res, 'app.js', 'application/javascript');
+    else if (req.url === '/style.css' && req.method === 'GET') serveStatic(res, 'style.css', 'text/css');
     
     // --- API ---
 
