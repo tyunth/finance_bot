@@ -67,6 +67,7 @@ function applyFilters() {
     const startStr = document.getElementById('filter-date-start').value;
     const endStr = document.getElementById('filter-date-end').value;
     const catVal = document.getElementById('filter-category').value;
+    const typeVal = document.getElementById('filter-type').value; // <--- НОВОЕ
 
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
@@ -74,9 +75,17 @@ function applyFilters() {
 
     FILTERED_DATA = RAW_DATA.filter(t => {
         const tDate = new Date(t.date);
+        
+        // Фильтр даты
         if (startDate && tDate < startDate) return false;
         if (endDate && tDate > endDate) return false;
+
+        // Фильтр категории
         if (catVal !== 'ALL' && t.category !== catVal) return false;
+
+        // НОВОЕ: Фильтр типа
+        if (typeVal !== 'ALL' && t.type !== typeVal) return false;
+
         return true;
     });
 
@@ -88,6 +97,7 @@ function resetFilters() {
     document.getElementById('filter-date-start').value = '';
     document.getElementById('filter-date-end').value = '';
     document.getElementById('filter-category').value = 'ALL';
+    document.getElementById('filter-type').value = 'ALL'; // <--- НОВОЕ
     applyFilters();
 }
 
@@ -171,36 +181,50 @@ function renderAnalytics(data) {
 
     const ctxCat = document.getElementById('chartCategories').getContext('2d');
     if (chartsInstance.cat) chartsInstance.cat.destroy();
-    chartsInstance.cat = new Chart(ctxCat, {
-        type: 'doughnut',
-        data: {
-            labels: groupedCategories,
-            datasets: [{
-                data: groupedValues,
-                backgroundColor: [
-                    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
-                    '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b' 
-                ],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'right', labels: { boxWidth: 12 } },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let value = context.raw;
-                            let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
-                            return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+chartsInstance.cat = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: groupedCategories,
+                    datasets: [{
+                        data: groupedValues,
+                        // ... цвета ...
+                        backgroundColor: [
+                             '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
+                             '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b' 
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    // НОВОЕ: Обработчик клика
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const catName = groupedCategories[index];
+                            if (catName !== 'Остальное') {
+                                drillDownByCategory(catName);
+                            } else {
+                                alert('В "Остальное" входит много категорий, используйте фильтр вручную.');
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 12 } },
+                        tooltip: {
+                             // ... твой старый код тултипа ...
+                             callbacks: {
+                                label: function(context) {
+                                    let value = context.raw;
+                                    let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
+                                    return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-    });
+            });
 
     // 2. Дни недели
     const daysData = [
@@ -233,26 +257,27 @@ function renderAnalytics(data) {
     const ctxMonth = document.getElementById('chartMonthly').getContext('2d');
     if (chartsInstance.month) chartsInstance.month.destroy();
     chartsInstance.month = new Chart(ctxMonth, {
-        type: 'bar',
-        data: {
-            labels: sortedMonths,
-            datasets: [
-                { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
-                { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            onClick: (e, elements) => {
-                if (elements.length > 0) {
-                    const index = elements[0].index;
-                    const monthStr = sortedMonths[index]; // "2023-11"
-                    setFilterByMonth(monthStr);
+                type: 'bar',
+                data: {
+                    labels: sortedMonths,
+                    datasets: [
+                        { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
+                        { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    // НОВОЕ: Обработчик клика
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const monthStr = sortedMonths[index]; // "2023-11"
+                            drillDownByMonth(monthStr);
+                        }
+                    }
                 }
-            }
-        }
-    });
+            });
 
     // === СПИСКИ ТОПОВ ===
 
@@ -435,6 +460,43 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
 function closeModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     document.getElementById('edit-modal').classList.remove('flex');
+}
+
+function drillDownByCategory(categoryName) {
+    // 1. Устанавливаем фильтры
+    document.getElementById('filter-category').value = categoryName;
+    document.getElementById('filter-type').value = 'expense'; // Обычно категория это расход
+    
+    // 2. Сбрасываем даты (чтобы видеть всю историю) или оставляем как есть?
+    // Давай пока оставим текущие даты, если они выбраны.
+    
+    // 3. Применяем и переключаем
+    applyFilters();
+    switchTab('transactions');
+}
+
+function drillDownByMonth(monthStr) {
+    // monthStr format "YYYY-MM"
+    const [year, month] = monthStr.split('-').map(Number);
+    
+    // Начало месяца
+    const start = new Date(year, month - 1, 1);
+    // Конец месяца
+    const end = new Date(year, month, 0);
+
+    // Устанавливаем даты в инпуты (формат YYYY-MM-DD)
+    // Небольшой хак для корректной даты с учетом часового пояса
+    const fmt = d => {
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    };
+
+    document.getElementById('filter-date-start').value = fmt(start);
+    document.getElementById('filter-date-end').value = fmt(end);
+    document.getElementById('filter-type').value = 'ALL'; // Смотрим всё за месяц
+    
+    applyFilters();
+    switchTab('transactions');
 }
 
 document.getElementById('edit-form').addEventListener('submit', async (e) => {
