@@ -60,9 +60,8 @@ bot.use((ctx, next) => {
 
 async function runCalendarCheck(ctx = null) {
     const adminId = config.ADMIN_ID || (ctx ? ctx.from.id : null);
-    
     if (!adminId) {
-        console.log('Admin ID не задан, проверка календаря невозможна.');
+        console.log('Admin ID не задан.');
         return;
     }
 
@@ -73,7 +72,6 @@ async function runCalendarCheck(ctx = null) {
 
     try {
         const events = await gcal.getRecentLessons(log);
-        
         if (events.length === 0) return;
         
         for (const event of events) {
@@ -88,10 +86,7 @@ async function runCalendarCheck(ctx = null) {
             const amount = config.LESSON_PRICE;
 
             await bot.telegram.sendMessage(adminId, 
-                `Урок завершен: ${summary}\n` +
-                `Студент: ${studentName}\n` +
-                `Предмет: ${subject}\n\n` +
-                `Что делаем?`,
+                `Урок завершен: ${summary}\nСтудент: ${studentName}\nПредмет: ${subject}\n\nЧто делаем?`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
@@ -104,10 +99,8 @@ async function runCalendarCheck(ctx = null) {
             await db.markEventProcessed(event.id, summary, 'pending');
         }
     } catch (e) {
-        console.error('Ошибка при проверке календаря:', e);
-        if (e.message.includes('google_key.json')) {
-             await bot.telegram.sendMessage(config.ADMIN_ID, `Ошибка календаря: ${e.message}`);
-        }
+        console.error('Ошибка календаря:', e);
+        if (e.message.includes('google_key.json')) await bot.telegram.sendMessage(config.ADMIN_ID, `Ошибка календаря: ${e.message}`);
     }
 }
 
@@ -145,7 +138,6 @@ async function handleDepositCreation(ctx) {
         const rate = parseFloat(text.replace(',', '.'));
         if (isNaN(rate)) return ctx.reply('Введите число.');
         state.depositRate = rate;
-        
         state.step = config.STATE.AWAITING_DEPOSIT_AMOUNT;
         return ctx.reply('Начальная сумма вклада:', kb.BACK_KEYBOARD);
     }
@@ -153,7 +145,6 @@ async function handleDepositCreation(ctx) {
         const amount = parseAmount(text);
         if (amount === null) return ctx.reply('Введите число.');
         state.depositAmount = amount;
-
         state.step = config.STATE.AWAITING_DEPOSIT_TERM;
         return ctx.reply('Дата окончания (например: 31.12.2025):', kb.BACK_KEYBOARD);
     }
@@ -206,7 +197,7 @@ async function handleTransfer(ctx) {
     }
 }
 
-// 4. Расходы (Сумма и Коммент)
+// 4. Расходы
 async function handleExpense(ctx) {
     const text = ctx.message.text.trim();
     const state = ctx.session.state;
@@ -219,10 +210,8 @@ async function handleExpense(ctx) {
         state.step = config.STATE.AWAITING_EXPENSE_COMMENT;
         return ctx.reply('Комментарий:', kb.SKIP_COMMENT_KEYBOARD);
     }
-    
     if (state.step === config.STATE.AWAITING_EXPENSE_COMMENT) {
         state.comment = text === 'Пропустить' ? '' : text;
-        
         // Авто-поиск категории
         const autoCategory = await db.getCategoryByComment(state.comment);
         if (autoCategory) {
@@ -235,13 +224,12 @@ async function handleExpense(ctx) {
             const { balances } = await db.getBalances(userId);
             return ctx.reply(`🧠 Узнал "${escapeMarkdown(state.comment)}"! Записал в "${autoCategory}".\nБаланс: ${formatAmount(balances['Основной'])}`, kb.MAIN_KEYBOARD);
         }
-
         state.step = config.STATE.AWAITING_CATEGORY;
         return ctx.reply('Категория:', kb.generateReplyKeyboard(config.EXPENSE_CATEGORIES, true));
     }
 }
 
-// 5. Доходы (Сумма и Коммент)
+// 5. Доходы
 async function handleIncome(ctx) {
     const text = ctx.message.text.trim();
     const state = ctx.session.state;
@@ -284,17 +272,15 @@ async function handleCategoryInput(ctx) {
             ctx.session.state = {};
             return ctx.reply(`Зачислено.\nБаланс (Основной): ${formatAmount(balances['Основной'])}`, kb.MAIN_KEYBOARD);
         }
-        // Обычный доход -> спросить сумму
+        // Обычный доход
         if (state.type === 'income') {
             state.step = config.STATE.AWAITING_INCOME_AMOUNT;
             return ctx.reply('Сумма:', kb.BACK_KEYBOARD);
         }
-        // Расход -> сохранить
+        // Расход
         if (state.type === 'expense') {
             const tag = config.AUTO_TAGS[cat] || 'Разное';
-            if (state.comment && state.comment.length > 0) {
-                await db.learnKeyword(state.comment, cat);
-            }
+            if (state.comment && state.comment.length > 0) await db.learnKeyword(state.comment, cat);
             await db.addTransaction({ userId, type: 'expense', amount: state.amount, category: cat, tag: tag, comment: state.comment, sourceAccount: 'Основной', targetAccount: null });
             ctx.session.state = {};
             return ctx.reply(`Расход записан: ${cat}`, kb.MAIN_KEYBOARD);
@@ -314,7 +300,6 @@ async function handleEditFlow(ctx) {
         const amount = parseAmount(text);
         if (amount === null && text !== '0') return ctx.reply('Число или 0.');
         if (amount !== null) state.amount = amount; 
-        
         state.step = config.STATE.EDIT_AWAITING_COMMENT;
         return ctx.reply('Новый комментарий:', kb.SKIP_COMMENT_KEYBOARD);
     }
@@ -326,10 +311,7 @@ async function handleEditFlow(ctx) {
     if (state.step === config.STATE.EDIT_AWAITING_CATEGORY) {
         const cat = text.split(' (')[0];
         const tag = isExpenseEdit ? (config.AUTO_TAGS[cat] || 'Разное') : 'Доход';
-        
-        await db.dbRun('UPDATE transactions SET amount = ?, comment = ?, category = ?, tag = ? WHERE id = ?', 
-            [state.amount, state.comment, cat, tag, state.txId]);
-        
+        await db.dbRun('UPDATE transactions SET amount = ?, comment = ?, category = ?, tag = ? WHERE id = ?', [state.amount, state.comment, cat, tag, state.txId]);
         ctx.session.state = {};
         return ctx.reply('Обновлено!', kb.MAIN_KEYBOARD);
     }
@@ -339,88 +321,33 @@ async function handleEditFlow(ctx) {
 async function handleInterestCorrection(ctx) {
     const amount = parseAmount(ctx.message.text.trim());
     if (!amount) return ctx.reply('Введите число.');
-    
     await db.addTransaction({
         userId: ctx.from.id, type: 'income', amount: amount, category: 'Проценты', tag: 'Депозит',
         comment: 'Ручная капитализация', sourceAccount: null, targetAccount: ctx.session.state.targetAccount
     });
-    
     ctx.session.state = {};
     return ctx.reply(`Начислено ${formatAmount(amount)} на "${ctx.session.state.targetAccount}".`, kb.MAIN_KEYBOARD);
 }
 
-
-// --- MAIN DISPATCHER ---
+// --- DISPATCHER ---
 async function handleStandardTextFlow(ctx) {
     const state = ctx.session.state;
     if (!state || !state.step) return ctx.reply('Используйте меню.', kb.MAIN_KEYBOARD);
 
-    // Маппинг состояний на функции-обработчики
     const step = state.step;
-    
     if (step === config.STATE.AWAITING_DEPOSIT_DELETION) return handleDepositDeletion(ctx);
-    
-    if ([config.STATE.AWAITING_DEPOSIT_NAME, config.STATE.AWAITING_DEPOSIT_BANK, config.STATE.AWAITING_DEPOSIT_RATE, config.STATE.AWAITING_DEPOSIT_AMOUNT, config.STATE.AWAITING_DEPOSIT_TERM].includes(step)) {
-        return handleDepositCreation(ctx);
-    }
-
-    if ([config.STATE.AWAITING_TRANSFER_SOURCE, config.STATE.AWAITING_TRANSFER_TARGET, config.STATE.AWAITING_TRANSFER_AMOUNT].includes(step)) {
-        return handleTransfer(ctx);
-    }
-
-    if ([config.STATE.AWAITING_EXPENSE_AMOUNT, config.STATE.AWAITING_EXPENSE_COMMENT].includes(step)) {
-        return handleExpense(ctx);
-    }
-
-    if ([config.STATE.AWAITING_INCOME_AMOUNT, config.STATE.AWAITING_INCOME_COMMENT].includes(step)) {
-        return handleIncome(ctx);
-    }
-
-    if (step === config.STATE.AWAITING_CATEGORY) {
-        return handleCategoryInput(ctx);
-    }
-
-    if (step.startsWith('EDIT_')) {
-        return handleEditFlow(ctx);
-    }
-    
-    if (step === config.STATE.AWAITING_INTEREST_CORRECTION) {
-        return handleInterestCorrection(ctx);
-    }
+    if ([config.STATE.AWAITING_DEPOSIT_NAME, config.STATE.AWAITING_DEPOSIT_BANK, config.STATE.AWAITING_DEPOSIT_RATE, config.STATE.AWAITING_DEPOSIT_AMOUNT, config.STATE.AWAITING_DEPOSIT_TERM].includes(step)) return handleDepositCreation(ctx);
+    if ([config.STATE.AWAITING_TRANSFER_SOURCE, config.STATE.AWAITING_TRANSFER_TARGET, config.STATE.AWAITING_TRANSFER_AMOUNT].includes(step)) return handleTransfer(ctx);
+    if ([config.STATE.AWAITING_EXPENSE_AMOUNT, config.STATE.AWAITING_EXPENSE_COMMENT].includes(step)) return handleExpense(ctx);
+    if ([config.STATE.AWAITING_INCOME_AMOUNT, config.STATE.AWAITING_INCOME_COMMENT].includes(step)) return handleIncome(ctx);
+    if (step === config.STATE.AWAITING_CATEGORY) return handleCategoryInput(ctx);
+    if (step.startsWith('EDIT_')) return handleEditFlow(ctx);
+    if (step === config.STATE.AWAITING_INTEREST_CORRECTION) return handleInterestCorrection(ctx);
 
     return ctx.reply('Не понял.', kb.MAIN_KEYBOARD);
 }
 
-bot.on('text', async (ctx) => {
-    const text = ctx.message.text.trim();
-    if (text.startsWith('/')) return;
-    
-    if (text === 'Отмена') {
-        ctx.session.state = {};
-        delete ctx.session.receipt;
-        return ctx.reply('Отменено.', kb.MAIN_KEYBOARD);
-    }
-
-    if (ctx.session.state && ctx.session.state.step === 'AWAITING_RECEIPT_CATEGORY' && ctx.session.receipt) {
-        const catClean = text.split(' (')[0];
-        const allCats = config.EXPENSE_CATEGORIES.flat();
-        
-        if (allCats.includes(catClean)) {
-            const itemIndex = ctx.session.state.currentItemIndex;
-            const item = ctx.session.receipt.items[itemIndex];
-            await db.learnProductCategory(item.name, catClean);
-            ctx.session.receipt.items[itemIndex].category = catClean;
-            ctx.reply(`Запомнил: "${escapeMarkdown(item.name)}" -> ${catClean}`);
-            return processNextReceiptItem(ctx);
-        } else {
-            return ctx.reply('Выберите категорию из кнопок.');
-        }
-    }
-
-    handleStandardTextFlow(ctx);
-});
-
-// --- COMMANDS AND START ---
+// --- COMMANDS & HEARS (Specific Listeners) ---
 
 bot.start(async (ctx) => {
     ctx.session.state = {}; 
@@ -658,6 +585,7 @@ bot.on('callback_query', async (ctx) => {
     }
 });
 
+// Photo (OCR) Handler
 bot.on('photo', async (ctx) => {
     try {
         ctx.reply('🔍 Анализирую чек...');
@@ -733,8 +661,37 @@ async function finalizeReceipt(ctx) {
     await ctx.replyWithMarkdown(reportMsg, debugKeyboard);
 }
 
+// ---------------- TEXT FALLBACK (MUST BE LAST) ----------------
+bot.on('text', async (ctx) => {
+    const text = ctx.message.text.trim();
+    if (text.startsWith('/')) return; // Ignore commands caught by generic listener
+    
+    if (text === 'Отмена') {
+        ctx.session.state = {};
+        delete ctx.session.receipt;
+        return ctx.reply('Отменено.', kb.MAIN_KEYBOARD);
+    }
+
+    if (ctx.session.state && ctx.session.state.step === 'AWAITING_RECEIPT_CATEGORY' && ctx.session.receipt) {
+        const catClean = text.split(' (')[0];
+        const allCats = config.EXPENSE_CATEGORIES.flat();
+        
+        if (allCats.includes(catClean)) {
+            const itemIndex = ctx.session.state.currentItemIndex;
+            const item = ctx.session.receipt.items[itemIndex];
+            await db.learnProductCategory(item.name, catClean);
+            ctx.session.receipt.items[itemIndex].category = catClean;
+            ctx.reply(`Запомнил: "${escapeMarkdown(item.name)}" -> ${catClean}`);
+            return processNextReceiptItem(ctx);
+        } else {
+            return ctx.reply('Выберите категорию из кнопок.');
+        }
+    }
+
+    handleStandardTextFlow(ctx);
+});
+
 // --- SCHEDULES ---
-// 1. Ежемесячные проценты
 async function runMonthlyInterestCheck() {
     const now = new Date();
     if (now.getDate() !== 1) return;
@@ -762,7 +719,6 @@ async function runMonthlyInterestCheck() {
     if (notificationSent) lastNotifiedMonth = currentMonthStr;
 }
 
-// 2. Бэкап (в 03:00)
 async function runDailyBackup() {
     const now = new Date();
     if (now.getHours() !== 3) return;
@@ -777,8 +733,8 @@ async function runDailyBackup() {
 setInterval(() => {
     runMonthlyInterestCheck();
     runDailyBackup();
-    runCalendarCheck(); // Включаем сюда же, чтобы не плодить таймеры? Нет, календарь нужен чаще.
-}, 60 * 60 * 1000); // Раз в час для долгих задач
+    runCalendarCheck();
+}, 60 * 60 * 1000); 
 
 bot.launch().then(() => console.log('Бот работает'));
 process.once('SIGINT', () => bot.stop('SIGINT'));
