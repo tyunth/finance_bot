@@ -2,21 +2,21 @@ const API_BASE_URL = '/budzet';
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
 const API_URL_CATEGORIES = API_BASE_URL + '/categories';
+const API_URL_BALANCES = API_BASE_URL + '/balances'; // НОВОЕ
 
 const CURRENCY = 'T';
 
-// Глобальные переменные
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
 let FILTERED_DATA = [];
 let chartsInstance = {}; 
+// Данные для переключения графиков
+let CHART_DATA_CACHE = {}; 
 
-// --- УТИЛИТЫ ---
 function formatCurrency(amount) {
-    return new Intl.NumberFormat('ru-RU').format(amount) + ' ' + CURRENCY;
+    return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
 }
 
-// --- УПРАВЛЕНИЕ ВКЛАДКАМИ ---
 function switchTab(tabName) {
     ['analytics', 'transactions'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.add('hidden');
@@ -26,48 +26,63 @@ function switchTab(tabName) {
     document.getElementById(`btn-${tabName}`).classList.add('active');
 }
 
-// --- ИНИЦИАЛИЗАЦИЯ ---
 async function init() {
     try {
-        // Грузим категории
-        const catRes = await fetch(API_URL_CATEGORIES);
+        const [catRes, txRes, balRes] = await Promise.all([
+            fetch(API_URL_CATEGORIES),
+            fetch(API_URL_TX),
+            fetch(API_URL_BALANCES)
+        ]);
+
         ALL_CATEGORIES = await catRes.json();
-        
+        RAW_DATA = await txRes.json();
+        const balances = await balRes.json();
+
+        // Заполняем фильтр категорий
         const filterSel = document.getElementById('filter-category');
         filterSel.innerHTML = '<option value="ALL">Все категории</option>';
         ALL_CATEGORIES.forEach(c => {
             const opt = document.createElement('option');
-            opt.value = c;
-            opt.textContent = c;
+            opt.value = c; opt.textContent = c;
             filterSel.appendChild(opt);
         });
 
-        // Грузим транзакции
-        const txRes = await fetch(API_URL_TX);
-        RAW_DATA = await txRes.json();
-        
+        // Отображаем балансы (Депозиты)
+        renderBalances(balances);
+
         document.getElementById('loading').style.display = 'none';
         document.getElementById('filter-panel').classList.remove('hidden');
 
         FILTERED_DATA = [...RAW_DATA];
-
         applyFilters(); 
         switchTab('analytics');
 
     } catch (e) {
         console.error(e);
-        const loadEl = document.getElementById('loading');
-        loadEl.textContent = 'Ошибка API. Проверьте консоль.';
-        loadEl.className = 'text-center py-10 text-red-600 font-bold';
+        document.getElementById('loading').textContent = 'Ошибка загрузки данных';
     }
 }
 
-// --- ФИЛЬТРАЦИЯ ---
+// НОВОЕ: Рендер балансов счетов
+function renderBalances(balances) {
+    const list = document.getElementById('deposit-list');
+    if (!balances || Object.keys(balances).length === 0) {
+        list.innerHTML = 'Нет счетов';
+        return;
+    }
+    list.innerHTML = Object.entries(balances)
+        .map(([name, val]) => {
+            const color = val > 0 ? 'text-green-600' : (val < 0 ? 'text-red-500' : 'text-gray-500');
+            return `<div class="flex justify-between"><span>${name}:</span> <span class="${color} font-bold">${formatCurrency(val)}</span></div>`;
+        })
+        .join('');
+}
+
 function applyFilters() {
     const startStr = document.getElementById('filter-date-start').value;
     const endStr = document.getElementById('filter-date-end').value;
     const catVal = document.getElementById('filter-category').value;
-    const typeVal = document.getElementById('filter-type').value; // <--- НОВОЕ
+    const typeVal = document.getElementById('filter-type').value;
 
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
@@ -75,17 +90,10 @@ function applyFilters() {
 
     FILTERED_DATA = RAW_DATA.filter(t => {
         const tDate = new Date(t.date);
-        
-        // Фильтр даты
         if (startDate && tDate < startDate) return false;
         if (endDate && tDate > endDate) return false;
-
-        // Фильтр категории
         if (catVal !== 'ALL' && t.category !== catVal) return false;
-
-        // НОВОЕ: Фильтр типа
         if (typeVal !== 'ALL' && t.type !== typeVal) return false;
-
         return true;
     });
 
@@ -97,20 +105,19 @@ function resetFilters() {
     document.getElementById('filter-date-start').value = '';
     document.getElementById('filter-date-end').value = '';
     document.getElementById('filter-category').value = 'ALL';
-    document.getElementById('filter-type').value = 'ALL'; // <--- НОВОЕ
+    document.getElementById('filter-type').value = 'ALL';
     applyFilters();
 }
 
-// --- АНАЛИТИКА ---
 function renderAnalytics(data) {
     let totalIncome = 0;
     let totalExpense = 0;
     
     const categoryMap = {};
     const monthMap = {}; 
-    const dayOfWeekMap = [0,0,0,0,0,0,0]; // Вс=0, Пн=1 ...
-    
-    // Для частоты (Категории и Комментарии)
+    const dayOfWeekMap = [0,0,0,0,0,0,0]; // Вс-Пн
+    const dayOfMonthMap = new Array(32).fill(0); // 1-31
+
     const catFrequency = {};
     const commentFrequency = {};
 
@@ -119,19 +126,16 @@ function renderAnalytics(data) {
 
         const amount = parseFloat(t.amount);
         const dateObj = new Date(t.date);
-        
-        // Ключ месяца: "2023-11"
         const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+        
         if (!monthMap[monthKey]) monthMap[monthKey] = { income: 0, expense: 0 };
 
         if (t.type === 'income') {
-            // ИСКЛЮЧЕНИЕ: Не считаем "Депозит" как заработанные деньги
             if (t.category !== 'Депозит') {
                 totalIncome += amount;
                 monthMap[monthKey].income += amount;
             }
-        }
-        else if (t.type === 'expense') {
+        } else if (t.type === 'expense') {
             totalExpense += amount;
             monthMap[monthKey].expense += amount;
             
@@ -139,159 +143,96 @@ function renderAnalytics(data) {
             categoryMap[cat] = (categoryMap[cat] || 0) + amount;
             catFrequency[cat] = (catFrequency[cat] || 0) + 1;
             
-            // Считаем комментарии (очищаем от пробелов)
-            if (t.comment && t.comment.trim().length > 0) {
+            if (t.comment && t.comment.trim()) {
                 const c = t.comment.trim();
                 commentFrequency[c] = (commentFrequency[c] || 0) + 1;
             }
 
             dayOfWeekMap[dateObj.getDay()]++;
+            dayOfMonthMap[dateObj.getDate()]++;
         }
     });
 
-    // KPI
+    // Сохраняем данные для переключения графиков
+    CHART_DATA_CACHE = { dayOfWeekMap, dayOfMonthMap };
+
     document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
     document.getElementById('stat-expense').textContent = formatCurrency(totalExpense);
     const balance = totalIncome - totalExpense;
+    // Переименовали в Итого/Остаток
     document.getElementById('stat-balance').textContent = formatCurrency(balance);
-    document.getElementById('stat-balance').className = `text-2xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
+    document.getElementById('stat-balance').className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
 
-    // === ГРАФИКИ ===
+    // --- ГРАФИКИ ---
 
-    // 1. Категории ("Остальное" < 4%)
+    // 1. Категории
     const groupedCategories = [];
     const groupedValues = [];
     let otherSum = 0;
-
-    const sortedRawCats = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
-    
-    sortedRawCats.forEach(([cat, sum]) => {
-        const percent = totalExpense > 0 ? (sum / totalExpense) : 0;
-        if (percent < 0.04) {
-            otherSum += sum;
-        } else {
-            groupedCategories.push(cat);
-            groupedValues.push(sum);
-        }
+    Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).forEach(([cat, sum]) => {
+        if (totalExpense > 0 && (sum / totalExpense) < 0.04) otherSum += sum;
+        else { groupedCategories.push(cat); groupedValues.push(sum); }
     });
-    if (otherSum > 0) {
-        groupedCategories.push('Остальное');
-        groupedValues.push(otherSum);
-    }
+    if (otherSum > 0) { groupedCategories.push('Остальное'); groupedValues.push(otherSum); }
 
     const ctxCat = document.getElementById('chartCategories').getContext('2d');
     if (chartsInstance.cat) chartsInstance.cat.destroy();
-chartsInstance.cat = new Chart(ctxCat, {
-                type: 'doughnut',
-                data: {
-                    labels: groupedCategories,
-                    datasets: [{
-                        data: groupedValues,
-                        // ... цвета ...
-                        backgroundColor: [
-                             '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
-                             '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b' 
-                        ],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    // НОВОЕ: Обработчик клика
-                    onClick: (e, elements) => {
-                        if (elements.length > 0) {
-                            const index = elements[0].index;
-                            const catName = groupedCategories[index];
-                            if (catName !== 'Остальное') {
-                                drillDownByCategory(catName);
-                            } else {
-                                alert('В "Остальное" входит много категорий, используйте фильтр вручную.');
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 12 } },
-                        tooltip: {
-                             // ... твой старый код тултипа ...
-                             callbacks: {
-                                label: function(context) {
-                                    let value = context.raw;
-                                    let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
-                                    return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-
-    // 2. Дни недели
-    const daysData = [
-        dayOfWeekMap[1], dayOfWeekMap[2], dayOfWeekMap[3], dayOfWeekMap[4], dayOfWeekMap[5], dayOfWeekMap[6], dayOfWeekMap[0]
-    ];
-    
-    const ctxDays = document.getElementById('chartDays').getContext('2d');
-    if (chartsInstance.days) chartsInstance.days.destroy();
-    chartsInstance.days = new Chart(ctxDays, {
-        type: 'bar',
+    chartsInstance.cat = new Chart(ctxCat, {
+        type: 'doughnut',
         data: {
-            labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
+            labels: groupedCategories,
             datasets: [{
-                label: 'Покупок',
-                data: daysData,
-                backgroundColor: '#60a5fa',
-                borderRadius: 4
+                data: groupedValues,
+                backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b'],
+                borderWidth: 0
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true } },
-            plugins: { legend: { display: false } }
+            onClick: (e, elements) => {
+                if (elements.length > 0) drillDownByCategory(groupedCategories[elements[0].index]);
+            },
+            plugins: { legend: { position: 'right', labels: { boxWidth: 12 } } }
         }
     });
 
-    // 3. Динамика по месяцам (С КЛИКОМ)
+    // 2. Активность (Сначала рисуем дефолтный - по дням недели)
+    renderDayChart();
+
+    // 3. Динамика
     const sortedMonths = Object.keys(monthMap).sort();
     const ctxMonth = document.getElementById('chartMonthly').getContext('2d');
     if (chartsInstance.month) chartsInstance.month.destroy();
     chartsInstance.month = new Chart(ctxMonth, {
-                type: 'bar',
-                data: {
-                    labels: sortedMonths,
-                    datasets: [
-                        { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
-                        { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    // НОВОЕ: Обработчик клика
-                    onClick: (e, elements) => {
-                        if (elements.length > 0) {
-                            const index = elements[0].index;
-                            const monthStr = sortedMonths[index]; // "2023-11"
-                            drillDownByMonth(monthStr);
-                        }
-                    }
-                }
-            });
+        type: 'bar',
+        data: {
+            labels: sortedMonths,
+            datasets: [
+                { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
+                { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            onClick: (e, elements) => { if (elements.length > 0) drillDownByMonth(sortedMonths[elements[0].index]); }
+        }
+    });
 
-    // === СПИСКИ ТОПОВ ===
+    // --- СПИСКИ ---
 
-    // Топ Крупных
-    const topExp = data.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 5);
-    document.getElementById('top-expenses-list').innerHTML = topExp.map(t => `
+    // Топ-10 Крупных
+    const topExp = data.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 10);
+    document.getElementById('top-expenses-list').innerHTML = topExp.map((t, i) => `
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-            <td class="px-6 py-3 font-medium text-gray-800">${t.category}</td>
-            <td class="px-6 py-3 text-xs text-gray-500 hidden sm:table-cell">${t.comment || ''}</td>
-            <td class="px-6 py-3 font-bold text-gray-900 text-right">${formatCurrency(t.amount)}</td>
+            <td class="px-4 py-2 text-xs text-gray-400 font-bold w-4">${i+1}.</td>
+            <td class="px-2 py-2 font-medium text-gray-800">${t.category}</td>
+            <td class="px-2 py-2 text-xs text-gray-500 hidden sm:table-cell truncate max-w-[100px]">${t.comment || ''}</td>
+            <td class="px-2 py-2 font-bold text-gray-900 text-right">${formatCurrency(t.amount)}</td>
         </tr>
     `).join('');
 
-    // Топ Частых (Категории)
+    // Топ Частых
     const sortedFreqCat = Object.entries(catFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
     document.getElementById('top-freq-cat-list').innerHTML = sortedFreqCat.map(([cat, count]) => `
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
@@ -300,58 +241,65 @@ chartsInstance.cat = new Chart(ctxCat, {
         </tr>
     `).join('');
 
-    // Топ Частых (Комментарии) - НОВОЕ
     const sortedFreqComment = Object.entries(commentFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const commentListEl = document.getElementById('top-freq-comment-list');
-    
-    if (sortedFreqComment.length === 0) {
-        commentListEl.innerHTML = '<tr><td class="text-xs text-gray-400 py-2">Нет комментариев</td></tr>';
-    } else {
-        commentListEl.innerHTML = sortedFreqComment.map(([comm, count]) => `
+    commentListEl.innerHTML = sortedFreqComment.length === 0 
+        ? '<tr><td class="text-xs text-gray-400 py-2">Нет комментариев</td></tr>'
+        : sortedFreqComment.map(([comm, count]) => `
             <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
                 <td class="py-2 text-sm text-gray-700">"${comm}"</td>
-                <td class="py-2 text-right font-semibold text-gray-500 text-xs">${count} раз</td>
+                <td class="py-2 text-right font-semibold text-gray-500 text-xs">${count}</td>
             </tr>
         `).join('');
+}
+
+// НОВОЕ: Переключение графика активности
+function renderDayChart() {
+    const type = document.getElementById('chart-day-type').value;
+    const ctx = document.getElementById('chartDays').getContext('2d');
+    
+    let labels, data;
+    
+    if (type === 'week') {
+        // [Вс, Пн, Вт...] -> Сдвиг на Пн
+        const d = CHART_DATA_CACHE.dayOfWeekMap;
+        data = [d[1], d[2], d[3], d[4], d[5], d[6], d[0]];
+        labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    } else {
+        // По числам (1-31)
+        data = CHART_DATA_CACHE.dayOfMonthMap.slice(1); // убираем 0 индекс
+        labels = Array.from({length: 31}, (_, i) => i + 1);
     }
+
+    if (chartsInstance.days) chartsInstance.days.destroy();
+    chartsInstance.days = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: 'Покупок', data: data, backgroundColor: '#60a5fa', borderRadius: 2 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { display: false } }
+        }
+    });
 }
 
-// Вспомогательная функция для клика по графику
-function setFilterByMonth(monthStr) {
-    // monthStr format "YYYY-MM"
-    const [year, month] = monthStr.split('-').map(Number);
-    
-    // Начало месяца
-    const start = new Date(year, month - 1, 1);
-    // Конец месяца (0 день следующего месяца = последний день текущего)
-    const end = new Date(year, month, 0);
-
-    // Форматируем в YYYY-MM-DD для input type="date"
-    const fmt = d => d.toISOString().split('T')[0];
-
-    document.getElementById('filter-date-start').value = fmt(start);
-    document.getElementById('filter-date-end').value = fmt(end);
-    
-    // Применяем
-    applyFilters();
-}
-
-
-// --- ТАБЛИЦА (Без изменений логики) ---
 function renderTable(data) {
     const headerRow = document.getElementById('table-header');
     const body = document.getElementById('table-body');
     headerRow.innerHTML = '';
     body.innerHTML = '';
 
-    // Расширенный набор колонок
+    // НОВЫЙ ПОРЯДОК: Коммент на 3 месте, Тег на 4
     const keys = [
         {k: 'date', label: 'Дата'}, 
-        {k: 'type', label: 'Тип'},          
         {k: 'category', label: 'Категория'}, 
-        {k: 'tag', label: 'Тег'},           // <-- Видим теги
+        {k: 'comment', label: 'Комментарий'}, // <-- Подвинули сюда
+        {k: 'tag', label: 'Тег'},           
+        {k: 'type', label: 'Тип'},          
         {k: 'account', label: 'Счет'},      
-        {k: 'comment', label: 'Комментарий'}, 
         {k: 'amount', label: 'Сумма'}
     ];
 
@@ -363,59 +311,79 @@ function renderTable(data) {
     });
     headerRow.innerHTML += '<th class="px-6 py-3"></th>'; 
 
-    // Берем последние 100 записей
     const dataToShow = data.slice(0, 100); 
 
     dataToShow.forEach(item => {
         const tr = document.createElement('tr');
-        // Цветная полоска слева в зависимости от типа
         const borderClass = item.type === 'income' ? 'border-l-green-500' : (item.type === 'expense' ? 'border-l-red-500' : 'border-l-gray-400');
         tr.className = `hover:bg-gray-50 transition border-b border-gray-100 border-l-4 ${borderClass}`;
 
         keys.forEach(col => {
             const td = document.createElement('td');
-            td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-700';
+            td.className = 'px-6 py-4 text-sm text-gray-700';
             
             if (col.k === 'amount') {
                 td.textContent = formatCurrency(item.amount);
-                td.className += ' font-bold';
+                td.className += ' font-bold whitespace-nowrap';
             } else if (col.k === 'date') {
                 td.textContent = new Date(item.date).toLocaleDateString('ru-RU');
+                td.className += ' whitespace-nowrap';
             } else if (col.k === 'type') {
                 const typeMap = {'income': 'Доход', 'expense': 'Расход', 'transfer': 'Перевод'};
                 td.textContent = typeMap[item.type] || item.type;
+            } else if (col.k === 'comment') {
+                // Узкая колонка для коммента
+                td.textContent = item.comment || '—';
+                td.className += ' max-w-[200px] break-words leading-tight'; // Перенос строк
             } else if (col.k === 'account') {
-                // Красивое отображение счетов
-                if (item.type === 'transfer') {
-                    td.textContent = `${item.source_account || '?'} → ${item.target_account || '?'}`;
-                } else if (item.type === 'income') {
-                    td.textContent = item.target_account || 'Основной';
-                } else {
-                    td.textContent = item.source_account || 'Основной';
-                }
-                td.className += ' text-xs text-gray-500';
+                if (item.type === 'transfer') td.textContent = `${item.source_account} → ${item.target_account}`;
+                else if (item.type === 'income') td.textContent = item.target_account || 'Основной';
+                else td.textContent = item.source_account || 'Основной';
+                td.className += ' text-xs text-gray-500 whitespace-nowrap';
             } else {
                 td.textContent = item[col.k] || '—';
+                td.className += ' whitespace-nowrap';
             }
             tr.appendChild(td);
         });
 
         const tdAct = document.createElement('td');
         tdAct.className = 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium';
-        tdAct.innerHTML = `<button onclick='openEditModal(${JSON.stringify(item)})' class="text-blue-600 hover:text-blue-900 font-bold">ИЗМ.</button>`;
+        tdAct.innerHTML = `<button onclick='openEditModal(${JSON.stringify(item)})' class="text-blue-600 hover:text-blue-900 font-bold">✎</button>`;
         tr.appendChild(tdAct);
 
         body.appendChild(tr);
     });
 }
 
-// --- РЕДАКТИРОВАНИЕ ---
+// Drill-Down функции
+function drillDownByCategory(categoryName) {
+    if (categoryName === 'Остальное') return alert('Используйте фильтр.');
+    document.getElementById('filter-category').value = categoryName;
+    document.getElementById('filter-type').value = 'expense';
+    applyFilters();
+    switchTab('transactions');
+}
+
+function drillDownByMonth(monthStr) {
+    const [year, month] = monthStr.split('-').map(Number);
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0);
+    const fmt = d => {
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    };
+    document.getElementById('filter-date-start').value = fmt(start);
+    document.getElementById('filter-date-end').value = fmt(end);
+    document.getElementById('filter-type').value = 'ALL';
+    applyFilters();
+    switchTab('transactions');
+}
+
 function openEditModal(item) {
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-amount').value = item.amount;
     document.getElementById('edit-comment').value = item.comment || '';
-    
-    // Подставляем тег
     document.getElementById('edit-tag').value = item.tag || ''; 
     
     const select = document.getElementById('edit-category');
@@ -432,94 +400,28 @@ function openEditModal(item) {
     document.getElementById('edit-modal').classList.add('flex');
 }
 
-document.getElementById('edit-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('edit-id').value;
-    const amount = parseFloat(document.getElementById('edit-amount').value);
-    const category = document.getElementById('edit-category').value;
-    const comment = document.getElementById('edit-comment').value;
-    
-    // Забираем значение тега
-    const tag = document.getElementById('edit-tag').value; 
-
-    try {
-        const res = await fetch(API_URL_EDIT, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id, amount, category, comment, tag}) // Отправляем тег
-        });
-        if(res.ok) {
-            closeModal();
-            init();
-        } else {
-            alert('Ошибка сохранения');
-        }
-    } catch(e) { alert('Ошибка сети'); }
-});
-
 function closeModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     document.getElementById('edit-modal').classList.remove('flex');
 }
 
-function drillDownByCategory(categoryName) {
-    // 1. Устанавливаем фильтры
-    document.getElementById('filter-category').value = categoryName;
-    document.getElementById('filter-type').value = 'expense'; // Обычно категория это расход
-    
-    // 2. Сбрасываем даты (чтобы видеть всю историю) или оставляем как есть?
-    // Давай пока оставим текущие даты, если они выбраны.
-    
-    // 3. Применяем и переключаем
-    applyFilters();
-    switchTab('transactions');
-}
-
-function drillDownByMonth(monthStr) {
-    // monthStr format "YYYY-MM"
-    const [year, month] = monthStr.split('-').map(Number);
-    
-    // Начало месяца
-    const start = new Date(year, month - 1, 1);
-    // Конец месяца
-    const end = new Date(year, month, 0);
-
-    // Устанавливаем даты в инпуты (формат YYYY-MM-DD)
-    // Небольшой хак для корректной даты с учетом часового пояса
-    const fmt = d => {
-        const offset = d.getTimezoneOffset() * 60000;
-        return new Date(d.getTime() - offset).toISOString().split('T')[0];
-    };
-
-    document.getElementById('filter-date-start').value = fmt(start);
-    document.getElementById('filter-date-end').value = fmt(end);
-    document.getElementById('filter-type').value = 'ALL'; // Смотрим всё за месяц
-    
-    applyFilters();
-    switchTab('transactions');
-}
-
 document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-id').value;
     const amount = parseFloat(document.getElementById('edit-amount').value);
     const category = document.getElementById('edit-category').value;
     const comment = document.getElementById('edit-comment').value;
+    const tag = document.getElementById('edit-tag').value; 
 
     try {
-        const res = await fetch(API_URL_EDIT, {
+        await fetch(API_URL_EDIT, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id, amount, category, comment})
+            body: JSON.stringify({id, amount, category, comment, tag})
         });
-        if(res.ok) {
-            closeModal();
-            init();
-        } else {
-            alert('Ошибка сохранения');
-        }
+        closeModal();
+        init();
     } catch(e) { alert('Ошибка сети'); }
 });
 
-// Запуск приложения
 init();
