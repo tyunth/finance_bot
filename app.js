@@ -7,7 +7,7 @@ const API_URL_STUDENTS = API_BASE_URL + '/students';
 const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
 const API_URL_CONFIG = API_BASE_URL + '/config'; // <-- НОВОЕ
 const CURRENCY = 'T';
-let CALENDAR_EMBED_ID = ''; // Пусто, заполним с сервера
+let CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; // Пусто, заполним с сервера
 
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
@@ -33,19 +33,19 @@ function switchTab(tabName) {
 
 async function init() {
     try {
-        const [catRes, txRes, balRes, configRes] = await Promise.all([
-        fetch(API_URL_CATEGORIES),
-        fetch(API_URL_TX),
-        fetch(API_URL_BALANCES),
+        // Убрали configRes из списка, так как запросов всего 3
+        const [catRes, txRes, balRes] = await Promise.all([
+            fetch(API_URL_CATEGORIES),
+            fetch(API_URL_TX),
+            fetch(API_URL_BALANCES)
         ]);
 
         ALL_CATEGORIES = await catRes.json();
         RAW_DATA = await txRes.json();
         const balances = await balRes.json();
-        const configData = await configRes.json();
-        
-        // Сохраняем ID календаря
-        CALENDAR_EMBED_ID = configData.calendarId;
+
+        // СТРОКИ С configData УДАЛЕНЫ, так как мы берем ID из константы выше
+
         // Заполняем фильтр категорий
         const filterSel = document.getElementById('filter-category');
         filterSel.innerHTML = '<option value="ALL">Все категории</option>';
@@ -63,7 +63,7 @@ async function init() {
 
         FILTERED_DATA = [...RAW_DATA];
         applyFilters(); 
-        switchTab('analytics');
+        switchTab('analytics'); // Или какую вкладку ты хочешь по умолчанию
 
     } catch (e) {
         console.error(e);
