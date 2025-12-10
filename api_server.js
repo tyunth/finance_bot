@@ -123,42 +123,56 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
-        // --- УЧЕНИКИ ---
     
-    // Получить всех
+// --- УЧЕНИКИ ---
     else if (req.url === '/students' && req.method === 'GET') {
         try {
-            const students = await db.getStudents(); // Используем функцию из db.js
+            // ВАЖНО: Используем require('./db'), который мы подключили в начале файла
+            // Если в начале api_server.js не было const db = require('./db'); - добавь!
+            // Но у тебя там уже есть require('./config')...
+            // Лучше всего в api_server.js заменить подключение sqlite3 вручную на использование db.js
+            
+            // НО ЧТОБЫ БЫСТРО:
+            // В db.js мы экспортировали getStudents. Нам нужно его вызвать.
+            // Давай лучше перепишем этот блок на использование dbRun/dbAll ИЗ api_server.js, но с правильным SQL
+            // Так будет надежнее без полной переделки импортов.
+            
+            const students = await dbAll('SELECT * FROM students ORDER BY name ASC');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(students));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
     
-    // Добавить / Редактировать / Удалить
     else if (req.url === '/students/action' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const action = data.action; // 'add', 'edit', 'delete'
+                const action = data.action; 
                 
                 if (action === 'add') {
-                    await db.addStudent(data);
+                    // Используем dbRun локальный, но SQL как в db.js
+                    await dbRun(
+                        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                        [data.name, data.subject, data.parents, data.school, data.grade, data.teacher, data.phone, data.address, data.notes, data.parent_phone]
+                    );
                 } else if (action === 'edit') {
-                    await db.updateStudent(data);
+                    await dbRun(
+                        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=? 
+                         WHERE id=?`, 
+                        [data.name, data.subject, data.parents, data.school, data.grade, data.teacher, data.phone, data.address, data.notes, data.parent_phone, data.id]
+                    );
                 } else if (action === 'delete') {
-                    await db.deleteStudent(data.id);
-                } else {
-                    throw new Error('Unknown action');
+                    await dbRun('DELETE FROM students WHERE id = ?', [data.id]);
                 }
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
             } catch (e) { 
-                console.error(e);
-                res.writeHead(500); 
-                res.end(JSON.stringify({ error: e.message })); 
+                console.error('Ошибка сохранения студента:', e);
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
             }
         });
     }
