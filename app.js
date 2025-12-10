@@ -2,12 +2,12 @@ const API_BASE_URL = '/budzet';
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
 const API_URL_CATEGORIES = API_BASE_URL + '/categories';
-const API_URL_BALANCES = API_BASE_URL + '/balances'; 
-const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
+const API_URL_BALANCES = API_BASE_URL + '/balances';
 const API_URL_STUDENTS = API_BASE_URL + '/students';
 const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
-
+const API_URL_CONFIG = API_BASE_URL + '/config'; // <-- НОВОЕ
 const CURRENCY = 'T';
+let CALENDAR_EMBED_ID = ''; // Пусто, заполним с сервера
 
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
@@ -33,16 +33,20 @@ function switchTab(tabName) {
 
 async function init() {
     try {
-        const [catRes, txRes, balRes] = await Promise.all([
-            fetch(API_URL_CATEGORIES),
-            fetch(API_URL_TX),
-            fetch(API_URL_BALANCES)
+        const [catRes, txRes, balRes, configRes] = await Promise.all([
+        fetch(API_URL_CATEGORIES),
+        fetch(API_URL_TX),
+        fetch(API_URL_BALANCES),
+        fetch(API_URL_CONFIG) // Запрос ID календаря
         ]);
 
         ALL_CATEGORIES = await catRes.json();
         RAW_DATA = await txRes.json();
         const balances = await balRes.json();
-
+        const configData = await configRes.json();
+        
+        // Сохраняем ID календаря
+        CALENDAR_EMBED_ID = configData.calendarId;
         // Заполняем фильтр категорий
         const filterSel = document.getElementById('filter-category');
         filterSel.innerHTML = '<option value="ALL">Все категории</option>';
