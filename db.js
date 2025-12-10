@@ -48,6 +48,20 @@ function initializeTables() {
             keyword TEXT PRIMARY KEY, category TEXT
         )`);
 
+        // Таблица Учеников
+        db.run(`CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            name TEXT, 
+            subject TEXT, 
+            parents TEXT, 
+            school TEXT, 
+            grade TEXT, 
+            teacher TEXT, 
+            phone TEXT, 
+            address TEXT,
+            notes TEXT
+        )`);
+
         // Миграции
         const runMigration = (table, col, type = 'TEXT') => {
             db.all(`PRAGMA table_info(${table})`, (err, cols) => {
@@ -193,11 +207,41 @@ async function wasInterestPaidThisMonth(userId, accountName) {
     return !!row;
 }
 
+// --- ЛОГИКА УЧЕНИКОВ ---
+
+async function getStudents() {
+    return dbAll('SELECT * FROM students ORDER BY name ASC');
+}
+
+async function addStudent(data) {
+    const { name, subject, parents, school, grade, teacher, phone, address, notes } = data;
+    return dbRun(
+        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, subject, parents, school, grade, teacher, phone, address, notes]
+    );
+}
+
+async function updateStudent(data) {
+    const { id, name, subject, parents, school, grade, teacher, phone, address, notes } = data;
+    return dbRun(
+        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=? 
+         WHERE id=?`,
+        [name, subject, parents, school, grade, teacher, phone, address, notes, id]
+    );
+}
+
+async function deleteStudent(id) {
+    return dbRun('DELETE FROM students WHERE id = ?', [id]);
+}
+
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
     isEventProcessed, markEventProcessed, addDebt, getDebts,
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
+    getStudents, addStudent, updateStudent, deleteStudent,
     DB_PATH
 };
