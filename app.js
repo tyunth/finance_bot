@@ -37,7 +37,6 @@ async function init() {
         fetch(API_URL_CATEGORIES),
         fetch(API_URL_TX),
         fetch(API_URL_BALANCES),
-        fetch(API_URL_CONFIG) // Запрос ID календаря
         ]);
 
         ALL_CATEGORIES = await catRes.json();
