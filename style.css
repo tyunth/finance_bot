@@ -1,0 +1,36 @@
+body { 
+    font-family: 'Inter', sans-serif; 
+    background-color: #f8fafc; 
+}
+
+.tab-btn.active { 
+    border-bottom: 2px solid #2563eb; 
+    color: #2563eb; 
+    font-weight: 600; 
+}
+
+.tab-btn { 
+    color: #6b7280; 
+    font-weight: 500; 
+    transition: color 0.2s; 
+}
+
+.card { 
+    background: white; 
+    border-radius: 0.75rem; 
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); 
+    border: 1px solid #e5e7eb; 
+}
+
+#chartMonthly { 
+    cursor: pointer; 
+}
+
+/* Скрываем скроллбар для меню на мобильных, но оставляем прокрутку */
+.overflow-x-auto::-webkit-scrollbar {
+    display: none;
+}
+.overflow-x-auto {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
