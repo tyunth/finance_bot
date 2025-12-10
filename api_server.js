@@ -122,6 +122,45 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
+        // --- УЧЕНИКИ ---
+    
+    // Получить всех
+    else if (req.url === '/students' && req.method === 'GET') {
+        try {
+            const students = await db.getStudents(); // Используем функцию из db.js
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(students));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    // Добавить / Редактировать / Удалить
+    else if (req.url === '/students/action' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const action = data.action; // 'add', 'edit', 'delete'
+                
+                if (action === 'add') {
+                    await db.addStudent(data);
+                } else if (action === 'edit') {
+                    await db.updateStudent(data);
+                } else if (action === 'delete') {
+                    await db.deleteStudent(data.id);
+                } else {
+                    throw new Error('Unknown action');
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { 
+                console.error(e);
+                res.writeHead(500); 
+                res.end(JSON.stringify({ error: e.message })); 
+            }
+        });
+    }
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
