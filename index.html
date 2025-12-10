@@ -39,6 +39,15 @@
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">По дату</label>
                     <input type="date" id="filter-date-end" class="block w-full border border-gray-300 rounded-md p-2 text-sm">
                 </div>
+                <div class="w-full md:w-auto">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Тип</label>
+                    <select id="filter-type" class="block w-full border border-gray-300 rounded-md p-2 text-sm">
+                        <option value="ALL">Все типы</option>
+                        <option value="expense">Расход</option>
+                        <option value="income">Доход</option>
+                        <option value="transfer">Перевод</option>
+                    </select>
+                </div>
                 <div class="w-full md:w-64">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Категория</label>
                     <select id="filter-category" class="block w-full border border-gray-300 rounded-md p-2 text-sm">
