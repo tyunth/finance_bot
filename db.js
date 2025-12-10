@@ -55,6 +55,37 @@ function initializeTables() {
             parent_phone TEXT
         )`);
 
+        // --- НОВЫЕ ТАБЛИЦЫ ---
+
+        // 1. Покупки и Вишлист
+        // type: 'buy' (купить), 'gift' (подарок), 'wish' (вишлист)
+        // status: 'active', 'done'
+        db.run(`CREATE TABLE IF NOT EXISTS shopping_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            item_name TEXT, 
+            type TEXT, 
+            person_name TEXT, -- Кому подарок (если это подарок)
+            price_estimate REAL DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            created_at TEXT
+        )`);
+
+        // 2. Коммуналка (Показания и Тарифы)
+        db.run(`CREATE TABLE IF NOT EXISTS utility_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,             -- Дата записи (обычно 1 число месяца)
+            service_type TEXT,     -- 'electricity', 'water_hot', 'water_cold', 'heating', 'internet'
+            meter_value REAL,      -- Показание счетчика (кубы/кВт)
+            consumption REAL,      -- Потреблено за месяц (разница с прошлым)
+            tariff_price REAL,     -- Цена за единицу (тарификация)
+            total_cost REAL,       -- Итого денег за эту услугу
+            image_path TEXT        -- Ссылка на файл чека (если будем хранить)
+        )`);
+
+        // Миграции для существующих таблиц
+        // Добавляем lesson_type в транзакции, чтобы отличать Пробные от Обычных
+        
+        
         // Миграции (добавление колонок, если их нет)
         const runMigration = (table, col, type = 'TEXT') => {
             db.all(`PRAGMA table_info(${table})`, (err, cols) => {
@@ -68,6 +99,7 @@ function initializeTables() {
         ['comment', 'tag', 'source_account', 'target_account'].forEach(c => runMigration('transactions', c));
         ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
         ['parent_phone'].forEach(c => runMigration('students', c)); // <--- НОВАЯ МИГРАЦИЯ
+        ['lesson_type'].forEach(c => runMigration('transactions', c));
     });
 }
 
