@@ -1,19 +1,20 @@
 const http = require('http');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const fs = require('fs'); // <--- 1. ВАЖНО: Добавили модуль для чтения файлов
+const fs = require('fs');
+
+// Подключаем конфиг, чтобы знать все категории (даже те, которых нет в базе)
+const config = require('./config');
 
 const DB_PATH = path.resolve(__dirname, 'finance.db');
 const HOST = '127.0.0.1'; 
 const PORT = 4000;
 
-// Хелперы для БД
 const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
     const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, err => err ? reject(err) : null);
     db.all(sql, params, (err, rows) => { db.close(); err ? reject(err) : resolve(rows); });
 });
 
-// Исправленный dbRun (для UPDATE/INSERT)
 const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
     const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, err => err ? reject(err) : null);
     db.run(sql, params, function(err) { 
@@ -22,14 +23,11 @@ const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
     });
 });
 
-// <--- 2. ВАЖНО: Функция, которая читает HTML/JS файлы с диска и отправляет браузеру
 const serveStatic = (res, filePath, contentType) => {
     const fullPath = path.join(__dirname, filePath);
     fs.readFile(fullPath, (err, content) => {
         if (err) {
-            console.error(`Error serving ${filePath}:`, err);
-            res.writeHead(500);
-            res.end(`Server Error: Could not load ${filePath}`);
+            res.writeHead(500); res.end(`Server Error: Could not load ${filePath}`);
         } else {
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(content, 'utf-8');
@@ -38,27 +36,19 @@ const serveStatic = (res, filePath, contentType) => {
 };
 
 const server = http.createServer(async (req, res) => {
-    // CORS (Разрешаем запросы, если вдруг будем стучаться с другого домена)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-    // --- 3. ВАЖНО: БЛОК РАЗДАЧИ СТАТИКИ (САЙТА) ---
+    // --- STATIC ---
+    if (req.url === '/' && req.method === 'GET') serveStatic(res, 'index.html', 'text/html');
+    else if (req.url === '/app.js' && req.method === 'GET') serveStatic(res, 'app.js', 'application/javascript');
     
-    // Если просят корень сайта "/" -> отдаем index.html
-    if (req.url === '/' && req.method === 'GET') {
-        serveStatic(res, 'index.html', 'text/html');
-    } 
-    // Если просят скрипт "/app.js" -> отдаем app.js
-    else if (req.url === '/app.js' && req.method === 'GET') {
-        serveStatic(res, 'app.js', 'application/javascript');
-    }
-    
-    // --- API (РАБОТА С ДАННЫМИ) ---
+    // --- API ---
 
-    // 1. GET /transactions
+    // 1. Транзакции
     else if (req.url === '/transactions' && req.method === 'GET') {
         try {
             const transactions = await dbAll('SELECT * FROM transactions ORDER BY date DESC');
@@ -66,33 +56,61 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify(transactions));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     } 
-    // 2. GET /categories
+    
+    // 2. Категории (Исправленный баг: объединяем БД + Конфиг)
     else if (req.url === '/categories' && req.method === 'GET') {
         try {
-            const cats = await dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод" ORDER BY category ASC');
-            // Превращаем [{category: 'Еда'}, {category: 'Такси'}] в ['Еда', 'Такси']
-            const catList = cats.map(c => c.category);
+            // Берем из базы
+            const dbCats = await dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод"');
+            const dbCatList = dbCats.map(c => c.category);
+            
+            // Берем из конфига (разворачиваем массивы)
+            const configCats = [...config.EXPENSE_CATEGORIES.flat(), ...config.INCOME_CATEGORIES.flat()].map(c => c.split(' (')[0]);
+            
+            // Объединяем и убираем дубликаты
+            const allCats = [...new Set([...dbCatList, ...configCats])].sort();
+            
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(catList));
+            res.end(JSON.stringify(allCats));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
-    // 3. POST /transactions/edit
-else if (req.url === '/transactions/edit' && req.method === 'POST') {
+
+    // 3. Балансы счетов (НОВОЕ)
+    else if (req.url === '/balances' && req.method === 'GET') {
+        try {
+            // 1. Получаем счета
+            const accounts = await dbAll('SELECT name, is_deposit FROM accounts');
+            const balances = {};
+            accounts.forEach(a => balances[a.name] = 0);
+            if (!balances['Основной']) balances['Основной'] = 0;
+
+            // 2. Считаем сумму по транзакциям
+            const txs = await dbAll('SELECT type, amount, source_account, target_account FROM transactions');
+            txs.forEach(t => {
+                if (t.type === 'income' && t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
+                else if (t.type === 'expense' && t.source_account) balances[t.source_account] = (balances[t.source_account] || 0) - t.amount;
+                else if (t.type === 'transfer') {
+                    if (t.source_account) balances[t.source_account] = (balances[t.source_account] || 0) - t.amount;
+                    if (t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
+                }
+            });
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(balances));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+
+    // 4. Редактирование
+    else if (req.url === '/transactions/edit' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                // ДОБАВИЛИ tag в разбор
                 const { id, amount, category, comment, tag } = JSON.parse(body);
-                
                 if (!id || !amount) throw new Error('No Data');
                 
-                // ОБНОВИЛИ SQL: добавили запись тега
-                const sql = `UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`;
+                await dbRun(`UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`, [amount, category, comment, tag, id]);
                 
-                await dbRun(sql, [amount, category, comment, tag, id]);
-                
-                // Обучение (опционально)
                 if (comment && category) {
                     const dbWrite = new sqlite3.Database(DB_PATH);
                     dbWrite.run('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [comment.trim().toLowerCase(), category]);
@@ -101,14 +119,9 @@ else if (req.url === '/transactions/edit' && req.method === 'POST') {
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
-            } catch (e) { 
-                console.error(e);
-                res.writeHead(500); 
-                res.end(JSON.stringify({ error: e.message })); 
-            }
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
-    // 404
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
