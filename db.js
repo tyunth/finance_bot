@@ -20,7 +20,7 @@ function initializeTables() {
         
         // Счета
         db.run(`CREATE TABLE IF NOT EXISTS accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, balance REAL DEFAULT 0, is_deposit INTEGER DEFAULT 0, rate REAL DEFAULT 0, term_date TEXT, bank_name TEXT, UNIQUE(user_id, name)
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, balance REAL DEFAULT 0, is_deposit INTEGER DEFAULT 0, rate REAL DEFAULT 0, term_date TEXT, bank_name TEXT, start_date TEXT, UNIQUE(user_id, name)
         )`);
 
         // Обработанные события календаря
@@ -33,46 +33,41 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, student_name TEXT, subject TEXT, amount REAL, date TEXT, event_id TEXT, is_paid INTEGER DEFAULT 0
         )`);
 
-        // Чеки: детали
+        // Чеки
         db.run(`CREATE TABLE IF NOT EXISTS receipt_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT, transaction_id INTEGER, item_name TEXT, price REAL, quantity REAL DEFAULT 1, shop_name TEXT, date TEXT
         )`);
-
-        // Чеки: маппинг
         db.run(`CREATE TABLE IF NOT EXISTS product_mappings (
             raw_name TEXT PRIMARY KEY, category TEXT
         )`);
 
-        // --- НОВОЕ: Таблица для запоминания категорий по комментариям ---
+        // Обучение
         db.run(`CREATE TABLE IF NOT EXISTS keywords (
             keyword TEXT PRIMARY KEY, category TEXT
         )`);
 
-        // Таблица Учеников
+        // Ученики
         db.run(`CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            name TEXT, 
-            subject TEXT, 
-            parents TEXT, 
-            school TEXT, 
-            grade TEXT, 
-            teacher TEXT, 
-            phone TEXT, 
-            address TEXT,
-            notes TEXT
+            name TEXT, subject TEXT, parents TEXT, 
+            school TEXT, grade TEXT, teacher TEXT, 
+            phone TEXT, address TEXT, notes TEXT,
+            parent_phone TEXT
         )`);
 
-        // Миграции
+        // Миграции (добавление колонок, если их нет)
         const runMigration = (table, col, type = 'TEXT') => {
             db.all(`PRAGMA table_info(${table})`, (err, cols) => {
                 if (!err && !cols.map(c => c.name).includes(col)) {
                     db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+                    console.log(`Migration: Added ${col} to ${table}`);
                 }
             });
         };
 
         ['comment', 'tag', 'source_account', 'target_account'].forEach(c => runMigration('transactions', c));
         ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
+        ['parent_phone'].forEach(c => runMigration('students', c)); // <--- НОВАЯ МИГРАЦИЯ
     });
 }
 
@@ -89,7 +84,6 @@ async function ensureMainAccount(userId) {
 async function addTransaction(data) {
     const { userId, type, amount, category, tag, comment, sourceAccount, targetAccount } = data;
     const date = data.date || new Date().toISOString();
-    
     return dbRun(
         `INSERT INTO transactions (user_id, type, amount, category, tag, comment, date, source_account, target_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [userId, type, amount, category, tag, comment, date, sourceAccount, targetAccount]
@@ -97,9 +91,7 @@ async function addTransaction(data) {
 }
 
 async function getBalances(userId) {
-    // Получаем список счетов (start_date нам тут уже не нужен для расчетов, но пусть будет)
     const accountsList = await dbAll('SELECT name, is_deposit, rate, term_date, bank_name, start_date FROM accounts WHERE user_id = ?', [userId]);
-    
     const balances = {};
     accountsList.forEach(a => balances[a.name] = 0);
     if (!balances['Основной']) balances['Основной'] = 0;
@@ -113,7 +105,6 @@ async function getBalances(userId) {
             if (t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
         }
     });
-
     return { balances, accountsList };
 }
 
@@ -143,7 +134,6 @@ async function isEventProcessed(eventId) {
 }
 async function markEventProcessed(eventId, summary, status) {
     const date = new Date().toISOString();
-    // ИЗМЕНЕНИЕ: Добавили OR REPLACE, чтобы обновлять статус с 'pending' на 'paid'
     await dbRun('INSERT OR REPLACE INTO processed_events (event_id, summary, date, status) VALUES (?, ?, ?, ?)', [eventId, summary, date, status]);
 }
 async function addDebt(userId, studentName, subject, amount, eventId) {
@@ -175,8 +165,6 @@ async function saveReceiptItems(transactionId, shopName, items, dateStr) {
     }
 }
 
-// --- НОВОЕ: Функции обучения категорий ---
-
 async function getCategoryByComment(comment) {
     if (!comment) return null;
     const cleanComment = comment.trim().toLowerCase();
@@ -187,54 +175,49 @@ async function getCategoryByComment(comment) {
 async function learnKeyword(comment, category) {
     if (!comment) return;
     const cleanComment = comment.trim().toLowerCase();
-    if (cleanComment.length > 50) return; // Защита от длинных текстов
+    if (cleanComment.length > 50) return;
     await dbRun('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [cleanComment, category]);
-    console.log(` Выучил: "${cleanComment}" -> ${category}`);
+    console.log(`🧠 Выучил: "${cleanComment}" -> ${category}`);
 }
+
 async function wasInterestPaidThisMonth(userId, accountName) {
     const now = new Date();
-    // Формат YYYY-MM
     const currentMonth = now.toISOString().slice(0, 7); 
-    
     const row = await dbGet(
-        `SELECT id FROM transactions 
-         WHERE user_id = ? 
-         AND category = 'Проценты' 
-         AND target_account = ? 
-         AND date LIKE ?`, 
+        `SELECT id FROM transactions WHERE user_id = ? AND category = 'Проценты' AND target_account = ? AND date LIKE ?`, 
         [userId, accountName, `${currentMonth}%`]
     );
     return !!row;
 }
 
-// --- ЛОГИКА УЧЕНИКОВ ---
+// --- УЧЕНИКИ ---
 
 async function getStudents() {
     return dbAll('SELECT * FROM students ORDER BY name ASC');
 }
 
 async function addStudent(data) {
-    const { name, subject, parents, school, grade, teacher, phone, address, notes } = data;
+    // ВАЖНО: Тут обновлен список полей, добавлен parent_phone
+    const { name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone } = data;
     return dbRun(
-        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes]
+        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone]
     );
 }
 
 async function updateStudent(data) {
-    const { id, name, subject, parents, school, grade, teacher, phone, address, notes } = data;
+    const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone } = data;
     return dbRun(
-        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=? 
+        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?
          WHERE id=?`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, id]
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, id]
     );
 }
 
 async function deleteStudent(id) {
     return dbRun('DELETE FROM students WHERE id = ?', [id]);
 }
-
 
 module.exports = {
     db, dbRun, dbAll, dbGet,
