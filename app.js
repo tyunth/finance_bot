@@ -438,15 +438,26 @@ function renderStudents(students) {
     }
     
     grid.innerHTML = students.map(s => `
-        <div class="card p-5 hover:shadow-md transition cursor-pointer group" onclick='openStudentModal(${JSON.stringify(s)})'>
-            <div class="flex justify-between items-start mb-2">
-                <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
-                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${s.subject || '—'}</span>
+        <div class="card p-5 hover:shadow-md transition cursor-pointer group border-l-4 ${s.subject === 'Математика' ? 'border-l-blue-500' : 'border-l-purple-500'}" onclick='openStudentModal(${JSON.stringify(s)})'>
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
+                    <p class="text-xs text-gray-500">${s.school || 'Школа не указана'} • ${s.grade || '?'} кл.</p>
+                </div>
+                <span class="text-xs font-bold px-2 py-1 rounded ${s.subject === 'Математика' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">${s.subject}</span>
             </div>
-            <div class="text-sm text-gray-600 space-y-1">
-                <p>🏫 ${s.school || '-'} (${s.grade || '-'})</p>
-                <p>📞 ${s.phone || '-'}</p>
-                <p>👨‍👩‍👧 ${s.parents || '-'}</p>
+            
+            <div class="space-y-2 text-sm text-gray-600">
+                <div class="flex items-center gap-2">
+                    <span title="Телефон ученика">📱</span> <span>${s.phone || '—'}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span title="Родитель">👨‍👩‍👧</span> 
+                    <span>${s.parents || '—'} <span class="text-gray-400 text-xs">${s.parent_phone ? '('+s.parent_phone+')' : ''}</span></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span title="Место">📍</span> <span class="truncate">${s.address || '—'}</span>
+                </div>
             </div>
         </div>
     `).join('');
@@ -462,15 +473,21 @@ function openStudentModal(s = null) {
     if (s) {
         document.getElementById('student-modal-title').textContent = 'Редактировать ученика';
         document.getElementById('student-id').value = s.id;
+        
+        document.getElementById('st-subject').value = s.subject || 'Математика';
         document.getElementById('st-name').value = s.name;
-        document.getElementById('st-subject').value = s.subject || '';
-        document.getElementById('st-parents').value = s.parents || '';
         document.getElementById('st-phone').value = s.phone || '';
+        
+        document.getElementById('st-parents').value = s.parents || '';
+        document.getElementById('st-parent-phone').value = s.parent_phone || ''; // НОВОЕ
+        
         document.getElementById('st-school').value = s.school || '';
         document.getElementById('st-grade').value = s.grade || '';
         document.getElementById('st-teacher').value = s.teacher || '';
+        
         document.getElementById('st-address').value = s.address || '';
         document.getElementById('st-notes').value = s.notes || '';
+        
         delBtn.classList.remove('hidden');
     } else {
         document.getElementById('student-modal-title').textContent = 'Новый ученик';
@@ -498,6 +515,7 @@ document.getElementById('student-form').addEventListener('submit', async (e) => 
         subject: document.getElementById('st-subject').value,
         parents: document.getElementById('st-parents').value,
         phone: document.getElementById('st-phone').value,
+        parent_phone: document.getElementById('st-parent-phone').value, // НОВОЕ
         school: document.getElementById('st-school').value,
         grade: document.getElementById('st-grade').value,
         teacher: document.getElementById('st-teacher').value,
