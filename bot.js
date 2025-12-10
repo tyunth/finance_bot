@@ -374,6 +374,7 @@ const HELP_MSG = `
 /delete ID - Удалить запись
 /sync - Проверить календарь вручную
 /export - скачать базу данных
+/students
 `;
 
 bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
@@ -406,6 +407,33 @@ bot.hears(/^(?:\/)?latest(?:\s+(\d+))?$/i, async (ctx) => {
 bot.command('export', async (ctx) => {
     if (fs.existsSync(db.DB_PATH)) await ctx.replyWithDocument({ source: db.DB_PATH, filename: 'finance.db' });
     else ctx.reply('БД не найдена.');
+});
+
+// --- СПИСОК УЧЕНИКОВ (БЫСТРЫЙ ПРОСМОТР) ---
+bot.command('students', async (ctx) => {
+    const students = await db.getStudents();
+    if (!students.length) return ctx.reply('Список учеников пуст.');
+
+    const buttons = students.map(s => [Markup.button.callback(s.name, `show_student_${s.id}`)]);
+    ctx.reply('Выберите ученика:', Markup.inlineKeyboard(buttons));
+});
+
+// Обработка клика по ученику
+bot.action(/^show_student_(\d+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    const s = await db.dbGet('SELECT * FROM students WHERE id = ?', [id]);
+    if (!s) return ctx.reply('Ученик не найден.');
+
+    await ctx.reply(
+        ` *${escapeMarkdown(s.name)}*\n` +
+        ` Предмет: ${s.subject || '-'}\n` +
+        ` Тел: ${escapeMarkdown(s.phone || '-')}\n` +
+        ` *Адрес: ${escapeMarkdown(s.address || 'Не указан')}*\n` + // Жирным, чтобы видеть квартиру
+        ` Родитель: ${escapeMarkdown(s.parents || '-')} (${escapeMarkdown(s.parent_phone || '-')})\n` +
+        ` Заметки: ${escapeMarkdown(s.notes || '-')}`,
+        { parse_mode: 'Markdown' }
+    );
+    await ctx.answerCbQuery();
 });
 
 // Edit & Delete handlers
@@ -521,10 +549,14 @@ bot.on('callback_query', async (ctx) => {
         const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Текст не сохранен.';
         return ctx.reply(raw.substring(0, 4000));
     }
-    if (data.startsWith('cal_')) {
-        const eventId = data.split('_')[2]; 
-        const action = data.split('_')[1]; 
-        
+if (data.startsWith('cal_')) {
+        const parts = data.split('_');
+        const action = parts[1]; 
+        const eventId = parts[2]; 
+        // Достаем дополнительные параметры (если есть), например тип урока
+        const lessonType = parts[3]; 
+
+        // 1. УДАЛЕНИЕ
         if (action === 'del') {
             const success = await gcal.deleteEvent(eventId);
             if (success) {
@@ -533,23 +565,60 @@ bot.on('callback_query', async (ctx) => {
             } else return ctx.reply('Ошибка удаления.');
         }
 
+        // Парсим текст сообщения, чтобы достать имя и предмет (как было раньше)
         const msgLines = ctx.callbackQuery.message.text.split('\n');
         const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
         const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
         const { studentName, subject } = gcal.parseLessonInfo(summary);
 
-        if (action === 'paid') {
-            await db.addTransaction({
-                userId: ctx.from.id, type: 'income', amount: config.LESSON_PRICE, category: 'Репетиторство',
-                tag: `Ученик: ${studentName}`, comment: `${subject} (${summary})`, sourceAccount: null, targetAccount: 'Основной'
-            });
-            await db.markEventProcessed(eventId, summary, 'paid');
-            return ctx.editMessageText(`Оплачено: ${summary}`);
-        }
+        // 2. В ДОЛГИ (Тут тип урока пока не важен, или считаем обычным)
         if (action === 'debt') {
             await db.addDebt(ctx.from.id, studentName, subject, config.LESSON_PRICE, eventId);
             await db.markEventProcessed(eventId, summary, 'debt');
             return ctx.editMessageText(`В долги: ${summary}`);
+        }
+
+        // 3. ОПЛАЧЕНО -> Спрашиваем ТИП
+        if (action === 'paid') {
+            // Если тип еще не выбран (в callback_data нет 3-го параметра)
+            if (!lessonType) {
+                return ctx.editMessageText(
+                    `Оплата за "${summary}".\nКакой это был урок?`,
+                    Markup.inlineKeyboard([
+                        [Markup.button.callback('Обычный (По расписанию)', `cal_paid_${eventId}_regular`)],
+                        [Markup.button.callback('Пробный', `cal_paid_${eventId}_trial`)],
+                        [Markup.button.callback('Дополнительный', `cal_paid_${eventId}_extra`)]
+                    ])
+                );
+            }
+
+            // Если тип выбран, сохраняем!
+            let category = 'Репетиторство';
+            let comment = `${subject} (${summary})`;
+            
+            // Модифицируем коммент или категорию в зависимости от типа
+            if (lessonType === 'trial') comment += ' [ПРОБНЫЙ]';
+            if (lessonType === 'extra') comment += ' [ДОП]';
+
+            // Сохраняем транзакцию с новым полем lesson_type (нужно обновить addTransaction в db.js или передать через options)
+            // Пока запишем в tag или comment, так как addTransaction мы еще не научили принимать lesson_type
+            // Давай пока писать в тег, это проще для аналитики прямо сейчас
+            let tag = `Ученик: ${studentName}`;
+            
+            // ВАЖНО: Мы пока используем старый addTransaction. 
+            // Чтобы записать lesson_type, надо обновить функцию в db.js.
+            // Давай пока сделаем хак и запишем это в comment, а потом обновим db.js
+            
+            await db.addTransaction({
+                userId: ctx.from.id, type: 'income', amount: config.LESSON_PRICE, category: 'Репетиторство',
+                tag: tag, comment: comment, sourceAccount: null, targetAccount: 'Основной'
+            });
+            
+            // Тут можно сделать прямой SQL UPDATE, если очень хочется заполнить колонку lesson_type
+            // await db.dbRun('UPDATE transactions SET lesson_type = ? WHERE id = (SELECT seq FROM sqlite_sequence WHERE name="transactions")', [lessonType]);
+
+            await db.markEventProcessed(eventId, summary, 'paid');
+            return ctx.editMessageText(`✅ Оплачено: ${summary} (${lessonType})`);
         }
     }
     if (data.startsWith('pay_debt_')) {
