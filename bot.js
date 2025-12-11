@@ -329,6 +329,20 @@ async function handleInterestCorrection(ctx) {
     return ctx.reply(`Начислено ${formatAmount(amount)} на "${ctx.session.state.targetAccount}".`, kb.MAIN_KEYBOARD);
 }
 
+// 9. Добавление покупки
+async function handleShoppingCreation(ctx) {
+    const text = ctx.message.text.trim();
+    const type = ctx.session.state.shoppingType || 'buy'; // 'buy' или 'wish'
+    
+    await db.addShoppingItem({ item_name: text, type: type, price_estimate: 0 });
+    
+    ctx.session.state = {}; // Сброс состояния
+    await ctx.reply(`Добавлено: ${text}`);
+    
+    // Сразу показываем обновленный список
+    return renderList(ctx, type);
+}
+
 // --- DISPATCHER ---
 async function handleStandardTextFlow(ctx) {
     const state = ctx.session.state;
@@ -343,9 +357,11 @@ async function handleStandardTextFlow(ctx) {
     if (step === config.STATE.AWAITING_CATEGORY) return handleCategoryInput(ctx);
     if (step.startsWith('EDIT_')) return handleEditFlow(ctx);
     if (step === config.STATE.AWAITING_INTEREST_CORRECTION) return handleInterestCorrection(ctx);
-
+    if (step === config.STATE.AWAITING_SHOPPING_ITEM) return handleShoppingCreation(ctx);
     return ctx.reply('Не понял.', kb.MAIN_KEYBOARD);
 }
+
+
 
 // --- COMMANDS & HEARS (Specific Listeners) ---
 
@@ -436,46 +452,49 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
 });
 
-// --- SHOPPING LIST COMMANDS ---
+// --- СПИСКИ (НОВАЯ ЛОГИКА) ---
 
-// Показать список
-const showShoppingList = async (ctx) => {
+// Универсальная функция показа списка
+async function renderList(ctx, type) {
     const list = await db.getShoppingList();
-    
-    const buyItems = list.filter(i => i.type === 'buy');
-    const wishItems = list.filter(i => i.type !== 'buy');
+    const items = list.filter(i => i.type === type);
+    const title = type === 'buy' ? '🛒 *Список покупок:*' : '🎁 *Вишлист:*';
+    const emptyText = type === 'buy' ? 'Все куплено! 🎉' : 'Вишлист пуст.';
 
-    if (list.length === 0) return ctx.reply('Список покупок пуст. Добавьте через /buy или /wish');
-
-    let msg = '';
+    let msg = title + '\n\n';
     const buttons = [];
 
-    if (buyItems.length > 0) {
-        msg += '🛒 *Повседневное:*\n';
-        buyItems.forEach(i => {
-            msg += `• ${escapeMarkdown(i.item_name)}\n`;
-            // Кнопка для покупки
-            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}`)]);
-        });
-    }
-
-    if (wishItems.length > 0) {
-        msg += `\n🎁 *Вишлист:*\n`;
-        wishItems.forEach(i => {
+    if (items.length === 0) msg += `_${emptyText}_`;
+    else {
+        items.forEach(i => {
             msg += `• ${escapeMarkdown(i.item_name)} ${i.price_estimate ? `(~${i.price_estimate})` : ''}\n`;
-            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}`)]);
+            // Кнопка удаления (галочка)
+            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}_${type}`)]);
         });
     }
 
-    // Добавляем кнопку обновления, чтобы убрать старые сообщения
-    buttons.push([Markup.button.callback('🔄 Обновить', 'shop_refresh')]);
+    // Кнопки управления
+    buttons.push([
+        Markup.button.callback('➕ Добавить', `shop_add_${type}`),
+        Markup.button.callback('🔄 Обновить', `shop_refresh_${type}`)
+    ]);
 
-    await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
-};
+    // Если это вызов из callback (обновление), редактируем. Если команда - шлем новое.
+    if (ctx.callbackQuery) {
+        try {
+            await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+        } catch (e) {} // Игнор, если текст не поменялся
+    } else {
+        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
+    }
+}
 
-bot.command('list', showShoppingList);
-bot.hears('Список', showShoppingList); // Если захочешь кнопку в меню
+// Команды
+bot.command('list', (ctx) => renderList(ctx, 'buy'));
+bot.hears('Список', (ctx) => renderList(ctx, 'buy'));
 
+bot.command('wishlist', (ctx) => renderList(ctx, 'wish'));
+bot.hears('Вишлист', (ctx) => renderList(ctx, 'wish'));
 // Добавить в Повседневное: /buy Хлеб
 bot.command('buy', async (ctx) => {
     const text = ctx.message.text.replace('/buy', '').trim();
@@ -713,59 +732,33 @@ if (data.startsWith('cal_')) {
 
     // --- SHOPPING ACTIONS ---
     if (data.startsWith('shop_')) {
-        const action = data.replace('shop_', '');
+        const parts = data.split('_'); // shop_action_param_type
+        const action = parts[1];
         
+        // 1. ОБНОВИТЬ
         if (action === 'refresh') {
-            // Просто обновляем список (вызываем логику генерации текста заново)
-            // Чтобы не дублировать код, нам нужно вынести генерацию текста в функцию,
-            // но пока сделаем просто удаление сообщения и отправку нового (или просто игнор, если список тот же)
-            // Проще всего:
-            await ctx.deleteMessage();
-            return showShoppingList(ctx);
+            const type = parts[2];
+            return renderList(ctx, type);
         }
 
-        if (action.startsWith('done_')) {
-            const id = action.replace('done_', '');
-            // Помечаем как купленное
+        // 2. ДОБАВИТЬ (КНОПКА)
+        if (action === 'add') {
+            const type = parts[2];
+            ctx.session.state = { 
+                step: config.STATE.AWAITING_SHOPPING_ITEM, 
+                shoppingType: type 
+            };
+            const label = type === 'buy' ? 'покупок' : 'вишлист';
+            return ctx.reply(`Напишите, что добавить в ${label}:`, kb.BACK_KEYBOARD);
+        }
+
+        // 3. ВЫПОЛНЕНО (КУПЛЕНО)
+        if (action === 'done') {
+            const id = parts[2];
+            const type = parts[3]; // buy или wish
+            
             await db.updateShoppingStatus(id, 'bought');
-            
-            // Получаем актуальный список, чтобы обновить сообщение
-            const list = await db.getShoppingList();
-            
-            // Если список пуст
-            if (list.length === 0) {
-                return ctx.editMessageText('Список покупок пуст! ');
-            }
-
-            // Генерируем текст и кнопки заново (копия логики showShoppingList)
-            const buyItems = list.filter(i => i.type === 'buy');
-            const wishItems = list.filter(i => i.type !== 'buy');
-            
-            let msg = '';
-            const buttons = [];
-
-            if (buyItems.length > 0) {
-                msg += ' *Повседневное:*\n';
-                buyItems.forEach(i => {
-                    msg += `• ${escapeMarkdown(i.item_name)}\n`;
-                    buttons.push([Markup.button.callback(` ${i.item_name}`, `shop_done_${i.id}`)]);
-                });
-            }
-
-            if (wishItems.length > 0) {
-                msg += `\n *Вишлист:*\n`;
-                wishItems.forEach(i => {
-                    msg += `• ${escapeMarkdown(i.item_name)}\n`;
-                    buttons.push([Markup.button.callback(` ${i.item_name}`, `shop_done_${i.id}`)]);
-                });
-            }
-            buttons.push([Markup.button.callback(' Обновить', 'shop_refresh')]);
-
-            try {
-                await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
-            } catch (e) { 
-                // Игнорируем ошибку, если текст не изменился (Telegram ругается)
-            }
+            return renderList(ctx, type); // Обновляем тот же список
         }
     }
     
