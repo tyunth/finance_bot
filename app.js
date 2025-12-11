@@ -445,13 +445,15 @@ function renderStudents(students) {
     }
     
     grid.innerHTML = students.map(s => `
-<div class="card p-5 hover:shadow-md transition cursor-pointer group border-l-4 ${s.subject === 'Математика' ? 'border-l-blue-500' : 'border-l-purple-500'}">
-            
+            <div class="card p-5 hover:shadow-md transition cursor-pointer group border-l-4 ${s.subject === 'Математика' ? 'border-l-blue-500' : 'border-l-purple-500'}">
             <div onclick='openStudentModal(${JSON.stringify(s)})'>
-                <div class="flex justify-between items-start mb-3">
+<div class="flex justify-between items-start mb-3">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
-                        <p class="text-xs text-gray-500">${s.school || 'Школа не указана'} • ${s.grade || '?'} кл.</p>
+                        <p class="text-xs text-gray-500">
+                            ${s.school || 'Школа не указана'} • ${s.grade || '?'} кл.
+                            ${s.lessons_per_week ? ` • <span class="font-bold text-blue-600">${s.lessons_per_week}/нед</span>` : ''}
+                        </p>
                     </div>
                     <span class="text-xs font-bold px-2 py-1 rounded ${s.subject === 'Математика' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">${s.subject}</span>
                 </div>
@@ -482,11 +484,12 @@ function openStudentModal(s = null) {
         document.getElementById('student-id').value = s.id;
         
         document.getElementById('st-subject').value = s.subject || 'Математика';
+        document.getElementById('st-lessons-week').value = s.lessons_per_week || 0;
         document.getElementById('st-name').value = s.name;
         document.getElementById('st-phone').value = s.phone || '';
         
         document.getElementById('st-parents').value = s.parents || '';
-        document.getElementById('st-parent-phone').value = s.parent_phone || ''; // НОВОЕ
+        document.getElementById('st-parent-phone').value = s.parent_phone || ''; 
         
         document.getElementById('st-school').value = s.school || '';
         document.getElementById('st-grade').value = s.grade || '';
@@ -499,6 +502,7 @@ function openStudentModal(s = null) {
     } else {
         document.getElementById('student-modal-title').textContent = 'Новый ученик';
         document.getElementById('student-id').value = '';
+        document.getElementById('st-lessons-week').value = '';
         delBtn.classList.add('hidden');
     }
     
@@ -520,6 +524,7 @@ document.getElementById('student-form').addEventListener('submit', async (e) => 
         action, id,
         name: document.getElementById('st-name').value,
         subject: document.getElementById('st-subject').value,
+        lessons_per_week: document.getElementById('st-lessons-week').value,
         parents: document.getElementById('st-parents').value,
         phone: document.getElementById('st-phone').value,
         parent_phone: document.getElementById('st-parent-phone').value, // НОВОЕ
