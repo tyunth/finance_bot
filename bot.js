@@ -73,15 +73,28 @@ async function runCalendarCheck(ctx = null) {
     try {
         const events = await gcal.getRecentLessons(log);
         if (events.length === 0) return;
-        
+
+        // 1. Получаем список имен учеников из базы
+        const students = await db.getStudents();
+        const studentNames = students.map(s => s.name);
+        // Добавляем ключевые слова
+        const keywords = [...studentNames, 'Тест', 'Пробный', 'Урок', 'Занятие'];
+
         for (const event of events) {
             const processed = await db.isEventProcessed(event.id);
-            if (processed) {
-                await log(`-- Событие "${event.summary}" уже было обработано.`);
+            if (processed) continue;
+
+            const summary = event.summary;
+            
+            // 2. Фильтрация: Проверяем, есть ли в названии события ключевое слово
+            const isRelevant = keywords.some(key => summary.toLowerCase().includes(key.toLowerCase()));
+            
+            if (!isRelevant) {
+                // Если событие не про учеников - пропускаем (можно раскомментировать лог для отладки)
+                // await log(`Пропуск события: ${summary}`);
                 continue;
             }
 
-            const summary = event.summary;
             const { studentName, subject } = gcal.parseLessonInfo(summary);
             const amount = config.LESSON_PRICE;
 
@@ -657,45 +670,37 @@ if (data.startsWith('cal_')) {
 
         // 3. ОПЛАЧЕНО -> Спрашиваем ТИП
         if (action === 'paid') {
-            // Если тип еще не выбран (в callback_data нет 3-го параметра)
             if (!lessonType) {
                 return ctx.editMessageText(
                     `Оплата за "${summary}".\nКакой это был урок?`,
                     Markup.inlineKeyboard([
-                        [Markup.button.callback('Обычный (По расписанию)', `cal_paid_${eventId}_regular`)],
+                        [Markup.button.callback('Обычный', `cal_paid_${eventId}_regular`)],
                         [Markup.button.callback('Пробный', `cal_paid_${eventId}_trial`)],
                         [Markup.button.callback('Дополнительный', `cal_paid_${eventId}_extra`)]
                     ])
                 );
             }
 
-            // Если тип выбран, сохраняем!
             let category = 'Репетиторство';
             let comment = `${subject} (${summary})`;
             
-            // Модифицируем коммент или категорию в зависимости от типа
+            // Теперь lessonType реально сохраняется в базу, а не просто в текст
             if (lessonType === 'trial') comment += ' [ПРОБНЫЙ]';
-            if (lessonType === 'extra') comment += ' [ДОП]';
-
-            // Сохраняем транзакцию с новым полем lesson_type (нужно обновить addTransaction в db.js или передать через options)
-            // Пока запишем в tag или comment, так как addTransaction мы еще не научили принимать lesson_type
-            // Давай пока писать в тег, это проще для аналитики прямо сейчас
-            let tag = `Ученик: ${studentName}`;
-            
-            // ВАЖНО: Мы пока используем старый addTransaction. 
-            // Чтобы записать lesson_type, надо обновить функцию в db.js.
-            // Давай пока сделаем хак и запишем это в comment, а потом обновим db.js
             
             await db.addTransaction({
-                userId: ctx.from.id, type: 'income', amount: config.LESSON_PRICE, category: 'Репетиторство',
-                tag: tag, comment: comment, sourceAccount: null, targetAccount: 'Основной'
+                userId: ctx.from.id, 
+                type: 'income', 
+                amount: config.LESSON_PRICE, 
+                category: 'Репетиторство',
+                tag: `Ученик: ${studentName}`, 
+                comment: comment, 
+                sourceAccount: null, 
+                targetAccount: 'Основной',
+                lesson_type: lessonType // <--- НОВОЕ: Пишем в колонку
             });
             
-            // Тут можно сделать прямой SQL UPDATE, если очень хочется заполнить колонку lesson_type
-            // await db.dbRun('UPDATE transactions SET lesson_type = ? WHERE id = (SELECT seq FROM sqlite_sequence WHERE name="transactions")', [lessonType]);
-
             await db.markEventProcessed(eventId, summary, 'paid');
-            return ctx.editMessageText(`✅ Оплачено: ${summary} (${lessonType})`);
+            return ctx.editMessageText(`Оплачено: ${summary} (${lessonType})`);
         }
     }
     if (data.startsWith('pay_debt_')) {
