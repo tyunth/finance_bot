@@ -98,6 +98,7 @@ function initializeTables() {
         ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
         ['parent_phone'].forEach(c => runMigration('students', c)); // <--- НОВАЯ МИГРАЦИЯ
         ['lesson_type'].forEach(c => runMigration('transactions', c));
+        ['sort_order'].forEach(c => runMigration('shopping_list', c, 'INTEGER DEFAULT 0'));
     });
 }
 
@@ -251,7 +252,7 @@ async function deleteStudent(id) {
 
 // --- СПИСОК ПОКУПОК ---
 async function getShoppingList() {
-    return dbAll("SELECT * FROM shopping_list WHERE status = 'active' ORDER BY created_at DESC");
+    return dbAll("SELECT * FROM shopping_list WHERE status = 'active' ORDER BY sort_order ASC, id ASC");
 }
 
 async function addShoppingItem(item) {
@@ -268,6 +269,14 @@ async function updateShoppingStatus(id, status) {
     return dbRun("UPDATE shopping_list SET status = ? WHERE id = ?", [status, id]);
 }
 
+async function reorderShoppingList(ids) {
+    // ids - массив [5, 2, 8], где 5 - первый, 2 - второй и т.д.
+    const promises = ids.map((id, index) => {
+        return dbRun("UPDATE shopping_list SET sort_order = ? WHERE id = ?", [index, id]);
+    });
+    return Promise.all(promises);
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -275,6 +284,6 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent,
-    getShoppingList, addShoppingItem, updateShoppingStatus,
+    getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
     DB_PATH
 };
