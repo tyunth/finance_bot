@@ -277,13 +277,26 @@ async function reorderShoppingList(ids) {
     return Promise.all(promises);
 }
 
+// Статистика по конкретному ученику
+async function getStudentStats(studentName) {
+    // Ищем транзакции, где тег содержит имя ученика (например "Ученик: Иван")
+    // Берем только доходы ('income')
+    return dbAll(
+        `SELECT * FROM transactions 
+         WHERE type = 'income' 
+         AND tag LIKE ? 
+         ORDER BY date DESC`, 
+        [`%${studentName}%`]
+    );
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
     isEventProcessed, markEventProcessed, addDebt, getDebts,
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
-    getStudents, addStudent, updateStudent, deleteStudent,
+    getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
     getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
     DB_PATH
 };
