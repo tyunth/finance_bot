@@ -59,7 +59,7 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     } 
     
-    // 2. Категории (Исправленный баг: объединяем БД + Конфиг)
+    // 2. Категории 
     else if (req.url === '/categories' && req.method === 'GET') {
         try {
             // Берем из базы
@@ -77,7 +77,7 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
 
-    // 3. Балансы счетов (НОВОЕ)
+    // 3. Балансы счетов 
     else if (req.url === '/balances' && req.method === 'GET') {
         try {
             // 1. Получаем счета
@@ -127,17 +127,7 @@ const server = http.createServer(async (req, res) => {
     
 // --- УЧЕНИКИ ---
     else if (req.url === '/students' && req.method === 'GET') {
-        try {
-            // ВАЖНО: Используем require('./db'), который мы подключили в начале файла
-            // Если в начале api_server.js не было const db = require('./db'); - добавь!
-            // Но у тебя там уже есть require('./config')...
-            // Лучше всего в api_server.js заменить подключение sqlite3 вручную на использование db.js
-            
-            // НО ЧТОБЫ БЫСТРО:
-            // В db.js мы экспортировали getStudents. Нам нужно его вызвать.
-            // Давай лучше перепишем этот блок на использование dbRun/dbAll ИЗ api_server.js, но с правильным SQL
-            // Так будет надежнее без полной переделки импортов.
-            
+        try {            
             const students = await dbAll('SELECT * FROM students ORDER BY name ASC');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(students));
@@ -168,14 +158,41 @@ const server = http.createServer(async (req, res) => {
                 } else if (action === 'delete') {
                     await dbRun('DELETE FROM students WHERE id = ?', [data.id]);
                 }
-
+                
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
+                
             } catch (e) { 
                 console.error('Ошибка сохранения студента:', e);
                 res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
             }
         });
+    }
+    // Статистика по ученику
+    else if (req.url.startsWith('/students/stats') && req.method === 'GET') {
+        try {
+            // Разбираем URL: /students/stats?id=5
+            const urlParts = new URL(req.url, `http://${req.headers.host}`);
+            const id = urlParts.searchParams.get('id');
+
+            if (!id) throw new Error('No ID provided');
+
+            // 1. Узнаем имя ученика
+            const student = await db.dbGet('SELECT name FROM students WHERE id = ?', [id]);
+            if (!student) throw new Error('Student not found');
+
+            // 2. Ищем транзакции по имени
+            const transactions = await db.getStudentStats(student.name);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                name: student.name, 
+                transactions: transactions 
+            }));
+        } catch (e) { 
+            console.error(e);
+            res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
+        }
     }
     // --- СПИСОК ПОКУПОК ---
     
