@@ -23,7 +23,7 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
 }
 function switchTab(tabName) {
-    ['analytics', 'transactions', 'students', 'calendar, 'shopping''].forEach(t => {
+    ['analytics', 'transactions', 'students', 'calendar', 'shopping'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.add('hidden');
         document.getElementById(`btn-${t}`).classList.remove('active');
     });
