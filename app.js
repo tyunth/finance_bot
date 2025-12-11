@@ -5,7 +5,10 @@ const API_URL_CATEGORIES = API_BASE_URL + '/categories';
 const API_URL_BALANCES = API_BASE_URL + '/balances';
 const API_URL_STUDENTS = API_BASE_URL + '/students';
 const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
-const API_URL_CONFIG = API_BASE_URL + '/config'; // <-- НОВОЕ
+const API_URL_CONFIG = API_BASE_URL + '/config'; 
+const API_URL_SHOPPING = API_BASE_URL + '/shopping';
+const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
+
 const CURRENCY = 'T';
 let CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; // Пусто, заполним с сервера
 
@@ -20,7 +23,7 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
 }
 function switchTab(tabName) {
-    ['analytics', 'transactions', 'students', 'calendar'].forEach(t => { // <-- Добавил students, calendar
+    ['analytics', 'transactions', 'students', 'calendar, 'shopping''].forEach(t => {
         document.getElementById(`tab-${t}`).classList.add('hidden');
         document.getElementById(`btn-${t}`).classList.remove('active');
     });
@@ -29,6 +32,7 @@ function switchTab(tabName) {
     // Ленивая загрузка календаря (чтобы не тормозил старт)
     if (tabName === 'calendar') loadCalendar();
     if (tabName === 'students') loadStudents();
+    if (tabName === 'shopping') loadShoppingList();
 }
 
 async function init() {
@@ -567,5 +571,105 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
         init();
     } catch(e) { alert('Ошибка сети'); }
 });
+
+// --- ПОКУПКИ ---
+
+// Показываем поле цены только для Вишлиста
+document.getElementById('shop-type').addEventListener('change', (e) => {
+    const priceBlock = document.getElementById('shop-price-block');
+    if (e.target.value === 'wish') priceBlock.classList.remove('hidden');
+    else priceBlock.classList.add('hidden');
+});
+
+async function loadShoppingList() {
+    try {
+        const res = await fetch(API_URL_SHOPPING);
+        const list = await res.json();
+        renderShoppingList(list);
+    } catch(e) { console.error(e); }
+}
+
+function renderShoppingList(list) {
+    const buyContainer = document.getElementById('list-buy');
+    const wishContainer = document.getElementById('list-wish');
+    
+    buyContainer.innerHTML = '';
+    wishContainer.innerHTML = '';
+
+    const buyItems = list.filter(i => i.type === 'buy');
+    const wishItems = list.filter(i => i.type !== 'buy'); // wish или gift
+
+    document.getElementById('count-buy').textContent = buyItems.length;
+    document.getElementById('count-wish').textContent = wishItems.length;
+
+    // Функция генерации HTML элемента
+    const createItemHTML = (item, isWish) => `
+        <div class="card p-3 flex justify-between items-center group hover:bg-gray-50 transition">
+            <div class="flex items-center gap-3">
+                <input type="checkbox" onchange="buyItem(${item.id})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
+                <div>
+                    <p class="font-medium text-gray-800 ${isWish ? 'text-lg' : ''}">${item.item_name}</p>
+                    ${isWish && item.price_estimate ? `<p class="text-xs text-green-600 font-bold">~${formatCurrency(item.price_estimate)}</p>` : ''}
+                </div>
+            </div>
+            <button onclick="deleteItem(${item.id})" class="text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition">✕</button>
+        </div>
+    `;
+
+    if (buyItems.length === 0) buyContainer.innerHTML = '<div class="text-sm text-gray-400 text-center italic">Всё куплено 🎉</div>';
+    else buyContainer.innerHTML = buyItems.map(i => createItemHTML(i, false)).join('');
+
+    if (wishItems.length === 0) wishContainer.innerHTML = '<div class="text-sm text-gray-400 text-center italic">Вишлист пуст</div>';
+    else wishContainer.innerHTML = wishItems.map(i => createItemHTML(i, true)).join('');
+}
+
+document.getElementById('shopping-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('shop-item').value;
+    const type = document.getElementById('shop-type').value;
+    const price = document.getElementById('shop-price').value;
+
+    try {
+        await fetch(API_URL_SHOPPING_ACTION, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                action: 'add', 
+                item_name: name, 
+                type: type, 
+                price_estimate: price || 0 
+            })
+        });
+        document.getElementById('shop-item').value = '';
+        document.getElementById('shop-price').value = '';
+        loadShoppingList();
+    } catch(e) { alert('Ошибка'); }
+});
+
+async function buyItem(id) {
+    // Небольшая задержка для визуального эффекта галочки
+    setTimeout(async () => {
+        try {
+            await fetch(API_URL_SHOPPING_ACTION, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'status', id: id, status: 'bought' })
+            });
+            loadShoppingList();
+        } catch(e) { alert('Ошибка'); }
+    }, 300);
+}
+
+async function deleteItem(id) {
+    if(!confirm('Удалить без покупки?')) return;
+    try {
+        await fetch(API_URL_SHOPPING_ACTION, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'status', id: id, status: 'deleted' })
+        });
+        loadShoppingList();
+    } catch(e) { alert('Ошибка'); }
+}
 
 init();
