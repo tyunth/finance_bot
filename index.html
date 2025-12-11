@@ -330,6 +330,26 @@
                     <p class="text-xs text-blue-600 font-bold uppercase">Всего уроков</p>
                     <p class="text-2xl font-bold text-gray-800 mt-1" id="stats-count">0</p>
                 </div>
+                <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-sm font-bold text-gray-700 uppercase">Этот месяц</h3>
+                    <span class="text-xs text-gray-400" id="stats-month-name">...</span>
+                </div>
+                <div class="flex justify-between items-end">
+                    <div>
+                        <p class="text-xs text-gray-500">По плану</p>
+                        <p class="text-xl font-bold text-gray-800" id="stats-plan">0</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500">По факту</p>
+                        <p class="text-xl font-bold" id="stats-fact">0</p>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mt-3">
+                    <div id="stats-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-center mt-1 text-gray-500" id="stats-progress-text"></p>
+            </div>
             </div>
             <div class="mb-6 border rounded-lg p-2"><canvas id="studentChart" height="150"></canvas></div>
             <h3 class="text-sm font-bold text-gray-500 uppercase mb-2">Последние оплаты</h3>
