@@ -29,7 +29,8 @@ const BACK_KEYBOARD = Markup.keyboard([['Назад']]).resize();
 const SKIP_COMMENT_KEYBOARD = Markup.keyboard([['Пропустить'], ['Назад']]).resize();
 const MAIN_KEYBOARD = Markup.keyboard([
     ['Доход', 'Расход', 'Перевод'],
-    ['Счета', 'Отчеты', 'Помощь']
+    ['Счета', 'Отчеты', 'Помощь'],
+    ['Список', 'Вишлист'] 
 ]).resize();
 
 module.exports = {
