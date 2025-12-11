@@ -769,3 +769,19 @@ function closeStatsModal() {
 }
 
 init();
+
+// Закрытие модалок при клике на фон
+window.onclick = function(event) {
+    const modals = [
+        document.getElementById('edit-modal'),
+        document.getElementById('student-modal'),
+        document.getElementById('stats-modal')
+    ];
+    
+    modals.forEach(modal => {
+        if (event.target === modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    });
+}
