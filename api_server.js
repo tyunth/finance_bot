@@ -176,6 +176,38 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
+    // --- СПИСОК ПОКУПОК ---
+    
+    // Получить список
+    else if (req.url === '/shopping' && req.method === 'GET') {
+        try {
+            const list = await db.getShoppingList(); // Используем функцию из db.js
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(list));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    // Действия (Добавить, Купить/Удалить)
+    else if (req.url === '/shopping/action' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                
+                if (data.action === 'add') {
+                    await db.addShoppingItem(data);
+                } else if (data.action === 'status') {
+                    // data.status может быть 'bought' или 'deleted'
+                    await db.updateShoppingStatus(data.id, data.status);
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
+        
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
