@@ -29,6 +29,7 @@
                 <button onclick="switchTab('transactions')" id="btn-transactions" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">История</button>
                 <button onclick="switchTab('students')" id="btn-students" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Ученики</button>
                 <button onclick="switchTab('calendar')" id="btn-calendar" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Календарь</button>
+                <button onclick="switchTab('shopping')" id="btn-shopping" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Покупки</button>
             </div>
         </div>
 
@@ -169,7 +170,53 @@
                 <iframe id="google-calendar-frame" src="" style="border: 0" width="100%" height="100%" frameborder="0" scrolling="no"></iframe>
             </div>
         </div>
+
+        <div id="tab-shopping" class="hidden space-y-6">
+            
+            <div class="card p-4 bg-blue-50 border-blue-100">
+                <form id="shopping-form" class="flex flex-col md:flex-row gap-3 items-end">
+                    <div class="w-full">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Что купить?</label>
+                        <input type="text" id="shop-item" class="block w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="Хлеб, Молоко или MacBook" required>
+                    </div>
+                    <div class="w-full md:w-48">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Тип</label>
+                        <select id="shop-type" class="block w-full border border-gray-300 rounded-lg p-2 text-sm">
+                            <option value="buy">🛒 Повседневное</option>
+                            <option value="wish">🎁 Вишлист / Крупное</option>
+                        </select>
+                    </div>
+                    <div class="w-full md:w-32 hidden" id="shop-price-block">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Цена (~)</label>
+                        <input type="number" id="shop-price" class="block w-full border border-gray-300 rounded-lg p-2 text-sm" placeholder="0">
+                    </div>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-bold h-[38px] w-full md:w-auto">
+                        +
+                    </button>
+                </form>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-3">
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">
+                        🛒 Повседневное <span id="count-buy" class="text-xs bg-gray-200 px-2 py-0.5 rounded-full">0</span>
+                    </h3>
+                    <div id="list-buy" class="space-y-2">
+                        </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">
+                        🎁 Вишлист / Крупное <span id="count-wish" class="text-xs bg-gray-200 px-2 py-0.5 rounded-full">0</span>
+                    </h3>
+                    <div id="list-wish" class="space-y-2">
+                        </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+        
 
     <div id="edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
