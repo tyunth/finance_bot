@@ -251,6 +251,28 @@ async function deleteStudent(id) {
     return dbRun('DELETE FROM students WHERE id = ?', [id]);
 }
 
+// --- СПИСОК ПОКУПОК ---
+
+async function getShoppingList() {
+    // Берем только активные (не купленные)
+    return dbAll("SELECT * FROM shopping_list WHERE status = 'active' ORDER BY created_at DESC");
+}
+
+async function addShoppingItem(item) {
+    const { item_name, type, person_name, price_estimate } = item;
+    const created_at = new Date().toISOString();
+    return dbRun(
+        `INSERT INTO shopping_list (item_name, type, person_name, price_estimate, status, created_at) 
+         VALUES (?, ?, ?, ?, 'active', ?)`,
+        [item_name, type, person_name, price_estimate, created_at]
+    );
+}
+
+// Пометить как купленное (status='bought') или удалить
+async function updateShoppingStatus(id, status) {
+    return dbRun("UPDATE shopping_list SET status = ? WHERE id = ?", [status, id]);
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -258,5 +280,6 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent,
+    getShoppingList, addShoppingItem, updateShoppingStatus,
     DB_PATH
 };
