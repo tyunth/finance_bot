@@ -134,34 +134,25 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
     
-    else if (req.url === '/students/action' && req.method === 'POST') {
+else if (req.url === '/students/action' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const action = data.action; 
                 
-                if (action === 'add') {
-                    // Используем dbRun локальный, но SQL как в db.js
-                    await dbRun(
-                        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-                        [data.name, data.subject, data.parents, data.school, data.grade, data.teacher, data.phone, data.address, data.notes, data.parent_phone]
-                    );
-                } else if (action === 'edit') {
-                    await dbRun(
-                        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=? 
-                         WHERE id=?`, 
-                        [data.name, data.subject, data.parents, data.school, data.grade, data.teacher, data.phone, data.address, data.notes, data.parent_phone, data.id]
-                    );
-                } else if (action === 'delete') {
-                    await dbRun('DELETE FROM students WHERE id = ?', [data.id]);
+                if (data.action === 'add') {
+                    // Добавили lessons_per_week
+                    await db.addStudent(data);
+                } else if (data.action === 'edit') {
+                    // Добавили lessons_per_week
+                    await db.updateStudent(data);
+                } else if (data.action === 'delete') {
+                    await db.deleteStudent(data.id);
                 }
-                
+
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
-                
             } catch (e) { 
                 console.error('Ошибка сохранения студента:', e);
                 res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
