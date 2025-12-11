@@ -9,6 +9,7 @@ const API_URL_SHOPPING = API_BASE_URL + '/shopping';
 const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
 
 const CURRENCY = 'T';
+// ВСТАВЬ СЮДА СВОЙ ID КАЛЕНДАРЯ
 const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
 
 let ALL_CATEGORIES = [];
@@ -34,7 +35,6 @@ function switchTab(tabName) {
     if (tabName === 'shopping') loadShoppingList();
 }
 
-// НОВОЕ: Отдельная функция загрузки данных без сброса вкладки
 async function loadData() {
     try {
         const [catRes, txRes, balRes] = await Promise.all([
@@ -47,7 +47,7 @@ async function loadData() {
         RAW_DATA = await txRes.json();
         const balances = await balRes.json();
 
-        // Заполняем фильтр категорий (только если список пуст, чтобы не сбрасывать выбор)
+        // Заполняем фильтр категорий
         const filterSel = document.getElementById('filter-category');
         if (filterSel.options.length <= 1) {
             filterSel.innerHTML = '<option value="ALL">Все категории</option>';
@@ -76,7 +76,6 @@ async function init() {
         FILTERED_DATA = [...RAW_DATA];
         applyFilters(); 
         
-        // Переключаем на аналитику только при первом старте
         switchTab('analytics'); 
     }
 }
@@ -130,7 +129,7 @@ function renderAnalytics(data) {
     let totalIncome = 0;
     let totalExpense = 0;
     
-    const categoryMap = {}; // Для диаграммы (может быть по категориям или по тегам)
+    const categoryMap = {}; 
     const monthMap = {}; 
     const dayOfWeekMap = [0,0,0,0,0,0,0]; 
     const dayOfMonthMap = new Array(32).fill(0); 
@@ -138,7 +137,6 @@ function renderAnalytics(data) {
     const catFrequency = {};
     const commentFrequency = {};
 
-    // НОВОЕ: Определяем режим группировки
     const groupBy = document.getElementById('chart-group-by').value; // 'category' или 'tag'
 
     data.forEach(t => {
@@ -159,16 +157,13 @@ function renderAnalytics(data) {
             totalExpense += amount;
             monthMap[monthKey].expense += amount;
             
-            // ГРУППИРОВКА ДЛЯ ДИАГРАММЫ
+            // Группировка
             let key = 'Прочее';
-            if (groupBy === 'tag') {
-                key = t.tag || 'Без тега';
-            } else {
-                key = t.category || 'Без категории';
-            }
+            if (groupBy === 'tag') key = t.tag || 'Без тега';
+            else key = t.category || 'Без категории';
+            
             categoryMap[key] = (categoryMap[key] || 0) + amount;
 
-            // Частотный анализ всегда по категориям
             const cat = t.category || 'Без категории';
             catFrequency[cat] = (catFrequency[cat] || 0) + 1;
             
@@ -191,15 +186,11 @@ function renderAnalytics(data) {
     document.getElementById('stat-balance').className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
 
     // --- ГРАФИКИ ---
-
-    // 1. Категории / Теги
     const groupedLabels = [];
     const groupedValues = [];
     let otherSum = 0;
     
-    // Сортировка и фильтрация мелочи
     Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).forEach(([name, sum]) => {
-        // Показываем всё, если меньше 15 пунктов, иначе группируем мелочь < 2%
         if (Object.keys(categoryMap).length > 15 && totalExpense > 0 && (sum / totalExpense) < 0.02) {
             otherSum += sum;
         } else { 
@@ -226,14 +217,12 @@ function renderAnalytics(data) {
             maintainAspectRatio: false,
             onClick: (e, elements) => {
                 if (elements.length > 0) {
-                    // Drill down пока работает только для категорий, для тегов можно допилить позже
                     const label = groupedLabels[elements[0].index];
                     if (groupBy === 'category' && label !== 'Остальное') drillDownByCategory(label);
                 }
             },
             plugins: { 
                 legend: { position: 'right', labels: { boxWidth: 12 } },
-                // НОВОЕ: Возвращаем проценты в тултип
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -442,7 +431,6 @@ function closeModal() {
     document.getElementById('edit-modal').classList.remove('flex');
 }
 
-// ИСПРАВЛЕНИЕ БАГА ПЕРЕНАПРАВЛЕНИЯ (Заменили init() на loadData + applyFilters)
 document.getElementById('edit-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('edit-id').value;
@@ -458,8 +446,8 @@ document.getElementById('edit-form').addEventListener('submit', async (e) => {
             body: JSON.stringify({id, amount, category, comment, tag})
         });
         closeModal();
-        await loadData(); // Просто обновляем данные
-        applyFilters();   // Перерисовываем текущую вкладку
+        await loadData(); 
+        applyFilters();   
     } catch(e) { alert('Ошибка сети'); }
 });
 
@@ -556,7 +544,6 @@ function closeStudentModal() {
     document.getElementById('student-modal').classList.remove('flex');
 }
 
-// ИСПРАВЛЕНИЕ БАГА ПЕРЕНАПРАВЛЕНИЯ ДЛЯ УЧЕНИКОВ
 document.getElementById('student-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = document.getElementById('student-id').value;
@@ -584,7 +571,7 @@ document.getElementById('student-form').addEventListener('submit', async (e) => 
             body: JSON.stringify(payload)
         });
         closeStudentModal();
-        loadStudents(); // Только обновляем список, вкладка не меняется
+        loadStudents(); 
     } catch(e) { alert('Ошибка'); }
 });
 
@@ -602,7 +589,6 @@ async function deleteStudent() {
     } catch(e) { alert('Ошибка'); }
 }
 
-// --- ПОКУПКИ ---
 document.getElementById('shop-type').addEventListener('change', (e) => {
     const priceBlock = document.getElementById('shop-price-block');
     if (e.target.value === 'wish') priceBlock.classList.remove('hidden');
@@ -712,7 +698,6 @@ async function deleteItem(id) {
     } catch(e) { alert('Ошибка'); }
 }
 
-// --- СТАТИСТИКА УЧЕНИКА ---
 let studentChart = null;
 async function openStatsModal(id) {
     const modal = document.getElementById('stats-modal');
