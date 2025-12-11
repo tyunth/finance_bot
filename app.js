@@ -784,37 +784,109 @@ async function openStatsModal(id) {
     if (!modal) return;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+
     try {
         const res = await fetch(`${API_BASE_URL}/students/stats?id=${id}`);
         const data = await res.json();
-        document.getElementById('stats-title').textContent = data.name;
+        
+        // Данные приходят в data.student и data.transactions
+        const s = data.student;
+        const txs = data.transactions;
+
+        document.getElementById('stats-title').textContent = s.name;
+        
+        // 1. Общая статистика (За всё время)
         let total = 0;
-        data.transactions.forEach(t => total += t.amount);
+        txs.forEach(t => total += t.amount);
         document.getElementById('stats-total').textContent = formatCurrency(total);
-        document.getElementById('stats-count').textContent = data.transactions.length;
+        document.getElementById('stats-count').textContent = txs.length;
+
+        // 2. План/Факт (Текущий месяц)
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; // "2023-12"
+        const monthName = now.toLocaleString('ru', { month: 'long', year: 'numeric' });
+        document.getElementById('stats-month-name').textContent = monthName;
+
+        // Считаем факт (транзакции за этот месяц)
+        const factCount = txs.filter(t => t.date.startsWith(currentMonthKey)).length;
+        
+        // Считаем план (Занятий в неделю * 4)
+        // Если lessons_per_week не указано, считаем план = факту (чтобы не пугать нулями)
+        const weekly = s.lessons_per_week || 0;
+        const planCount = weekly > 0 ? weekly * 4 : factCount; 
+
+        const factEl = document.getElementById('stats-fact');
+        const planEl = document.getElementById('stats-plan');
+        const progBar = document.getElementById('stats-progress');
+        const progText = document.getElementById('stats-progress-text');
+
+        factEl.textContent = factCount;
+        planEl.textContent = planCount; // Примерно 4 недели в месяце
+
+        // Раскраска факта
+        if (factCount < planCount) factEl.className = "text-xl font-bold text-red-500";
+        else if (factCount > planCount) factEl.className = "text-xl font-bold text-green-500";
+        else factEl.className = "text-xl font-bold text-gray-800";
+
+        // Прогресс бар
+        const percent = planCount > 0 ? Math.min(100, (factCount / planCount) * 100) : 0;
+        progBar.style.width = `${percent}%`;
+        // Цвет бара
+        progBar.className = `h-2.5 rounded-full ${factCount >= planCount ? 'bg-green-500' : 'bg-blue-600'}`;
+        
+        if (weekly > 0) {
+            const diff = factCount - planCount;
+            progText.textContent = diff === 0 ? "Идем по плану" : (diff > 0 ? `+${diff} доп. уроков` : `${diff} от плана`);
+        } else {
+            progText.textContent = "График не задан";
+        }
+
+        // 3. История (Последние 10)
         const historyEl = document.getElementById('stats-history');
-        historyEl.innerHTML = data.transactions.slice(0, 10).map(t => `
+        historyEl.innerHTML = txs.slice(0, 10).map(t => `
             <div class="flex justify-between border-b border-gray-100 pb-1 last:border-0">
                 <span>${new Date(t.date).toLocaleDateString('ru-RU')} <span class="text-xs text-gray-400">(${t.comment})</span></span>
                 <span class="font-bold text-green-600">+${formatCurrency(t.amount)}</span>
             </div>
         `).join('') || '<div class="text-gray-400">Оплат пока нет</div>';
+
+        // 4. График (По месяцам)
         const months = {};
-        data.transactions.forEach(t => {
+        txs.forEach(t => {
             const date = new Date(t.date);
-            const key = `${date.toLocaleString('ru', { month: 'short' })} ${date.getFullYear()}`; 
-            months[key] = (months[key] || 0) + t.amount;
+            // Сортировка по ключу YYYY-MM, отображение потом
+            const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            months[sortKey] = (months[sortKey] || 0) + t.amount;
         });
+
+        // Сортируем месяцы хронологически
+        const sortedKeys = Object.keys(months).sort();
+        const labels = sortedKeys.map(k => {
+            const [y, m] = k.split('-');
+            return new Date(y, m - 1).toLocaleString('ru', { month: 'short' });
+        });
+        const values = sortedKeys.map(k => months[k]);
+
         const ctx = document.getElementById('studentChart').getContext('2d');
         if (studentChart) studentChart.destroy();
         studentChart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: Object.keys(months),
-                datasets: [{ label: 'Оплаты', data: Object.values(months), backgroundColor: '#3b82f6', borderRadius: 4 }]
+                labels: labels,
+                datasets: [{
+                    label: 'Оплаты',
+                    data: values,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
         });
+
     } catch (e) { console.error(e); alert('Ошибка загрузки статистики'); }
 }
 function closeStatsModal() {
