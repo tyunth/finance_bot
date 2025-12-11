@@ -3,8 +3,9 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-// Подключаем конфиг, чтобы знать все категории (даже те, которых нет в базе)
+const db = require('./db');
 const config = require('./config');
+
 
 const DB_PATH = path.resolve(__dirname, 'finance.db');
 const HOST = '127.0.0.1'; 
