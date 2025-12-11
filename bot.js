@@ -436,6 +436,64 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
 });
 
+// --- SHOPPING LIST COMMANDS ---
+
+// Показать список
+const showShoppingList = async (ctx) => {
+    const list = await db.getShoppingList();
+    
+    const buyItems = list.filter(i => i.type === 'buy');
+    const wishItems = list.filter(i => i.type !== 'buy');
+
+    if (list.length === 0) return ctx.reply('Список покупок пуст. Добавьте через /buy или /wish');
+
+    let msg = '';
+    const buttons = [];
+
+    if (buyItems.length > 0) {
+        msg += '🛒 *Повседневное:*\n';
+        buyItems.forEach(i => {
+            msg += `• ${escapeMarkdown(i.item_name)}\n`;
+            // Кнопка для покупки
+            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}`)]);
+        });
+    }
+
+    if (wishItems.length > 0) {
+        msg += `\n🎁 *Вишлист:*\n`;
+        wishItems.forEach(i => {
+            msg += `• ${escapeMarkdown(i.item_name)} ${i.price_estimate ? `(~${i.price_estimate})` : ''}\n`;
+            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}`)]);
+        });
+    }
+
+    // Добавляем кнопку обновления, чтобы убрать старые сообщения
+    buttons.push([Markup.button.callback('🔄 Обновить', 'shop_refresh')]);
+
+    await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
+};
+
+bot.command('list', showShoppingList);
+bot.hears('Список', showShoppingList); // Если захочешь кнопку в меню
+
+// Добавить в Повседневное: /buy Хлеб
+bot.command('buy', async (ctx) => {
+    const text = ctx.message.text.replace('/buy', '').trim();
+    if (!text) return ctx.reply('Напишите что купить: /buy Молоко');
+    
+    await db.addShoppingItem({ item_name: text, type: 'buy', price_estimate: 0 });
+    return ctx.reply(`🛒 Добавлено: ${text}`);
+});
+
+// Добавить в Вишлист: /wish PS5
+bot.command('wish', async (ctx) => {
+    const text = ctx.message.text.replace('/wish', '').trim();
+    if (!text) return ctx.reply('Напишите что в вишлист: /wish PS5');
+    
+    await db.addShoppingItem({ item_name: text, type: 'wish', price_estimate: 0 });
+    return ctx.reply(`🎁 Добавлено в вишлист: ${text}`);
+});
+
 // Edit & Delete handlers
 const handleEdit = async (ctx, text) => {
     const parts = text.split(/\s+/);
@@ -652,6 +710,65 @@ if (data.startsWith('cal_')) {
         ctx.session.state = { step: config.STATE.AWAITING_INTEREST_CORRECTION, targetAccount: accName };
         return ctx.reply(`Введите реальную сумму процентов от банка для "${accName}":`);
     }
+
+    // --- SHOPPING ACTIONS ---
+    if (data.startsWith('shop_')) {
+        const action = data.replace('shop_', '');
+        
+        if (action === 'refresh') {
+            // Просто обновляем список (вызываем логику генерации текста заново)
+            // Чтобы не дублировать код, нам нужно вынести генерацию текста в функцию,
+            // но пока сделаем просто удаление сообщения и отправку нового (или просто игнор, если список тот же)
+            // Проще всего:
+            await ctx.deleteMessage();
+            return showShoppingList(ctx);
+        }
+
+        if (action.startsWith('done_')) {
+            const id = action.replace('done_', '');
+            // Помечаем как купленное
+            await db.updateShoppingStatus(id, 'bought');
+            
+            // Получаем актуальный список, чтобы обновить сообщение
+            const list = await db.getShoppingList();
+            
+            // Если список пуст
+            if (list.length === 0) {
+                return ctx.editMessageText('Список покупок пуст! ');
+            }
+
+            // Генерируем текст и кнопки заново (копия логики showShoppingList)
+            const buyItems = list.filter(i => i.type === 'buy');
+            const wishItems = list.filter(i => i.type !== 'buy');
+            
+            let msg = '';
+            const buttons = [];
+
+            if (buyItems.length > 0) {
+                msg += ' *Повседневное:*\n';
+                buyItems.forEach(i => {
+                    msg += `• ${escapeMarkdown(i.item_name)}\n`;
+                    buttons.push([Markup.button.callback(` ${i.item_name}`, `shop_done_${i.id}`)]);
+                });
+            }
+
+            if (wishItems.length > 0) {
+                msg += `\n *Вишлист:*\n`;
+                wishItems.forEach(i => {
+                    msg += `• ${escapeMarkdown(i.item_name)}\n`;
+                    buttons.push([Markup.button.callback(` ${i.item_name}`, `shop_done_${i.id}`)]);
+                });
+            }
+            buttons.push([Markup.button.callback(' Обновить', 'shop_refresh')]);
+
+            try {
+                await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+            } catch (e) { 
+                // Игнорируем ошибку, если текст не изменился (Telegram ругается)
+            }
+        }
+    }
+    
 });
 
 // Photo (OCR) Handler
