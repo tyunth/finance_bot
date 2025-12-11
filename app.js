@@ -9,7 +9,6 @@ const API_URL_SHOPPING = API_BASE_URL + '/shopping';
 const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
 
 const CURRENCY = 'T';
-// ВСТАВЬ СЮДА СВОЙ ID КАЛЕНДАРЯ
 const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
 
 let ALL_CATEGORIES = [];
@@ -47,9 +46,8 @@ async function loadData() {
         RAW_DATA = await txRes.json();
         const balances = await balRes.json();
 
-        // Заполняем фильтр категорий
         const filterSel = document.getElementById('filter-category');
-        if (filterSel.options.length <= 1) {
+        if (filterSel && filterSel.options.length <= 1) {
             filterSel.innerHTML = '<option value="ALL">Все категории</option>';
             ALL_CATEGORIES.forEach(c => {
                 const opt = document.createElement('option');
@@ -62,7 +60,8 @@ async function loadData() {
         return true;
     } catch (e) {
         console.error(e);
-        document.getElementById('loading').textContent = 'Ошибка загрузки данных';
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.textContent = 'Ошибка загрузки данных';
         return false;
     }
 }
@@ -70,8 +69,11 @@ async function loadData() {
 async function init() {
     const success = await loadData();
     if (success) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('filter-panel').classList.remove('hidden');
+        const loadingEl = document.getElementById('loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        
+        const filterPanel = document.getElementById('filter-panel');
+        if (filterPanel) filterPanel.classList.remove('hidden');
         
         FILTERED_DATA = [...RAW_DATA];
         applyFilters(); 
@@ -82,6 +84,8 @@ async function init() {
 
 function renderBalances(balances) {
     const list = document.getElementById('deposit-list');
+    if (!list) return;
+    
     if (!balances || Object.keys(balances).length === 0) {
         list.innerHTML = 'Нет счетов';
         return;
@@ -95,10 +99,17 @@ function renderBalances(balances) {
 }
 
 function applyFilters() {
-    const startStr = document.getElementById('filter-date-start').value;
-    const endStr = document.getElementById('filter-date-end').value;
-    const catVal = document.getElementById('filter-category').value;
-    const typeVal = document.getElementById('filter-type').value;
+    const startEl = document.getElementById('filter-date-start');
+    const endEl = document.getElementById('filter-date-end');
+    const catEl = document.getElementById('filter-category');
+    const typeEl = document.getElementById('filter-type');
+
+    if (!startEl) return; 
+
+    const startStr = startEl.value;
+    const endStr = endEl.value;
+    const catVal = catEl.value;
+    const typeVal = typeEl.value;
 
     const startDate = startStr ? new Date(startStr) : null;
     const endDate = endStr ? new Date(endStr) : null;
@@ -129,7 +140,9 @@ function renderAnalytics(data) {
     let totalIncome = 0;
     let totalExpense = 0;
     
-    const categoryMap = {}; 
+    const expenseMap = {}; // Для графика расходов
+    const incomeMap = {};  // Для графика доходов (НОВОЕ)
+    
     const monthMap = {}; 
     const dayOfWeekMap = [0,0,0,0,0,0,0]; 
     const dayOfMonthMap = new Array(32).fill(0); 
@@ -137,7 +150,6 @@ function renderAnalytics(data) {
     const catFrequency = {};
     const commentFrequency = {};
 
-    // БЕЗОПАСНАЯ ПРОВЕРКА: Если переключателя нет, считаем 'category'
     const groupEl = document.getElementById('chart-group-by');
     const groupBy = groupEl ? groupEl.value : 'category';
 
@@ -154,17 +166,21 @@ function renderAnalytics(data) {
             if (t.category !== 'Депозит') {
                 totalIncome += amount;
                 monthMap[monthKey].income += amount;
+                
+                // Группировка доходов (по тегу, т.е. ученику, или по категории)
+                const key = t.tag || t.category || 'Прочее';
+                incomeMap[key] = (incomeMap[key] || 0) + amount;
             }
         } else if (t.type === 'expense') {
             totalExpense += amount;
             monthMap[monthKey].expense += amount;
             
-            // Группировка
+            // Группировка расходов
             let key = 'Прочее';
             if (groupBy === 'tag') key = t.tag || 'Без тега';
             else key = t.category || 'Без категории';
             
-            categoryMap[key] = (categoryMap[key] || 0) + amount;
+            expenseMap[key] = (expenseMap[key] || 0) + amount;
 
             const cat = t.category || 'Без категории';
             catFrequency[cat] = (catFrequency[cat] || 0) + 1;
@@ -181,7 +197,6 @@ function renderAnalytics(data) {
 
     CHART_DATA_CACHE = { dayOfWeekMap, dayOfMonthMap };
 
-    // Безопасное обновление цифр
     if (document.getElementById('stat-income')) document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
     if (document.getElementById('stat-expense')) document.getElementById('stat-expense').textContent = formatCurrency(totalExpense);
     
@@ -192,70 +207,17 @@ function renderAnalytics(data) {
         balEl.className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
     }
 
-    // --- ГРАФИКИ ---
-    
-    // 1. Категории / Теги
-    const groupedLabels = [];
-    const groupedValues = [];
-    let otherSum = 0;
-    
-    Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).forEach(([name, sum]) => {
-        if (Object.keys(categoryMap).length > 15 && totalExpense > 0 && (sum / totalExpense) < 0.02) {
-            otherSum += sum;
-        } else { 
-            groupedLabels.push(name); 
-            groupedValues.push(sum); 
-        }
-    });
-    if (otherSum > 0) { groupedLabels.push('Остальное'); groupedValues.push(otherSum); }
+    // --- ГРАФИК РАСХОДОВ ---
+    renderDoughnutChart('chartCategories', expenseMap, chartsInstance, 'cat', totalExpense);
 
-    // БЕЗОПАСНАЯ ОТРИСОВКА: Chart Categories
-    const ctxCatEl = document.getElementById('chartCategories');
-    if (ctxCatEl) {
-        const ctxCat = ctxCatEl.getContext('2d');
-        if (chartsInstance.cat) chartsInstance.cat.destroy();
-        chartsInstance.cat = new Chart(ctxCat, {
-            type: 'doughnut',
-            data: {
-                labels: groupedLabels,
-                datasets: [{
-                    data: groupedValues,
-                    backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b', '#71717a', '#a1a1aa'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                onClick: (e, elements) => {
-                    if (elements.length > 0) {
-                        const label = groupedLabels[elements[0].index];
-                        if (groupBy === 'category' && label !== 'Остальное') drillDownByCategory(label);
-                    }
-                },
-                plugins: { 
-                    legend: { position: 'right', labels: { boxWidth: 12 } },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                let value = context.raw;
-                                let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
-                                return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
+    // --- ГРАФИК ДОХОДОВ (НОВЫЙ) ---
+    renderDoughnutChart('chartIncome', incomeMap, chartsInstance, 'income', totalIncome);
 
-    // 2. Активность
+    // --- АКТИВНОСТЬ ---
     renderDayChart();
 
-    // 3. Динамика
+    // --- ДИНАМИКА ---
     const sortedMonths = Object.keys(monthMap).sort();
-    
-    // БЕЗОПАСНАЯ ОТРИСОВКА: Chart Monthly
     const ctxMonthEl = document.getElementById('chartMonthly');
     if (ctxMonthEl) {
         const ctxMonth = ctxMonthEl.getContext('2d');
@@ -276,6 +238,7 @@ function renderAnalytics(data) {
         });
     }
 
+    // --- СПИСКИ ТОП ---
     const topExp = data.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 10);
     const topExpEl = document.getElementById('top-expenses-list');
     if (topExpEl) {
@@ -317,10 +280,66 @@ function renderAnalytics(data) {
     }
 }
 
+// Универсальная функция для рисования бубликов
+function renderDoughnutChart(canvasId, dataMap, chartsRef, chartKey, totalSum) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+
+    const groupedLabels = [];
+    const groupedValues = [];
+    let otherSum = 0;
+    
+    Object.entries(dataMap).sort((a, b) => b[1] - a[1]).forEach(([name, sum]) => {
+        if (Object.keys(dataMap).length > 15 && totalSum > 0 && (sum / totalSum) < 0.02) {
+            otherSum += sum;
+        } else { 
+            groupedLabels.push(name); 
+            groupedValues.push(sum); 
+        }
+    });
+    if (otherSum > 0) { groupedLabels.push('Остальное'); groupedValues.push(otherSum); }
+
+    const ctx = el.getContext('2d');
+    if (chartsRef[chartKey]) chartsRef[chartKey].destroy();
+    
+    chartsRef[chartKey] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: groupedLabels,
+            datasets: [{
+                data: groupedValues,
+                backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b', '#71717a', '#a1a1aa'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { position: 'right', labels: { boxWidth: 12 } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let value = context.raw;
+                            let percentage = totalSum > 0 ? Math.round((value / totalSum) * 100) : 0;
+                            return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
 function renderDayChart() {
-    const type = document.getElementById('chart-day-type').value;
-    const ctx = document.getElementById('chartDays').getContext('2d');
+    const typeEl = document.getElementById('chart-day-type');
+    const ctxEl = document.getElementById('chartDays');
+    if (!typeEl || !ctxEl) return;
+
+    const type = typeEl.value;
+    const ctx = ctxEl.getContext('2d');
     let labels, data;
+    
     if (type === 'week') {
         const d = CHART_DATA_CACHE.dayOfWeekMap;
         data = [d[1], d[2], d[3], d[4], d[5], d[6], d[0]];
@@ -329,6 +348,7 @@ function renderDayChart() {
         data = CHART_DATA_CACHE.dayOfMonthMap.slice(1);
         labels = Array.from({length: 31}, (_, i) => i + 1);
     }
+    
     if (chartsInstance.days) chartsInstance.days.destroy();
     chartsInstance.days = new Chart(ctx, {
         type: 'bar',
@@ -347,6 +367,8 @@ function renderDayChart() {
 function renderTable(data) {
     const headerRow = document.getElementById('table-header');
     const body = document.getElementById('table-body');
+    if (!headerRow || !body) return;
+
     headerRow.innerHTML = '';
     body.innerHTML = '';
 
@@ -436,6 +458,9 @@ function drillDownByMonth(monthStr) {
 }
 
 function openEditModal(item) {
+    const modal = document.getElementById('edit-modal');
+    if (!modal) return;
+
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-amount').value = item.amount;
     document.getElementById('edit-comment').value = item.comment || '';
@@ -451,41 +476,49 @@ function openEditModal(item) {
     });
     select.value = item.category;
 
-    document.getElementById('edit-modal').classList.remove('hidden');
-    document.getElementById('edit-modal').classList.add('flex');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
 }
 
 function closeModal() {
-    document.getElementById('edit-modal').classList.add('hidden');
-    document.getElementById('edit-modal').classList.remove('flex');
+    const modal = document.getElementById('edit-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
-document.getElementById('edit-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('edit-id').value;
-    const amount = parseFloat(document.getElementById('edit-amount').value);
-    const category = document.getElementById('edit-category').value;
-    const comment = document.getElementById('edit-comment').value;
-    const tag = document.getElementById('edit-tag').value; 
+const editForm = document.getElementById('edit-form');
+if (editForm) {
+    editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const amount = parseFloat(document.getElementById('edit-amount').value);
+        const category = document.getElementById('edit-category').value;
+        const comment = document.getElementById('edit-comment').value;
+        const tag = document.getElementById('edit-tag').value; 
 
-    try {
-        await fetch(API_URL_EDIT, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id, amount, category, comment, tag})
-        });
-        closeModal();
-        await loadData(); 
-        applyFilters();   
-    } catch(e) { alert('Ошибка сети'); }
-});
+        try {
+            await fetch(API_URL_EDIT, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id, amount, category, comment, tag})
+            });
+            closeModal();
+            await loadData(); 
+            applyFilters();   
+        } catch(e) { alert('Ошибка сети'); }
+    });
+}
 
 let calendarLoaded = false;
 function loadCalendar() {
     if (calendarLoaded) return;
     const iframe = document.getElementById('google-calendar-frame');
-    iframe.src = `https://calendar.google.com/calendar/embed?src=${CALENDAR_EMBED_ID}&ctz=Asia/Almaty&mode=WEEK`; 
-    calendarLoaded = true;
+    if (iframe) {
+        iframe.src = `https://calendar.google.com/calendar/embed?src=${CALENDAR_EMBED_ID}&ctz=Asia/Almaty&mode=WEEK`; 
+        calendarLoaded = true;
+    }
 }
 
 async function loadStudents() {
@@ -498,6 +531,8 @@ async function loadStudents() {
 
 function renderStudents(students) {
     const grid = document.getElementById('students-grid');
+    if (!grid) return;
+
     if (students.length === 0) {
         grid.innerHTML = '<div class="col-span-3 text-center text-gray-500 py-10">Список пуст</div>';
         return;
@@ -541,6 +576,8 @@ function openStudentModal(s = null) {
     const modal = document.getElementById('student-modal');
     const form = document.getElementById('student-form');
     const delBtn = document.getElementById('btn-delete-student');
+    if (!modal) return;
+
     form.reset();
     
     if (s) {
@@ -569,40 +606,46 @@ function openStudentModal(s = null) {
 }
 
 function closeStudentModal() {
-    document.getElementById('student-modal').classList.add('hidden');
-    document.getElementById('student-modal').classList.remove('flex');
+    const modal = document.getElementById('student-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
-document.getElementById('student-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('student-id').value;
-    const action = id ? 'edit' : 'add';
-    
-    const payload = {
-        action, id,
-        name: document.getElementById('st-name').value,
-        subject: document.getElementById('st-subject').value,
-        parents: document.getElementById('st-parents').value,
-        phone: document.getElementById('st-phone').value,
-        parent_phone: document.getElementById('st-parent-phone').value, 
-        school: document.getElementById('st-school').value,
-        grade: document.getElementById('st-grade').value,
-        teacher: document.getElementById('st-teacher').value,
-        address: document.getElementById('st-address').value,
-        notes: document.getElementById('st-notes').value,
-        lessons_per_week: document.getElementById('st-lessons-week').value,
-    };
+const studentForm = document.getElementById('student-form');
+if (studentForm) {
+    studentForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('student-id').value;
+        const action = id ? 'edit' : 'add';
+        
+        const payload = {
+            action, id,
+            name: document.getElementById('st-name').value,
+            subject: document.getElementById('st-subject').value,
+            parents: document.getElementById('st-parents').value,
+            phone: document.getElementById('st-phone').value,
+            parent_phone: document.getElementById('st-parent-phone').value, 
+            school: document.getElementById('st-school').value,
+            grade: document.getElementById('st-grade').value,
+            teacher: document.getElementById('st-teacher').value,
+            address: document.getElementById('st-address').value,
+            notes: document.getElementById('st-notes').value,
+            lessons_per_week: document.getElementById('st-lessons-week').value,
+        };
 
-    try {
-        await fetch(API_URL_STUDENT_ACTION, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        closeStudentModal();
-        loadStudents(); 
-    } catch(e) { alert('Ошибка'); }
-});
+        try {
+            await fetch(API_URL_STUDENT_ACTION, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            closeStudentModal();
+            loadStudents(); 
+        } catch(e) { alert('Ошибка'); }
+    });
+}
 
 async function deleteStudent() {
     const id = document.getElementById('student-id').value;
@@ -618,11 +661,14 @@ async function deleteStudent() {
     } catch(e) { alert('Ошибка'); }
 }
 
-document.getElementById('shop-type').addEventListener('change', (e) => {
-    const priceBlock = document.getElementById('shop-price-block');
-    if (e.target.value === 'wish') priceBlock.classList.remove('hidden');
-    else priceBlock.classList.add('hidden');
-});
+const shopTypeEl = document.getElementById('shop-type');
+if (shopTypeEl) {
+    shopTypeEl.addEventListener('change', (e) => {
+        const priceBlock = document.getElementById('shop-price-block');
+        if (e.target.value === 'wish') priceBlock.classList.remove('hidden');
+        else priceBlock.classList.add('hidden');
+    });
+}
 
 async function loadShoppingList() {
     try {
@@ -637,14 +683,16 @@ async function loadShoppingList() {
 function renderShoppingList(list) {
     const buyContainer = document.getElementById('list-buy');
     const wishContainer = document.getElementById('list-wish');
+    if (!buyContainer || !wishContainer) return;
+
     buyContainer.innerHTML = '';
     wishContainer.innerHTML = '';
 
     const buyItems = list.filter(i => i.type === 'buy');
     const wishItems = list.filter(i => i.type !== 'buy');
 
-    document.getElementById('count-buy').textContent = buyItems.length;
-    document.getElementById('count-wish').textContent = wishItems.length;
+    if (document.getElementById('count-buy')) document.getElementById('count-buy').textContent = buyItems.length;
+    if (document.getElementById('count-wish')) document.getElementById('count-wish').textContent = wishItems.length;
 
     const createItemHTML = (item, isWish) => `
         <div class="card p-3 flex justify-between items-center group hover:bg-gray-50 transition cursor-move" data-id="${item.id}">
@@ -685,22 +733,25 @@ function initSortable(el, type) {
     });
 }
 
-document.getElementById('shopping-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('shop-item').value;
-    const type = document.getElementById('shop-type').value;
-    const price = document.getElementById('shop-price').value;
-    try {
-        await fetch(API_URL_SHOPPING_ACTION, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ action: 'add', item_name: name, type: type, price_estimate: price || 0 })
-        });
-        document.getElementById('shop-item').value = '';
-        document.getElementById('shop-price').value = '';
-        loadShoppingList();
-    } catch(e) { alert('Ошибка'); }
-});
+const shopForm = document.getElementById('shopping-form');
+if (shopForm) {
+    shopForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('shop-item').value;
+        const type = document.getElementById('shop-type').value;
+        const price = document.getElementById('shop-price').value;
+        try {
+            await fetch(API_URL_SHOPPING_ACTION, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'add', item_name: name, type: type, price_estimate: price || 0 })
+            });
+            document.getElementById('shop-item').value = '';
+            document.getElementById('shop-price').value = '';
+            loadShoppingList();
+        } catch(e) { alert('Ошибка'); }
+    });
+}
 
 async function buyItem(id) {
     setTimeout(async () => {
@@ -730,6 +781,7 @@ async function deleteItem(id) {
 let studentChart = null;
 async function openStatsModal(id) {
     const modal = document.getElementById('stats-modal');
+    if (!modal) return;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     try {
@@ -766,8 +818,11 @@ async function openStatsModal(id) {
     } catch (e) { console.error(e); alert('Ошибка загрузки статистики'); }
 }
 function closeStatsModal() {
-    document.getElementById('stats-modal').classList.add('hidden');
-    document.getElementById('stats-modal').classList.remove('flex');
+    const modal = document.getElementById('stats-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
 window.onclick = function(event) {
