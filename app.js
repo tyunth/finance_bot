@@ -137,7 +137,9 @@ function renderAnalytics(data) {
     const catFrequency = {};
     const commentFrequency = {};
 
-    const groupBy = document.getElementById('chart-group-by').value; // 'category' или 'tag'
+    // БЕЗОПАСНАЯ ПРОВЕРКА: Если переключателя нет, считаем 'category'
+    const groupEl = document.getElementById('chart-group-by');
+    const groupBy = groupEl ? groupEl.value : 'category';
 
     data.forEach(t => {
         if (t.type === 'transfer') return;
@@ -179,13 +181,20 @@ function renderAnalytics(data) {
 
     CHART_DATA_CACHE = { dayOfWeekMap, dayOfMonthMap };
 
-    document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
-    document.getElementById('stat-expense').textContent = formatCurrency(totalExpense);
+    // Безопасное обновление цифр
+    if (document.getElementById('stat-income')) document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
+    if (document.getElementById('stat-expense')) document.getElementById('stat-expense').textContent = formatCurrency(totalExpense);
+    
     const balance = totalIncome - totalExpense;
-    document.getElementById('stat-balance').textContent = formatCurrency(balance);
-    document.getElementById('stat-balance').className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
+    const balEl = document.getElementById('stat-balance');
+    if (balEl) {
+        balEl.textContent = formatCurrency(balance);
+        balEl.className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
+    }
 
     // --- ГРАФИКИ ---
+    
+    // 1. Категории / Теги
     const groupedLabels = [];
     const groupedValues = [];
     let otherSum = 0;
@@ -200,92 +209,112 @@ function renderAnalytics(data) {
     });
     if (otherSum > 0) { groupedLabels.push('Остальное'); groupedValues.push(otherSum); }
 
-    const ctxCat = document.getElementById('chartCategories').getContext('2d');
-    if (chartsInstance.cat) chartsInstance.cat.destroy();
-    chartsInstance.cat = new Chart(ctxCat, {
-        type: 'doughnut',
-        data: {
-            labels: groupedLabels,
-            datasets: [{
-                data: groupedValues,
-                backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b', '#71717a', '#a1a1aa'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            onClick: (e, elements) => {
-                if (elements.length > 0) {
-                    const label = groupedLabels[elements[0].index];
-                    if (groupBy === 'category' && label !== 'Остальное') drillDownByCategory(label);
-                }
+    // БЕЗОПАСНАЯ ОТРИСОВКА: Chart Categories
+    const ctxCatEl = document.getElementById('chartCategories');
+    if (ctxCatEl) {
+        const ctxCat = ctxCatEl.getContext('2d');
+        if (chartsInstance.cat) chartsInstance.cat.destroy();
+        chartsInstance.cat = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels: groupedLabels,
+                datasets: [{
+                    data: groupedValues,
+                    backgroundColor: ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#94a3b8', '#64748b', '#71717a', '#a1a1aa'],
+                    borderWidth: 0
+                }]
             },
-            plugins: { 
-                legend: { position: 'right', labels: { boxWidth: 12 } },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let value = context.raw;
-                            let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
-                            return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        const label = groupedLabels[elements[0].index];
+                        if (groupBy === 'category' && label !== 'Остальное') drillDownByCategory(label);
+                    }
+                },
+                plugins: { 
+                    legend: { position: 'right', labels: { boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let value = context.raw;
+                                let percentage = totalExpense > 0 ? Math.round((value / totalExpense) * 100) : 0;
+                                return ` ${context.label}: ${formatCurrency(value)} (${percentage}%)`;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
+    }
 
+    // 2. Активность
     renderDayChart();
 
+    // 3. Динамика
     const sortedMonths = Object.keys(monthMap).sort();
-    const ctxMonth = document.getElementById('chartMonthly').getContext('2d');
-    if (chartsInstance.month) chartsInstance.month.destroy();
-    chartsInstance.month = new Chart(ctxMonth, {
-        type: 'bar',
-        data: {
-            labels: sortedMonths,
-            datasets: [
-                { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
-                { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            onClick: (e, elements) => { if (elements.length > 0) drillDownByMonth(sortedMonths[elements[0].index]); }
-        }
-    });
+    
+    // БЕЗОПАСНАЯ ОТРИСОВКА: Chart Monthly
+    const ctxMonthEl = document.getElementById('chartMonthly');
+    if (ctxMonthEl) {
+        const ctxMonth = ctxMonthEl.getContext('2d');
+        if (chartsInstance.month) chartsInstance.month.destroy();
+        chartsInstance.month = new Chart(ctxMonth, {
+            type: 'bar',
+            data: {
+                labels: sortedMonths,
+                datasets: [
+                    { label: 'Доход', data: sortedMonths.map(m => monthMap[m].income), backgroundColor: '#10b981', borderRadius: 4 },
+                    { label: 'Расход', data: sortedMonths.map(m => monthMap[m].expense), backgroundColor: '#ef4444', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                onClick: (e, elements) => { if (elements.length > 0) drillDownByMonth(sortedMonths[elements[0].index]); }
+            }
+        });
+    }
 
     const topExp = data.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 10);
-    document.getElementById('top-expenses-list').innerHTML = topExp.map((t, i) => `
-        <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-            <td class="px-4 py-2 text-xs text-gray-400 font-bold w-4">${i+1}.</td>
-            <td class="px-2 py-2 font-medium text-gray-800">
-                ${t.category}
-                <div class="text-xs text-gray-500 font-normal sm:hidden">${t.comment || ''}</div>
-            </td>
-            <td class="px-2 py-2 text-xs text-gray-500 hidden sm:table-cell truncate max-w-[100px]">${t.comment || ''}</td>
-            <td class="px-2 py-2 font-bold text-gray-900 text-right">${formatCurrency(t.amount)}</td>
-        </tr>
-    `).join('');
-
-    const sortedFreqCat = Object.entries(catFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    document.getElementById('top-freq-cat-list').innerHTML = sortedFreqCat.map(([cat, count]) => `
-        <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-            <td class="py-2 font-medium text-gray-800">${cat}</td>
-            <td class="py-2 text-right font-semibold text-blue-600">${count}</td>
-        </tr>
-    `).join('');
-
-    const sortedFreqComment = Object.entries(commentFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    document.getElementById('top-freq-comment-list').innerHTML = sortedFreqComment.length === 0 
-        ? '<tr><td class="text-xs text-gray-400 py-2">Нет комментариев</td></tr>'
-        : sortedFreqComment.map(([comm, count]) => `
+    const topExpEl = document.getElementById('top-expenses-list');
+    if (topExpEl) {
+        topExpEl.innerHTML = topExp.map((t, i) => `
             <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
-                <td class="py-2 text-sm text-gray-700">"${comm}"</td>
-                <td class="py-2 text-right font-semibold text-gray-500 text-xs">${count}</td>
+                <td class="px-4 py-2 text-xs text-gray-400 font-bold w-4">${i+1}.</td>
+                <td class="px-2 py-2 font-medium text-gray-800">
+                    ${t.category}
+                    <div class="text-xs text-gray-500 font-normal sm:hidden">${t.comment || ''}</div>
+                </td>
+                <td class="px-2 py-2 text-xs text-gray-500 hidden sm:table-cell truncate max-w-[100px]">${t.comment || ''}</td>
+                <td class="px-2 py-2 font-bold text-gray-900 text-right">${formatCurrency(t.amount)}</td>
             </tr>
         `).join('');
+    }
+
+    const sortedFreqCat = Object.entries(catFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const topFreqEl = document.getElementById('top-freq-cat-list');
+    if (topFreqEl) {
+        topFreqEl.innerHTML = sortedFreqCat.map(([cat, count]) => `
+            <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                <td class="py-2 font-medium text-gray-800">${cat}</td>
+                <td class="py-2 text-right font-semibold text-blue-600">${count}</td>
+            </tr>
+        `).join('');
+    }
+
+    const sortedFreqComment = Object.entries(commentFrequency).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const topCommEl = document.getElementById('top-freq-comment-list');
+    if (topCommEl) {
+        topCommEl.innerHTML = sortedFreqComment.length === 0 
+            ? '<tr><td class="text-xs text-gray-400 py-2">Нет комментариев</td></tr>'
+            : sortedFreqComment.map(([comm, count]) => `
+                <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                    <td class="py-2 text-sm text-gray-700">"${comm}"</td>
+                    <td class="py-2 text-right font-semibold text-gray-500 text-xs">${count}</td>
+                </tr>
+            `).join('');
+    }
 }
 
 function renderDayChart() {
