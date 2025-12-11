@@ -113,11 +113,12 @@ async function ensureMainAccount(userId) {
 }
 
 async function addTransaction(data) {
-    const { userId, type, amount, category, tag, comment, sourceAccount, targetAccount } = data;
+    const { userId, type, amount, category, tag, comment, sourceAccount, targetAccount, lesson_type } = data;
     const date = data.date || new Date().toISOString();
     return dbRun(
-        `INSERT INTO transactions (user_id, type, amount, category, tag, comment, date, source_account, target_account) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, type, amount, category, tag, comment, date, sourceAccount, targetAccount]
+        `INSERT INTO transactions (user_id, type, amount, category, tag, comment, date, source_account, target_account, lesson_type) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, type, amount, category, tag, comment, date, sourceAccount, targetAccount, lesson_type]
     );
 }
 
@@ -279,14 +280,14 @@ async function reorderShoppingList(ids) {
 
 // Статистика по конкретному ученику
 async function getStudentStats(studentName) {
-    // Ищем транзакции, где тег содержит имя ученика (например "Ученик: Иван")
-    // Берем только доходы ('income')
+    // Используем строгое равенство для тега, чтобы "Али" не находил "Алину"
+    // Предполагаем, что тег всегда формируется как "Ученик: Имя"
     return dbAll(
         `SELECT * FROM transactions 
          WHERE type = 'income' 
-         AND tag LIKE ? 
+         AND tag = ? 
          ORDER BY date DESC`, 
-        [`%${studentName}%`]
+        [`Ученик: ${studentName}`]
     );
 }
 
