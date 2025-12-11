@@ -199,8 +199,11 @@ const server = http.createServer(async (req, res) => {
                 if (data.action === 'add') {
                     await db.addShoppingItem(data);
                 } else if (data.action === 'status') {
-                    // data.status может быть 'bought' или 'deleted'
                     await db.updateShoppingStatus(data.id, data.status);
+                } else if (data.action === 'reorder') {
+                    // НОВОЕ: Пересортировка
+                    // data.ids должен быть массивом ID
+                    await db.reorderShoppingList(data.ids);
                 }
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
