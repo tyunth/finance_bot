@@ -90,12 +90,15 @@
             </div>
 
             <div class="card p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-bold text-gray-800">Динамика по месяцам</h3>
-                    <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Кликни столбец для фильтра</span>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-800">Структура расходов</h3>
+                        <select id="chart-group-by" onchange="applyFilters()" class="text-xs border border-gray-300 rounded-lg p-1 bg-gray-50 focus:ring-blue-500">
+                            <option value="category">По Категориям</option>
+                            <option value="tag">По Тегам (Группам)</option>
+                        </select>
+                    </div>
+                    <div class="relative h-72 w-full flex justify-center"><canvas id="chartCategories"></canvas></div>
                 </div>
-                <div class="relative h-64 w-full"><canvas id="chartMonthly"></canvas></div>
-            </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card p-6">
