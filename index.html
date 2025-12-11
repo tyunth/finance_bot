@@ -320,6 +320,34 @@
         </div>
     </div>
 
+    <div id="stats-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold" id="stats-title">Статистика</h2>
+                <button onclick="closeStatsModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="p-4 bg-green-50 rounded-lg border border-green-100">
+                    <p class="text-xs text-green-600 font-bold uppercase">Всего заработано</p>
+                    <p class="text-2xl font-bold text-gray-800 mt-1" id="stats-total">0</p>
+                </div>
+                <div class="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                    <p class="text-xs text-blue-600 font-bold uppercase">Всего уроков</p>
+                    <p class="text-2xl font-bold text-gray-800 mt-1" id="stats-count">0</p>
+                </div>
+            </div>
+
+            <div class="mb-6 border rounded-lg p-2">
+                <canvas id="studentChart" height="150"></canvas>
+            </div>
+
+            <h3 class="text-sm font-bold text-gray-500 uppercase mb-2">Последние оплаты</h3>
+            <div id="stats-history" class="space-y-2 text-sm text-gray-700 max-h-40 overflow-y-auto">
+                </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
