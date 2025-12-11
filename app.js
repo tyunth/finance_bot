@@ -445,27 +445,27 @@ function renderStudents(students) {
     }
     
     grid.innerHTML = students.map(s => `
-        <div class="card p-5 hover:shadow-md transition cursor-pointer group border-l-4 ${s.subject === 'Математика' ? 'border-l-blue-500' : 'border-l-purple-500'}" onclick='openStudentModal(${JSON.stringify(s)})'>
-            <div class="flex justify-between items-start mb-3">
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
-                    <p class="text-xs text-gray-500">${s.school || 'Школа не указана'} • ${s.grade || '?'} кл.</p>
-                </div>
-                <span class="text-xs font-bold px-2 py-1 rounded ${s.subject === 'Математика' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">${s.subject}</span>
-            </div>
+<div class="card p-5 hover:shadow-md transition cursor-pointer group border-l-4 ${s.subject === 'Математика' ? 'border-l-blue-500' : 'border-l-purple-500'}">
             
-            <div class="space-y-2 text-sm text-gray-600">
-                <div class="flex items-center gap-2">
-                    <span title="Телефон ученика">📱</span> <span>${s.phone || '—'}</span>
+            <div onclick='openStudentModal(${JSON.stringify(s)})'>
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition">${s.name}</h3>
+                        <p class="text-xs text-gray-500">${s.school || 'Школа не указана'} • ${s.grade || '?'} кл.</p>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 rounded ${s.subject === 'Математика' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">${s.subject}</span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span title="Родитель">👨‍👩‍👧</span> 
-                    <span>${s.parents || '—'} <span class="text-gray-400 text-xs">${s.parent_phone ? '('+s.parent_phone+')' : ''}</span></span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span title="Место">📍</span> <span class="truncate">${s.address || '—'}</span>
-                </div>
+                
+                <div class="space-y-2 text-sm text-gray-600 mb-4">
+                    <div class="flex items-center gap-2">
+                        <span title="Телефон ученика">📱</span> <span>${s.phone || '—'}</span>
+                    </div>
+                    </div>
             </div>
+
+            <button onclick="openStatsModal(${s.id})" class="w-full mt-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                📊 Показать статистику
+            </button>
         </div>
     `).join('');
 }
@@ -700,6 +700,72 @@ async function deleteItem(id) {
         });
         loadShoppingList();
     } catch(e) { alert('Ошибка'); }
+}
+
+// --- СТАТИСТИКА УЧЕНИКА ---
+let studentChart = null;
+
+async function openStatsModal(id) {
+    const modal = document.getElementById('stats-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/students/stats?id=${id}`);
+        const data = await res.json();
+        
+        document.getElementById('stats-title').textContent = data.name;
+        
+        let total = 0;
+        data.transactions.forEach(t => total += t.amount);
+        
+        document.getElementById('stats-total').textContent = formatCurrency(total);
+        document.getElementById('stats-count').textContent = data.transactions.length;
+
+        // Рендер списка
+        const historyEl = document.getElementById('stats-history');
+        historyEl.innerHTML = data.transactions.slice(0, 10).map(t => `
+            <div class="flex justify-between border-b border-gray-100 pb-1 last:border-0">
+                <span>${new Date(t.date).toLocaleDateString('ru-RU')} <span class="text-xs text-gray-400">(${t.comment})</span></span>
+                <span class="font-bold text-green-600">+${formatCurrency(t.amount)}</span>
+            </div>
+        `).join('') || '<div class="text-gray-400">Оплат пока нет</div>';
+
+        // Рендер графика (по месяцам)
+        const months = {};
+        data.transactions.forEach(t => {
+            const date = new Date(t.date);
+            const key = `${date.toLocaleString('ru', { month: 'short' })} ${date.getFullYear()}`; // "янв 2024"
+            months[key] = (months[key] || 0) + t.amount;
+        });
+
+        const ctx = document.getElementById('studentChart').getContext('2d');
+        if (studentChart) studentChart.destroy();
+
+        studentChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(months),
+                datasets: [{
+                    label: 'Оплаты',
+                    data: Object.values(months),
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+    } catch (e) { console.error(e); alert('Ошибка загрузки статистики'); }
+}
+
+function closeStatsModal() {
+    document.getElementById('stats-modal').classList.add('hidden');
+    document.getElementById('stats-modal').classList.remove('flex');
 }
 
 init();
