@@ -58,13 +58,11 @@ function initializeTables() {
         // --- НОВЫЕ ТАБЛИЦЫ ---
 
         // 1. Покупки и Вишлист
-        // type: 'buy' (купить), 'gift' (подарок), 'wish' (вишлист)
-        // status: 'active', 'done'
         db.run(`CREATE TABLE IF NOT EXISTS shopping_list (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             item_name TEXT, 
             type TEXT, 
-            person_name TEXT, -- Кому подарок (если это подарок)
+            person_name TEXT, 
             price_estimate REAL DEFAULT 0,
             status TEXT DEFAULT 'active',
             created_at TEXT
@@ -73,13 +71,13 @@ function initializeTables() {
         // 2. Коммуналка (Показания и Тарифы)
         db.run(`CREATE TABLE IF NOT EXISTS utility_readings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,             -- Дата записи (обычно 1 число месяца)
-            service_type TEXT,     -- 'electricity', 'water_hot', 'water_cold', 'heating', 'internet'
-            meter_value REAL,      -- Показание счетчика (кубы/кВт)
-            consumption REAL,      -- Потреблено за месяц (разница с прошлым)
-            tariff_price REAL,     -- Цена за единицу (тарификация)
-            total_cost REAL,       -- Итого денег за эту услугу
-            image_path TEXT        -- Ссылка на файл чека (если будем хранить)
+            date TEXT,
+            service_type TEXT,
+            meter_value REAL,
+            consumption REAL,
+            tariff_price REAL,
+            total_cost REAL,
+            image_path TEXT
         )`);
 
         // Миграции для существующих таблиц
@@ -252,9 +250,7 @@ async function deleteStudent(id) {
 }
 
 // --- СПИСОК ПОКУПОК ---
-
 async function getShoppingList() {
-    // Берем только активные (не купленные)
     return dbAll("SELECT * FROM shopping_list WHERE status = 'active' ORDER BY created_at DESC");
 }
 
@@ -268,7 +264,6 @@ async function addShoppingItem(item) {
     );
 }
 
-// Пометить как купленное (status='bought') или удалить
 async function updateShoppingStatus(id, status) {
     return dbRun("UPDATE shopping_list SET status = ? WHERE id = ?", [status, id]);
 }
