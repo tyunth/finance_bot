@@ -668,23 +668,18 @@ if (data.startsWith('cal_')) {
             return ctx.editMessageText(`В долги: ${summary}`);
         }
 
-        // 3. ОПЛАЧЕНО -> Спрашиваем ТИП
+        // 3. ОПЛАЧЕНО (АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ ТИПА)
         if (action === 'paid') {
-            if (!lessonType) {
-                return ctx.editMessageText(
-                    `Оплата за "${summary}".\nКакой это был урок?`,
-                    Markup.inlineKeyboard([
-                        [Markup.button.callback('Обычный', `cal_paid_${eventId}_regular`)],
-                        [Markup.button.callback('Пробный', `cal_paid_${eventId}_trial`)],
-                        [Markup.button.callback('Дополнительный', `cal_paid_${eventId}_extra`)]
-                    ])
-                );
+            const summaryLower = summary.toLowerCase();
+            let lessonType = 'regular'; // По умолчанию
+
+            if (summaryLower.includes('пробный')) {
+                lessonType = 'trial';
+            } else if (summaryLower.includes('доп') || summaryLower.includes('дополнительный')) {
+                lessonType = 'extra';
             }
 
-            let category = 'Репетиторство';
             let comment = `${subject} (${summary})`;
-            
-            // Теперь lessonType реально сохраняется в базу, а не просто в текст
             if (lessonType === 'trial') comment += ' [ПРОБНЫЙ]';
             
             await db.addTransaction({
@@ -696,11 +691,14 @@ if (data.startsWith('cal_')) {
                 comment: comment, 
                 sourceAccount: null, 
                 targetAccount: 'Основной',
-                lesson_type: lessonType // <--- НОВОЕ: Пишем в колонку
+                lesson_type: lessonType
             });
             
             await db.markEventProcessed(eventId, summary, 'paid');
-            return ctx.editMessageText(`Оплачено: ${summary} (${lessonType})`);
+            
+            // Красивый ответ в зависимости от типа
+            const typeText = lessonType === 'regular' ? 'По расписанию' : (lessonType === 'trial' ? 'ПРОБНЫЙ' : 'ДОПОЛНИТЕЛЬНЫЙ');
+            return ctx.editMessageText(`✅ Оплачено: ${summary}\nТип: ${typeText}`);
         }
     }
     if (data.startsWith('pay_debt_')) {
