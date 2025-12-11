@@ -238,7 +238,10 @@ function renderAnalytics(data) {
     document.getElementById('top-expenses-list').innerHTML = topExp.map((t, i) => `
         <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
             <td class="px-4 py-2 text-xs text-gray-400 font-bold w-4">${i+1}.</td>
-            <td class="px-2 py-2 font-medium text-gray-800">${t.category}</td>
+            <td class="px-2 py-2 font-medium text-gray-800">
+                ${t.category}
+                <div class="text-xs text-gray-500 font-normal sm:hidden">${t.comment || ''}</div>
+            </td>
             <td class="px-2 py-2 text-xs text-gray-500 hidden sm:table-cell truncate max-w-[100px]">${t.comment || ''}</td>
             <td class="px-2 py-2 font-bold text-gray-900 text-right">${formatCurrency(t.amount)}</td>
         </tr>
@@ -596,15 +599,16 @@ function renderShoppingList(list) {
     buyContainer.innerHTML = '';
     wishContainer.innerHTML = '';
 
+    // Сортировка уже идет с сервера (sort_order), но на всякий случай фильтруем
     const buyItems = list.filter(i => i.type === 'buy');
-    const wishItems = list.filter(i => i.type !== 'buy'); // wish или gift
+    const wishItems = list.filter(i => i.type !== 'buy');
 
     document.getElementById('count-buy').textContent = buyItems.length;
     document.getElementById('count-wish').textContent = wishItems.length;
 
-    // Функция генерации HTML элемента
+    // Добавляем data-id для сортировки
     const createItemHTML = (item, isWish) => `
-        <div class="card p-3 flex justify-between items-center group hover:bg-gray-50 transition">
+        <div class="card p-3 flex justify-between items-center group hover:bg-gray-50 transition cursor-move" data-id="${item.id}">
             <div class="flex items-center gap-3">
                 <input type="checkbox" onchange="buyItem(${item.id})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
                 <div>
@@ -616,11 +620,37 @@ function renderShoppingList(list) {
         </div>
     `;
 
-    if (buyItems.length === 0) buyContainer.innerHTML = '<div class="text-sm text-gray-400 text-center italic">Всё куплено 🎉</div>';
-    else buyContainer.innerHTML = buyItems.map(i => createItemHTML(i, false)).join('');
+    // Рендер
+    buyContainer.innerHTML = buyItems.length ? buyItems.map(i => createItemHTML(i, false)).join('') : '<div class="text-sm text-gray-400 text-center italic">Всё куплено</div>';
+    wishContainer.innerHTML = wishItems.length ? wishItems.map(i => createItemHTML(i, true)).join('') : '<div class="text-sm text-gray-400 text-center italic">Вишлист пуст</div>';
 
-    if (wishItems.length === 0) wishContainer.innerHTML = '<div class="text-sm text-gray-400 text-center italic">Вишлист пуст</div>';
-    else wishContainer.innerHTML = wishItems.map(i => createItemHTML(i, true)).join('');
+    // --- Инициализация SortableJS ---
+    initSortable(buyContainer, 'buy');
+    initSortable(wishContainer, 'wish');
+}
+
+// Функция настройки перетаскивания
+function initSortable(el, type) {
+    if (el.sortable) el.sortable.destroy(); // Убираем старый инстанс если был
+    
+    el.sortable = new Sortable(el, {
+        animation: 150,
+        ghostClass: 'bg-blue-100', // Класс при перетаскивании
+        onEnd: async function (evt) {
+            // Собираем новый порядок ID
+            const itemEls = el.querySelectorAll('[data-id]');
+            const ids = Array.from(itemEls).map(div => parseInt(div.getAttribute('data-id')));
+            
+            // Отправляем на сервер
+            try {
+                await fetch(API_URL_SHOPPING_ACTION, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ action: 'reorder', ids: ids })
+                });
+            } catch(e) { console.error('Ошибка сортировки', e); }
+        }
+    });
 }
 
 document.getElementById('shopping-form').addEventListener('submit', async (e) => {
