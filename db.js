@@ -96,9 +96,10 @@ function initializeTables() {
 
         ['comment', 'tag', 'source_account', 'target_account'].forEach(c => runMigration('transactions', c));
         ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
-        ['parent_phone'].forEach(c => runMigration('students', c)); // <--- НОВАЯ МИГРАЦИЯ
+        ['parent_phone'].forEach(c => runMigration('students', c)); 
         ['lesson_type'].forEach(c => runMigration('transactions', c));
         ['sort_order'].forEach(c => runMigration('shopping_list', c, 'INTEGER DEFAULT 0'));
+        ['lessons_per_week'].forEach(c => runMigration('students', c, 'INTEGER DEFAULT 0'));
     });
 }
 
@@ -229,21 +230,21 @@ async function getStudents() {
 }
 
 async function addStudent(data) {
-    // ВАЖНО: Тут обновлен список полей, добавлен parent_phone
-    const { name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone } = data;
+    // Добавили lessons_per_week
+    const { name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
     return dbRun(
-        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone]
+        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0]
     );
 }
 
 async function updateStudent(data) {
-    const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone } = data;
+    const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
     return dbRun(
-        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?
+        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?
          WHERE id=?`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, id]
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0, id]
     );
 }
 
