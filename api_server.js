@@ -169,15 +169,13 @@ else if (req.url === '/students/action' && req.method === 'POST') {
             if (!id) throw new Error('No ID provided');
 
             // 1. Узнаем имя ученика
-            const student = await db.dbGet('SELECT name FROM students WHERE id = ?', [id]);
+            const student = await db.dbGet('SELECT * FROM students WHERE id = ?', [id]);
             if (!student) throw new Error('Student not found');
-
-            // 2. Ищем транзакции по имени
             const transactions = await db.getStudentStats(student.name);
-
             res.writeHead(200, { 'Content-Type': 'application/json' });
+            // Отправляем весь объект student, чтобы фронт видел lessons_per_week
             res.end(JSON.stringify({ 
-                name: student.name, 
+                student: student, 
                 transactions: transactions 
             }));
         } catch (e) { 
