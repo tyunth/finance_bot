@@ -1,29 +1,13 @@
 const http = require('http');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
-
-const db = require('./db');
+const db = require('./db'); // Обязательно подключаем db.js
 const config = require('./config');
 
-
-const DB_PATH = path.resolve(__dirname, 'finance.db');
 const HOST = '127.0.0.1'; 
 const PORT = 4000;
 
-const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, err => err ? reject(err) : null);
-    db.all(sql, params, (err, rows) => { db.close(); err ? reject(err) : resolve(rows); });
-});
-
-const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, err => err ? reject(err) : null);
-    db.run(sql, params, function(err) { 
-        db.close(); 
-        err ? reject(err) : resolve({ changes: this.changes, lastID: this.lastID }); 
-    });
-});
-
+// Хелпер для статики
 const serveStatic = (res, filePath, contentType) => {
     const fullPath = path.join(__dirname, filePath);
     fs.readFile(fullPath, (err, content) => {
@@ -53,56 +37,34 @@ const server = http.createServer(async (req, res) => {
     // 1. Транзакции
     else if (req.url === '/transactions' && req.method === 'GET') {
         try {
-            const transactions = await dbAll('SELECT * FROM transactions ORDER BY date DESC');
+            const transactions = await db.dbAll('SELECT * FROM transactions ORDER BY date DESC');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(transactions));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     } 
     
-    // 2. Категории 
+    // 2. Категории
     else if (req.url === '/categories' && req.method === 'GET') {
         try {
-            // Берем из базы
-            const dbCats = await dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод"');
+            const dbCats = await db.dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод"');
             const dbCatList = dbCats.map(c => c.category);
-            
-            // Берем из конфига (разворачиваем массивы)
             const configCats = [...config.EXPENSE_CATEGORIES.flat(), ...config.INCOME_CATEGORIES.flat()].map(c => c.split(' (')[0]);
-            
-            // Объединяем и убираем дубликаты
             const allCats = [...new Set([...dbCatList, ...configCats])].sort();
-            
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(allCats));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
 
-    // 3. Балансы счетов 
+    // 3. Балансы счетов
     else if (req.url === '/balances' && req.method === 'GET') {
         try {
-            // 1. Получаем счета
-            const accounts = await dbAll('SELECT name, is_deposit FROM accounts');
-            const balances = {};
-            accounts.forEach(a => balances[a.name] = 0);
-            if (!balances['Основной']) balances['Основной'] = 0;
-
-            // 2. Считаем сумму по транзакциям
-            const txs = await dbAll('SELECT type, amount, source_account, target_account FROM transactions');
-            txs.forEach(t => {
-                if (t.type === 'income' && t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
-                else if (t.type === 'expense' && t.source_account) balances[t.source_account] = (balances[t.source_account] || 0) - t.amount;
-                else if (t.type === 'transfer') {
-                    if (t.source_account) balances[t.source_account] = (balances[t.source_account] || 0) - t.amount;
-                    if (t.target_account) balances[t.target_account] = (balances[t.target_account] || 0) + t.amount;
-                }
-            });
-
+            const { balances } = await db.getBalances(config.ADMIN_ID || 0); // Можно передать любой ID, если не используем мульти-юзер
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(balances));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
 
-    // 4. Редактирование
+    // 4. Редактирование транзакции
     else if (req.url === '/transactions/edit' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -111,24 +73,21 @@ const server = http.createServer(async (req, res) => {
                 const { id, amount, category, comment, tag } = JSON.parse(body);
                 if (!id || !amount) throw new Error('No Data');
                 
-                await dbRun(`UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`, [amount, category, comment, tag, id]);
+                await db.dbRun(`UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`, [amount, category, comment, tag, id]);
                 
                 if (comment && category) {
-                    const dbWrite = new sqlite3.Database(DB_PATH);
-                    dbWrite.run('INSERT OR REPLACE INTO keywords (keyword, category) VALUES (?, ?)', [comment.trim().toLowerCase(), category]);
-                    dbWrite.close();
+                    await db.learnKeyword(comment, category);
                 }
-
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
     
-// --- УЧЕНИКИ ---
+    // --- УЧЕНИКИ ---
     else if (req.url === '/students' && req.method === 'GET') {
-        try {            
-            const students = await dbAll('SELECT * FROM students ORDER BY name ASC');
+        try {
+            const students = await db.getStudents();
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(students));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
@@ -140,17 +99,9 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                
-                if (data.action === 'add') {
-                    // Добавили lessons_per_week
-                    await db.addStudent(data);
-                } else if (data.action === 'edit') {
-                    // Добавили lessons_per_week
-                    await db.updateStudent(data);
-                } else if (data.action === 'delete') {
-                    await db.deleteStudent(data.id);
-                }
-
+                if (data.action === 'add') await db.addStudent(data);
+                else if (data.action === 'edit') await db.updateStudent(data);
+                else if (data.action === 'delete') await db.deleteStudent(data.id);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
             } catch (e) { 
@@ -159,64 +110,52 @@ const server = http.createServer(async (req, res) => {
             }
         });
     }
-    // Статистика по ученику
+
+    // Статистика ученика
     else if (req.url.startsWith('/students/stats') && req.method === 'GET') {
         try {
-            // Разбираем URL: /students/stats?id=5
             const urlParts = new URL(req.url, `http://${req.headers.host}`);
             const id = urlParts.searchParams.get('id');
-
             if (!id) throw new Error('No ID provided');
 
-            // 1. Узнаем имя ученика
             const student = await db.dbGet('SELECT * FROM students WHERE id = ?', [id]);
             if (!student) throw new Error('Student not found');
+
             const transactions = await db.getStudentStats(student.name);
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            // Отправляем весь объект student, чтобы фронт видел lessons_per_week
-            res.end(JSON.stringify({ 
-                student: student, 
-                transactions: transactions 
-            }));
+            res.end(JSON.stringify({ student: student, transactions: transactions }));
         } catch (e) { 
             console.error(e);
             res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
         }
     }
+
     // --- СПИСОК ПОКУПОК ---
-    
-    // Получить список
     else if (req.url === '/shopping' && req.method === 'GET') {
         try {
-            const list = await db.getShoppingList(); // Используем функцию из db.js
+            const list = await db.getShoppingList();
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(list));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
     
-    // Действия (Добавить, Купить/Удалить)
     else if (req.url === '/shopping/action' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
+                if (data.action === 'add') await db.addShoppingItem(data);
+                else if (data.action === 'status') await db.updateShoppingStatus(data.id, data.status);
+                else if (data.action === 'reorder') await db.reorderShoppingList(data.ids);
                 
-                if (data.action === 'add') {
-                    await db.addShoppingItem(data);
-                } else if (data.action === 'status') {
-                    await db.updateShoppingStatus(data.id, data.status);
-                } else if (data.action === 'reorder') {
-                    // НОВОЕ: Пересортировка
-                    // data.ids должен быть массивом ID
-                    await db.reorderShoppingList(data.ids);
-                }
-
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
+
     // --- КОММУНАЛКА ---
     else if (req.url === '/utilities' && req.method === 'GET') {
         try {
