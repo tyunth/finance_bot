@@ -68,17 +68,17 @@ function initializeTables() {
             created_at TEXT
         )`);
 
-        // 2. Коммуналка (Показания и Тарифы)
+// Коммуналка
         db.run(`CREATE TABLE IF NOT EXISTS utility_readings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            service_type TEXT,
-            meter_value REAL,
-            consumption REAL,
-            tariff_price REAL,
-            total_cost REAL,
-            image_path TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            date TEXT, 
+            service TEXT, 
+            reading REAL, 
+            amount REAL, 
+            comment TEXT
         )`);
+
+        
 
         // Миграции для существующих таблиц
         // Добавляем lesson_type в транзакции, чтобы отличать Пробные от Обычных
@@ -292,6 +292,23 @@ async function getStudentStats(studentName) {
     );
 }
 
+// --- КОММУНАЛКА ---
+async function getUtilityReadings() {
+    return dbAll("SELECT * FROM utility_readings ORDER BY date DESC");
+}
+
+async function addUtilityReading(data) {
+    const { date, service, reading, amount, comment } = data;
+    return dbRun(
+        `INSERT INTO utility_readings (date, service, reading, amount, comment) VALUES (?, ?, ?, ?, ?)`,
+        [date, service, reading || 0, amount, comment]
+    );
+}
+
+async function deleteUtilityReading(id) {
+    return dbRun("DELETE FROM utility_readings WHERE id = ?", [id]);
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -300,5 +317,6 @@ module.exports = {
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
     getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
+    getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     DB_PATH
 };
