@@ -140,8 +140,8 @@ function renderAnalytics(data) {
     let totalIncome = 0;
     let totalExpense = 0;
     
-    const expenseMap = {}; // Для графика расходов
-    const incomeMap = {};  // Для графика доходов (НОВОЕ)
+    const expenseMap = {}; 
+    const incomeMap = {};  
     
     const monthMap = {}; 
     const dayOfWeekMap = [0,0,0,0,0,0,0]; 
@@ -150,8 +150,12 @@ function renderAnalytics(data) {
     const catFrequency = {};
     const commentFrequency = {};
 
-    const groupEl = document.getElementById('chart-group-by');
-    const groupBy = groupEl ? groupEl.value : 'category';
+    // Читаем настройки из ДВУХ разных селектов
+    const groupExpenseEl = document.getElementById('chart-group-by');
+    const groupByExpense = groupExpenseEl ? groupExpenseEl.value : 'category';
+
+    const groupIncomeEl = document.getElementById('chart-income-group-by');
+    const groupByIncome = groupIncomeEl ? groupIncomeEl.value : 'category';
 
     data.forEach(t => {
         if (t.type === 'transfer') return;
@@ -167,17 +171,20 @@ function renderAnalytics(data) {
                 totalIncome += amount;
                 monthMap[monthKey].income += amount;
                 
-                // Группировка доходов (по тегу, т.е. ученику, или по категории)
-                const key = t.tag || t.category || 'Прочее';
+                // Логика для ДОХОДОВ
+                let key = 'Прочее';
+                if (groupByIncome === 'tag') key = t.tag || 'Без ученика';
+                else key = t.category || 'Без категории';
+                
                 incomeMap[key] = (incomeMap[key] || 0) + amount;
             }
         } else if (t.type === 'expense') {
             totalExpense += amount;
             monthMap[monthKey].expense += amount;
             
-            // Группировка расходов
+            // Логика для РАСХОДОВ
             let key = 'Прочее';
-            if (groupBy === 'tag') key = t.tag || 'Без тега';
+            if (groupByExpense === 'tag') key = t.tag || 'Без тега';
             else key = t.category || 'Без категории';
             
             expenseMap[key] = (expenseMap[key] || 0) + amount;
@@ -207,15 +214,15 @@ function renderAnalytics(data) {
         balEl.className = `text-xl font-bold mt-1 ${balance >= 0 ? 'text-blue-600' : 'text-red-600'}`;
     }
 
-    // --- ГРАФИК РАСХОДОВ ---
     renderDoughnutChart('chartCategories', expenseMap, chartsInstance, 'cat', totalExpense);
-
-    // --- ГРАФИК ДОХОДОВ (НОВЫЙ) ---
     renderDoughnutChart('chartIncome', incomeMap, chartsInstance, 'income', totalIncome);
-
-    // --- АКТИВНОСТЬ ---
+    
     renderDayChart();
-
+    
+    // ... (остальной код функции renderAnalytics: динамика, топы - без изменений) ...
+    // Если нужно, я могу прислать функцию целиком, но изменения были только в начале (сбор данных).
+    // Чтобы не запутаться, просто вставь код сбора данных и оставь отрисовку графиков ниже.
+    
     // --- ДИНАМИКА ---
     const sortedMonths = Object.keys(monthMap).sort();
     const ctxMonthEl = document.getElementById('chartMonthly');
@@ -238,7 +245,7 @@ function renderAnalytics(data) {
         });
     }
 
-    // --- СПИСКИ ТОП ---
+    // --- СПИСКИ ТОП (без изменений) ---
     const topExp = data.filter(t => t.type === 'expense').sort((a, b) => b.amount - a.amount).slice(0, 10);
     const topExpEl = document.getElementById('top-expenses-list');
     if (topExpEl) {
