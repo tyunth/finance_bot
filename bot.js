@@ -356,6 +356,19 @@ async function handleShoppingCreation(ctx) {
     return renderList(ctx, type);
 }
 
+// 10. Редактирование покупки
+async function handleShoppingEdit(ctx) {
+    const text = ctx.message.text.trim();
+    const { id, type } = ctx.session.state;
+    
+    // Обновляем в базе (нужен прямой SQL, так как функции editShoppingItem нет в db.js - добавим её ниже, или тут вызовем raw query)
+    await db.dbRun('UPDATE shopping_list SET item_name = ? WHERE id = ?', [text, id]);
+    
+    ctx.session.state = {};
+    await ctx.reply(`Обновлено: ${text}`);
+    return renderList(ctx, type);
+}
+
 // --- DISPATCHER ---
 async function handleStandardTextFlow(ctx) {
     const state = ctx.session.state;
@@ -371,6 +384,7 @@ async function handleStandardTextFlow(ctx) {
     if (step.startsWith('EDIT_')) return handleEditFlow(ctx);
     if (step === config.STATE.AWAITING_INTEREST_CORRECTION) return handleInterestCorrection(ctx);
     if (step === config.STATE.AWAITING_SHOPPING_ITEM) return handleShoppingCreation(ctx);
+    if (step === config.STATE.AWAITING_SHOPPING_EDIT) return handleShoppingEdit(ctx);
     return ctx.reply('Не понял.', kb.MAIN_KEYBOARD);
 }
 
@@ -471,8 +485,12 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
 async function renderList(ctx, type) {
     const list = await db.getShoppingList();
     const items = list.filter(i => i.type === type);
+    
+    // Проверяем, включен ли режим управления (храним в сессии)
+    const isManageMode = ctx.session.manageMode === true;
+
     const title = type === 'buy' ? '🛒 *Список покупок:*' : '🎁 *Вишлист:*';
-    const emptyText = type === 'buy' ? 'Все куплено! 🎉' : 'Вишлист пуст.';
+    const emptyText = type === 'buy' ? 'Все куплено.' : 'Вишлист пуст.';
 
     let msg = title + '\n\n';
     const buttons = [];
@@ -481,22 +499,35 @@ async function renderList(ctx, type) {
     else {
         items.forEach(i => {
             msg += `• ${escapeMarkdown(i.item_name)} ${i.price_estimate ? `(~${i.price_estimate})` : ''}\n`;
-            // Кнопка удаления (галочка)
-            buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}_${type}`)]);
+            
+            if (isManageMode) {
+                // В режиме управления: кнопки Удалить и Изменить
+                buttons.push([
+                    Markup.button.callback(`❌ ${i.item_name}`, `shop_del_${i.id}_${type}`),
+                    Markup.button.callback(`✏️ Изм.`, `shop_edit_${i.id}_${type}`)
+                ]);
+            } else {
+                // В обычном режиме: только галочка
+                buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}_${type}`)]);
+            }
         });
     }
 
-    // Кнопки управления
-    buttons.push([
-        Markup.button.callback('➕ Добавить', `shop_add_${type}`),
-        Markup.button.callback('🔄 Обновить', `shop_refresh_${type}`)
-    ]);
+    // Нижние кнопки
+    const controls = [];
+    if (!isManageMode) controls.push(Markup.button.callback('➕ Добавить', `shop_add_${type}`));
+    
+    // Кнопка переключения режима
+    const modeBtnText = isManageMode ? '⬅️ Готово' : '⚙️ Ред/Удал';
+    controls.push(Markup.button.callback(modeBtnText, `shop_mode_${type}`));
+    
+    controls.push(Markup.button.callback('🔄', `shop_refresh_${type}`));
+    buttons.push(controls);
 
-    // Если это вызов из callback (обновление), редактируем. Если команда - шлем новое.
     if (ctx.callbackQuery) {
         try {
             await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
-        } catch (e) {} // Игнор, если текст не поменялся
+        } catch (e) {}
     } else {
         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
     }
@@ -733,35 +764,57 @@ if (data.startsWith('cal_')) {
         return ctx.reply(`Введите реальную сумму процентов от банка для "${accName}":`);
     }
 
-    // --- SHOPPING ACTIONS ---
+// --- SHOPPING ACTIONS ---
     if (data.startsWith('shop_')) {
-        const parts = data.split('_'); // shop_action_param_type
+        const parts = data.split('_'); // shop_action_id_type или shop_action_type
         const action = parts[1];
         
-        // 1. ОБНОВИТЬ
+        // 1. ПЕРЕКЛЮЧЕНИЕ РЕЖИМА
+        if (action === 'mode') {
+            const type = parts[2];
+            ctx.session.manageMode = !ctx.session.manageMode; // Инвертируем
+            return renderList(ctx, type);
+        }
+
+        // 2. ОБНОВИТЬ
         if (action === 'refresh') {
             const type = parts[2];
             return renderList(ctx, type);
         }
 
-        // 2. ДОБАВИТЬ (КНОПКА)
+        // 3. ДОБАВИТЬ
         if (action === 'add') {
             const type = parts[2];
-            ctx.session.state = { 
-                step: config.STATE.AWAITING_SHOPPING_ITEM, 
-                shoppingType: type 
-            };
-            const label = type === 'buy' ? 'покупок' : 'вишлист';
-            return ctx.reply(`Напишите, что добавить в ${label}:`, kb.BACK_KEYBOARD);
+            ctx.session.state = { step: config.STATE.AWAITING_SHOPPING_ITEM, shoppingType: type };
+            return ctx.reply(`Что добавить?`, kb.BACK_KEYBOARD);
         }
 
-        // 3. ВЫПОЛНЕНО (КУПЛЕНО)
+        // 4. КУПЛЕНО (ГАЛОЧКА)
         if (action === 'done') {
             const id = parts[2];
-            const type = parts[3]; // buy или wish
-            
+            const type = parts[3];
             await db.updateShoppingStatus(id, 'bought');
-            return renderList(ctx, type); // Обновляем тот же список
+            return renderList(ctx, type);
+        }
+
+        // 5. УДАЛИТЬ (КРЕСТИК)
+        if (action === 'del') {
+            const id = parts[2];
+            const type = parts[3];
+            await db.updateShoppingStatus(id, 'deleted'); // Или удаляем насовсем
+            return renderList(ctx, type);
+        }
+
+        // 6. ИЗМЕНИТЬ (КАРАНДАШ)
+        if (action === 'edit') {
+            const id = parts[2];
+            const type = parts[3];
+            ctx.session.state = { 
+                step: config.STATE.AWAITING_SHOPPING_EDIT, 
+                id: id, 
+                type: type 
+            };
+            return ctx.reply('Введите новое название:', kb.BACK_KEYBOARD);
         }
     }
     
