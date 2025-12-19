@@ -30,6 +30,7 @@
                 <button onclick="switchTab('students')" id="btn-students" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Ученики</button>
                 <button onclick="switchTab('calendar')" id="btn-calendar" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Календарь</button>
                 <button onclick="switchTab('shopping')" id="btn-shopping" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Покупки</button>
+                <button onclick="switchTab('utilities')" id="btn-utilities" class="tab-btn pb-2 px-4 text-lg whitespace-nowrap">Быт</button>
             </div>
         </div>
 
@@ -177,6 +178,68 @@
             </div>
         </div>
 
+            <div id="tab-utilities" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="card p-6 h-fit">
+                    <h3 class="font-bold text-gray-800 mb-4">Внести показания</h3>
+                    <form id="utility-form" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Дата</label>
+                            <input type="date" id="util-date" class="block w-full border border-gray-300 rounded-lg p-2" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Услуга</label>
+                            <select id="util-service" class="block w-full border border-gray-300 rounded-lg p-2 bg-white">
+                                <option value="Электричество">⚡ Электричество</option>
+                                <option value="Вода">💧 Вода</option>
+                                <option value="Отопление">🔥 Отопление</option>
+                                <option value="Интернет">🌐 Интернет</option>
+                                <option value="Квартплата">🏢 Квартплата (ОСИ)</option>
+                                <option value="Газ">💨 Газ</option>
+                                <option value="Домофон">🔔 Домофон</option>
+                                <option value="Другое">📦 Другое</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Сумма (₸)</label>
+                            <input type="number" id="util-amount" class="block w-full border border-gray-300 rounded-lg p-2" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Показания (необязательно)</label>
+                            <input type="number" id="util-reading" class="block w-full border border-gray-300 rounded-lg p-2" placeholder="Напр. 14500">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-bold">Сохранить</button>
+                    </form>
+                </div>
+
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="card p-6">
+                        <h3 class="font-bold text-gray-800 mb-4">Динамика расходов</h3>
+                        <div class="relative h-64 w-full"><canvas id="chartUtilities"></canvas></div>
+                    </div>
+
+                    <div class="card overflow-hidden">
+                        <div class="bg-gray-50 px-6 py-3 border-b border-gray-100">
+                            <h3 class="font-bold text-gray-800 text-sm">История платежей</h3>
+                        </div>
+                        <div class="max-h-96 overflow-y-auto">
+                            <table class="w-full text-sm text-left text-gray-600">
+                                <thead class="bg-white sticky top-0">
+                                    <tr>
+                                        <th class="px-6 py-3">Дата</th>
+                                        <th class="px-6 py-3">Услуга</th>
+                                        <th class="px-6 py-3 text-right">Сумма</th>
+                                        <th class="px-6 py-3 text-right"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="utility-list" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <div id="tab-shopping" class="hidden space-y-6">
             <div class="card p-4 bg-blue-50 border-blue-100">
                 <form id="shopping-form" class="flex flex-col md:flex-row gap-3 items-end">
