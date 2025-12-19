@@ -32,6 +32,7 @@ function switchTab(tabName) {
     if (tabName === 'calendar') loadCalendar();
     if (tabName === 'students') loadStudents();
     if (tabName === 'shopping') loadShoppingList();
+    if (tabName === 'utilities') loadUtilities();
 }
 
 async function loadData() {
@@ -907,6 +908,143 @@ function closeStatsModal() {
 window.onclick = function(event) {
     const modals = [document.getElementById('edit-modal'), document.getElementById('student-modal'), document.getElementById('stats-modal')];
     modals.forEach(modal => { if (event.target === modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } });
+}
+
+// --- КОММУНАЛКА ---
+const API_URL_UTILITIES = API_BASE_URL + '/utilities';
+const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
+
+// Установка текущей даты в поле при загрузке
+document.getElementById('util-date').valueAsDate = new Date();
+
+async function loadUtilities() {
+    try {
+        const res = await fetch(API_URL_UTILITIES);
+        const list = await res.json();
+        renderUtilities(list);
+    } catch(e) { console.error(e); }
+}
+
+function renderUtilities(list) {
+    const tbody = document.getElementById('utility-list');
+    if (!tbody) return;
+
+    // 1. Таблица
+    tbody.innerHTML = list.map(item => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-3 whitespace-nowrap">${new Date(item.date).toLocaleDateString('ru-RU')}</td>
+            <td class="px-6 py-3 font-medium text-gray-800">
+                ${item.service}
+                ${item.reading ? `<span class="text-xs text-gray-400 block">Пок: ${item.reading}</span>` : ''}
+            </td>
+            <td class="px-6 py-3 text-right font-bold text-gray-900">${formatCurrency(item.amount)}</td>
+            <td class="px-6 py-3 text-right">
+                <button onclick="deleteUtility(${item.id})" class="text-red-400 hover:text-red-600">✕</button>
+            </td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" class="text-center py-4 text-gray-400">Нет записей</td></tr>';
+
+    // 2. График (Stacked Bar)
+    renderUtilityChart(list);
+}
+
+function renderUtilityChart(list) {
+    const ctxEl = document.getElementById('chartUtilities');
+    if (!ctxEl) return;
+    const ctx = ctxEl.getContext('2d');
+
+    // Группируем по Месяц -> Услуга -> Сумма
+    const dataByMonth = {};
+    const services = new Set();
+
+    list.forEach(item => {
+        const d = new Date(item.date);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // 2023-12
+        if (!dataByMonth[key]) dataByMonth[key] = {};
+        
+        dataByMonth[key][item.service] = (dataByMonth[key][item.service] || 0) + item.amount;
+        services.add(item.service);
+    });
+
+    const labels = Object.keys(dataByMonth).sort(); // Месяцы
+    const serviceList = Array.from(services); // ['Свет', 'Вода'...]
+    
+    // Цвета для услуг
+    const colors = {
+        'Электричество': '#f59e0b', // Yellow
+        'Вода': '#3b82f6', // Blue
+        'Отопление': '#ef4444', // Red
+        'Интернет': '#8b5cf6', // Purple
+        'Квартплата': '#10b981', // Green
+        'Газ': '#06b6d4', // Cyan
+    };
+
+    const datasets = serviceList.map(srv => ({
+        label: srv,
+        data: labels.map(m => dataByMonth[m][srv] || 0),
+        backgroundColor: colors[srv] || '#9ca3af',
+        stack: 'Stack 0',
+    }));
+
+    if (chartsInstance.util) chartsInstance.util.destroy();
+    
+    chartsInstance.util = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels.map(l => {
+                const [y, m] = l.split('-');
+                return new Date(y, m - 1).toLocaleString('ru', { month: 'short', year: '2-digit' });
+            }),
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Отправка формы
+const utilForm = document.getElementById('utility-form');
+if (utilForm) {
+    utilForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            action: 'add',
+            date: document.getElementById('util-date').value,
+            service: document.getElementById('util-service').value,
+            amount: parseFloat(document.getElementById('util-amount').value),
+            reading: parseFloat(document.getElementById('util-reading').value) || 0
+        };
+
+        try {
+            await fetch(API_URL_UTILITIES_ACTION, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            utilForm.reset();
+            document.getElementById('util-date').valueAsDate = new Date();
+            loadUtilities();
+        } catch(e) { alert('Ошибка'); }
+    });
+}
+
+async function deleteUtility(id) {
+    if (!confirm('Удалить запись?')) return;
+    try {
+        await fetch(API_URL_UTILITIES_ACTION, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action: 'delete', id })
+        });
+        loadUtilities();
+    } catch(e) { alert('Ошибка'); }
 }
 
 init();
