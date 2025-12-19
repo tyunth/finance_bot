@@ -7,13 +7,15 @@ const API_URL_STUDENTS = API_BASE_URL + '/students';
 const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
 const API_URL_SHOPPING = API_BASE_URL + '/shopping';
 const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
+// Коммуналка
+const API_URL_UTILITIES = API_BASE_URL + '/utilities';
+const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
 
 const CURRENCY = 'T';
 const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
 
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
-let FILTERED_DATA = [];
 let chartsInstance = {}; 
 let CHART_DATA_CACHE = {}; 
 
@@ -22,12 +24,19 @@ function formatCurrency(amount) {
 }
 
 function switchTab(tabName) {
-    ['analytics', 'transactions', 'students', 'calendar', 'shopping'].forEach(t => {
-        document.getElementById(`tab-${t}`).classList.add('hidden');
-        document.getElementById(`btn-${t}`).classList.remove('active');
+    // ВАЖНО: Добавили 'utilities' в список, теперь вкладка будет скрываться корректно
+    ['analytics', 'transactions', 'students', 'calendar', 'shopping', 'utilities'].forEach(t => {
+        const el = document.getElementById(`tab-${t}`);
+        const btn = document.getElementById(`btn-${t}`);
+        if (el) el.classList.add('hidden');
+        if (btn) btn.classList.remove('active');
     });
-    document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-    document.getElementById(`btn-${tabName}`).classList.add('active');   
+
+    const targetEl = document.getElementById(`tab-${tabName}`);
+    const targetBtn = document.getElementById(`btn-${tabName}`);
+    
+    if (targetEl) targetEl.classList.remove('hidden');
+    if (targetBtn) targetBtn.classList.add('active');   
     
     if (tabName === 'calendar') loadCalendar();
     if (tabName === 'students') loadStudents();
@@ -74,11 +83,8 @@ async function init() {
         if (loadingEl) loadingEl.style.display = 'none';
         
         const filterPanel = document.getElementById('filter-panel');
-        if (filterPanel) filterPanel.classList.remove('hidden');
-        
-        FILTERED_DATA = [...RAW_DATA];
-        applyFilters(); 
-        
+        if (filterPanel) filterPanel.classList.remove('hidden');       
+        // По умолчанию грузим аналитику
         switchTab('analytics'); 
     }
 }
@@ -911,40 +917,85 @@ window.onclick = function(event) {
 }
 
 // --- КОММУНАЛКА ---
-const API_URL_UTILITIES = API_BASE_URL + '/utilities';
-const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
 
-// Установка текущей даты в поле при загрузке
-document.getElementById('util-date').valueAsDate = new Date();
+// Установка текущего месяца
+const utilMonth = document.getElementById('util-month');
+if (utilMonth) {
+    const now = new Date();
+    utilMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Связка Горячей воды
+const coldInput = document.getElementById('val-water-cold');
+const hotInput = document.getElementById('val-water-hot');
+const hotHeatInput = document.getElementById('val-heat-hot');
+
+if (hotInput && hotHeatInput) {
+    hotInput.addEventListener('input', (e) => {
+        hotHeatInput.value = e.target.value; // Копируем значение визуально
+    });
+}
+
+// Авто-подсчет суммы
+document.getElementById('utility-bulk-form').addEventListener('input', () => {
+    let total = 0;
+    document.querySelectorAll('.util-amount-input').forEach(inp => {
+        const val = parseFloat(inp.value);
+        if (!isNaN(val)) total += val;
+    });
+    document.getElementById('total-util-sum').textContent = formatCurrency(total);
+});
 
 async function loadUtilities() {
     try {
         const res = await fetch(API_URL_UTILITIES);
         const list = await res.json();
         renderUtilities(list);
+        prefillUtilities(list); // Заполняем форму последними данными
     } catch(e) { console.error(e); }
+}
+
+function prefillUtilities(list) {
+    // Находим последние значения для каждой категории
+    const defaults = {};
+    // Идем с конца (так как сортировка DESC), но лучше перестраховаться и найти первую попавшуюся запись для каждого сервиса
+    list.forEach(item => {
+        if (!defaults[item.service] && item.amount > 0) {
+            defaults[item.service] = item.amount;
+        }
+    });
+
+    // Заполняем поля, если они пустые
+    document.querySelectorAll('.util-amount-input').forEach(inp => {
+        const service = inp.dataset.service;
+        if (!inp.value && defaults[service]) {
+            inp.value = defaults[service];
+        }
+    });
+    
+    // Пересчитываем итог
+    document.getElementById('utility-bulk-form').dispatchEvent(new Event('input'));
 }
 
 function renderUtilities(list) {
     const tbody = document.getElementById('utility-list');
     if (!tbody) return;
 
-    // 1. Таблица
+    // Таблица истории
     tbody.innerHTML = list.map(item => `
-        <tr class="hover:bg-gray-50">
-            <td class="px-6 py-3 whitespace-nowrap">${new Date(item.date).toLocaleDateString('ru-RU')}</td>
-            <td class="px-6 py-3 font-medium text-gray-800">
+        <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+            <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">${item.date}</td>
+            <td class="px-4 py-3 font-medium text-gray-800">
                 ${item.service}
-                ${item.reading ? `<span class="text-xs text-gray-400 block">Пок: ${item.reading}</span>` : ''}
+                ${item.reading ? `<span class="text-xs text-gray-400 ml-2">(${item.reading})</span>` : ''}
             </td>
-            <td class="px-6 py-3 text-right font-bold text-gray-900">${formatCurrency(item.amount)}</td>
-            <td class="px-6 py-3 text-right">
-                <button onclick="deleteUtility(${item.id})" class="text-red-400 hover:text-red-600">✕</button>
+            <td class="px-4 py-3 text-right font-bold text-gray-900">${formatCurrency(item.amount)}</td>
+            <td class="px-4 py-3 text-right">
+                <button onclick="deleteUtility(${item.id})" class="text-red-300 hover:text-red-500">✕</button>
             </td>
         </tr>
     `).join('') || '<tr><td colspan="4" class="text-center py-4 text-gray-400">Нет записей</td></tr>';
 
-    // 2. График (Stacked Bar)
     renderUtilityChart(list);
 }
 
@@ -953,30 +1004,33 @@ function renderUtilityChart(list) {
     if (!ctxEl) return;
     const ctx = ctxEl.getContext('2d');
 
-    // Группируем по Месяц -> Услуга -> Сумма
+    // Группировка данных
     const dataByMonth = {};
     const services = new Set();
 
     list.forEach(item => {
-        const d = new Date(item.date);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // 2023-12
+        // item.date теперь в формате YYYY-MM
+        const key = item.date; 
         if (!dataByMonth[key]) dataByMonth[key] = {};
         
         dataByMonth[key][item.service] = (dataByMonth[key][item.service] || 0) + item.amount;
         services.add(item.service);
     });
 
-    const labels = Object.keys(dataByMonth).sort(); // Месяцы
-    const serviceList = Array.from(services); // ['Свет', 'Вода'...]
+    const labels = Object.keys(dataByMonth).sort(); 
+    const serviceList = Array.from(services); 
     
-    // Цвета для услуг
+    // Цвета
     const colors = {
-        'Электричество': '#f59e0b', // Yellow
-        'Вода': '#3b82f6', // Blue
-        'Отопление': '#ef4444', // Red
-        'Интернет': '#8b5cf6', // Purple
-        'Квартплата': '#10b981', // Green
-        'Газ': '#06b6d4', // Cyan
+        'Кызылжар су': '#3b82f6', // Blue
+        'СК РЭК': '#f59e0b', // Yellow
+        'ПТС': '#ef4444', // Red
+        'Казахтелеком': '#2563eb', // Dark Blue
+        'ОСИ Управление': '#10b981', // Green
+        'ОСИ Накопление': '#059669', // Dark Green
+        'Горгаз': '#06b6d4', // Cyan
+        'Мусор': '#6b7280', // Gray
+        'Домофон': '#8b5cf6', // Purple
     };
 
     const datasets = serviceList.map(srv => ({
@@ -990,48 +1044,72 @@ function renderUtilityChart(list) {
     
     chartsInstance.util = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: labels.map(l => {
-                const [y, m] = l.split('-');
-                return new Date(y, m - 1).toLocaleString('ru', { month: 'short', year: '2-digit' });
-            }),
-            datasets: datasets
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            scales: {
-                x: { stacked: true },
-                y: { stacked: true, beginAtZero: true }
-            }
+            scales: { x: { stacked: true }, y: { stacked: true } }
         }
     });
 }
 
-// Отправка формы
-const utilForm = document.getElementById('utility-form');
-if (utilForm) {
-    utilForm.addEventListener('submit', async (e) => {
+// Отправка формы (ПАКЕТНАЯ)
+const bulkForm = document.getElementById('utility-bulk-form');
+if (bulkForm) {
+    bulkForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const payload = {
-            action: 'add',
-            date: document.getElementById('util-date').value,
-            service: document.getElementById('util-service').value,
-            amount: parseFloat(document.getElementById('util-amount').value),
-            reading: parseFloat(document.getElementById('util-reading').value) || 0
-        };
+        
+        const dateVal = document.getElementById('util-month').value; // YYYY-MM
+        const inputs = document.querySelectorAll('.util-amount-input');
+        
+        const requests = [];
+
+        // Собираем данные
+        inputs.forEach(inp => {
+            const amountStr = inp.value;
+            // ВАЖНО: parseFloat решает проблему "1.5 млн" (сложение строк)
+            const amount = parseFloat(amountStr);
+            const service = inp.dataset.service;
+
+            if (amount > 0) {
+                // Доп. данные (показания)
+                let reading = 0;
+                let comment = '';
+
+                if (service === 'Кызылжар су') {
+                    const cold = document.getElementById('val-water-cold').value;
+                    const hot = document.getElementById('val-water-hot').value;
+                    if (cold || hot) comment = `Хол: ${cold}, Гор: ${hot}`;
+                }
+                if (service === 'СК РЭК') {
+                    reading = parseFloat(document.getElementById('val-light-read').value) || 0;
+                }
+
+                // Формируем запрос
+                const p = fetch(API_URL_UTILITIES_ACTION, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        action: 'add',
+                        date: dateVal,
+                        service: service,
+                        amount: amount, // Число!
+                        reading: reading,
+                        comment: comment
+                    })
+                });
+                requests.push(p);
+            }
+        });
+
+        if (requests.length === 0) return alert('Введите хотя бы одну сумму');
 
         try {
-            await fetch(API_URL_UTILITIES_ACTION, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            utilForm.reset();
-            document.getElementById('util-date').valueAsDate = new Date();
+            await Promise.all(requests);
+            alert('Сохранено!');
+            // Не очищаем форму полностью, чтобы можно было исправить, если что. Или можно bulkForm.reset()
             loadUtilities();
-        } catch(e) { alert('Ошибка'); }
+        } catch(e) { alert('Ошибка при сохранении'); }
     });
 }
 
