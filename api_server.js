@@ -134,7 +134,7 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
     
-else if (req.url === '/students/action' && req.method === 'POST') {
+    else if (req.url === '/students/action' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
@@ -212,6 +212,29 @@ else if (req.url === '/students/action' && req.method === 'POST') {
                     await db.reorderShoppingList(data.ids);
                 }
 
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
+    // --- КОММУНАЛКА ---
+    else if (req.url === '/utilities' && req.method === 'GET') {
+        try {
+            const list = await db.getUtilityReadings();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(list));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    else if (req.url === '/utilities/action' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                if (data.action === 'add') await db.addUtilityReading(data);
+                else if (data.action === 'delete') await db.deleteUtilityReading(data.id);
+                
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
