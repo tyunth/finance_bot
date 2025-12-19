@@ -110,7 +110,10 @@
                 <div class="card p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-bold text-gray-800">Структура доходов</h3>
-                        <span class="text-xs text-gray-400">По источникам (Тегам)</span>
+                        <select id="chart-income-group-by" onchange="applyFilters()" class="text-xs border border-gray-300 rounded-lg p-1 bg-gray-50 focus:ring-blue-500">
+                            <option value="category" selected>По Категориям</option>
+                            <option value="tag">По Ученикам (Тегам)</option>
+                        </select>
                     </div>
                     <div class="relative h-72 w-full flex justify-center"><canvas id="chartIncome"></canvas></div>
                 </div>
