@@ -81,6 +81,17 @@ function initializeTables() {
             created_at TEXT
         )`);
 
+        // Таблица Истории уроков (включая отмены)
+        db.run(`CREATE TABLE IF NOT EXISTS lesson_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            student_id INTEGER,
+            student_name TEXT,
+            date TEXT,
+            status TEXT, -- 'completed', 'cancelled_student', 'cancelled_teacher', 'cancelled_agreed'
+            reason TEXT,
+            lost_income REAL DEFAULT 0
+        )`);
+
         // --- МИГРАЦИИ (ДОБАВЛЕНИЕ КОЛОНОК) ---
         const runMigration = (table, col, type = 'TEXT') => {
             db.all(`PRAGMA table_info(${table})`, (err, cols) => {
@@ -99,6 +110,7 @@ function initializeTables() {
 
         // ВАЖНО: Миграция для Коммуналки (исправляет твою ошибку)
         ['service', 'reading', 'amount', 'comment'].forEach(c => runMigration('utility_readings', c));
+        ['schedule_days'].forEach(c => runMigration('students', c, "TEXT DEFAULT ''"));
     });
 }
 
@@ -340,6 +352,26 @@ async function deleteTodo(id) {
     return dbRun("DELETE FROM todos WHERE id = ?", [id]);
 }
 
+// --- ИСТОРИЯ УРОКОВ ---
+async function addLessonHistory(data) {
+    const { studentId, studentName, date, status, reason, lostIncome } = data;
+    return dbRun(
+        `INSERT INTO lesson_history (student_id, student_name, date, status, reason, lost_income) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [studentId, studentName, date, status, reason, lostIncome || 0]
+    );
+}
+
+// Проверка: была ли запись в истории за эту дату для этого ученика?
+async function checkLessonHistoryExists(studentName, dateStr) {
+    // dateStr в формате YYYY-MM-DD
+    const row = await dbGet(
+        `SELECT id FROM lesson_history WHERE student_name = ? AND date LIKE ?`, 
+        [studentName, `${dateStr}%`]
+    );
+    return !!row;
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -351,5 +383,6 @@ module.exports = {
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
+    addLessonHistory, checkLessonHistoryExists, 
     DB_PATH
 };
