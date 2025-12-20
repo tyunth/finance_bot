@@ -106,6 +106,8 @@ async function init() {
         applyFilters();
         loadDebts(); // Загружаем долги
         loadKPI();   // Загружаем счетчик уроков
+        loadWeather();
+        loadTodos();
         switchTab('analytics'); 
     }
 }
@@ -1262,6 +1264,95 @@ function openAddModal() {
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+}
+
+// --- ПОГОДА ---
+async function loadWeather() {
+    try {
+        // Добавили precipitation_sum и precipitation_probability_max
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto';
+        const res = await fetch(url);
+        const data = await res.json();
+        const today = data.daily;
+        
+        const tempMax = Math.round(today.temperature_2m_max[0]);
+        const tempMin = Math.round(today.temperature_2m_min[0]);
+        const precipSum = today.precipitation_sum[0];
+        const precipProb = today.precipitation_probability_max[0];
+        const code = today.weathercode[0];
+
+        // Интерпретация кода погоды (упрощенно)
+        let icon = '☁️';
+        let desc = 'Облачно';
+        if (code === 0) { icon = '☀️'; desc = 'Ясно'; }
+        else if (code <= 3) { icon = '⛅'; desc = 'Облачно'; }
+        else if (code <= 67) { icon = '🌧'; desc = 'Дождь'; }
+        else if (code <= 77) { icon = '❄️'; desc = 'Снег'; }
+        else { icon = '⛈'; desc = 'Гроза'; }
+
+        document.getElementById('w-temp').textContent = `${tempMax > 0 ? '+' : ''}${tempMax}°`;
+        document.getElementById('w-desc').textContent = `${desc} (${tempMin}..${tempMax})`;
+        document.getElementById('w-icon').textContent = icon;
+
+        // Логика зонта: если осадков > 0.5мм или вероятность > 40% и код дождя
+        const needUmbrella = (precipSum > 0.5 || (precipProb > 40 && code > 50));
+        const umbrellaEl = document.getElementById('w-umbrella');
+        if (needUmbrella) {
+            umbrellaEl.classList.remove('hidden');
+            umbrellaEl.textContent = precipSum > 0 ? `☔ Осадки: ${precipSum}мм` : `☔ Возможен дождь (${precipProb}%)`;
+        } else {
+            umbrellaEl.classList.add('hidden');
+        }
+
+    } catch(e) { console.error('Ошибка погоды', e); }
+}
+
+// --- СПИСОК ДЕЛ ---
+const todoForm = document.getElementById('todo-form');
+if (todoForm) {
+    todoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('todo-input');
+        const text = input.value.trim();
+        if(!text) return;
+        try {
+            await fetch(`${API_BASE_URL}/todos/action`, {
+                method: 'POST', body: JSON.stringify({ action: 'add', text })
+            });
+            input.value = '';
+            loadTodos();
+        } catch(e) { alert('Ошибка'); }
+    });
+}
+
+async function loadTodos() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/todos`);
+        const list = await res.json();
+        const container = document.getElementById('todo-list');
+        const countEl = document.getElementById('todo-count');
+        if(countEl) countEl.textContent = list.filter(t => !t.is_done).length;
+
+        container.innerHTML = list.map(t => `
+            <div class="flex items-center justify-between group p-2 hover:bg-gray-100 rounded transition ${t.is_done ? 'opacity-50' : ''}">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${t.is_done ? 0 : 1})" class="cursor-pointer" ${t.is_done ? 'checked' : ''}>
+                    <span class="${t.is_done ? 'line-through text-gray-500' : 'text-gray-800'} truncate text-sm" title="${t.text}">${t.text}</span>
+                </div>
+                <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-1">✕</button>
+            </div>
+        `).join('') || '<div class="text-center text-xs text-gray-400 py-4">Список пуст</div>';
+    } catch(e) {}
+}
+
+async function toggleTodo(id, status) {
+    await fetch(`${API_BASE_URL}/todos/action`, { method: 'POST', body: JSON.stringify({ action: 'toggle', id, status }) });
+    loadTodos();
+}
+async function deleteTodo(id) {
+    if(!confirm('Удалить?')) return;
+    await fetch(`${API_BASE_URL}/todos/action`, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
+    loadTodos();
 }
 
 init();
