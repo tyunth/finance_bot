@@ -934,9 +934,7 @@ async function openStatsModal(id) {
         // Считаем план (Занятий в неделю * 4)
         // Если lessons_per_week не указано, считаем план = факту (чтобы не пугать нулями)
         const weekly = s.lessons_per_week || 0;
-        // Считаем факт
-        const factCount = txs.filter(t => t.date.startsWith(currentMonthKey)).length;
-        
+
         // --- НОВЫЙ РАСЧЕТ ПЛАНА ---
         const weeklyDays = (s.schedule_days || '').split(',').filter(Boolean).map(Number); // [1, 4]
         let planCount = 0;
