@@ -247,13 +247,13 @@ async function addStudent(data) {
     );
 }
 async function updateStudent(data) {
-    // 1. Добавили schedule_days в разбор объекта
+    // 1. Добавили schedule_days в фигурные скобки
     const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week, schedule_days } = data;
     
     return dbRun(
         `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?, schedule_days=?
          WHERE id=?`,
-        // 2. Добавили schedule_days || '' в массив параметров перед id
+        // 2. Используем '' (пустую строку) если данных нет
         [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0, schedule_days || '', id]
     );
 }
