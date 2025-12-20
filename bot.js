@@ -107,7 +107,7 @@ async function runCalendarCheck(ctx = null) {
                     ...Markup.inlineKeyboard([
                         [Markup.button.callback(`Был, оплачен (+${amount})`, `cal_paid_${event.id}`)],
                         [Markup.button.callback(`Был, не оплачен (Долг)`, `cal_debt_${event.id}`)],
-                        [Markup.button.callback(`Не было (Удалить)`, `cal_del_${event.id}`)]
+                        [Markup.button.callback(`Отмена/Удалить`, `cal_cancel_menu_${event.id}`)]
                     ])
                 }
             );
@@ -732,7 +732,7 @@ bot.on('callback_query', async (ctx) => {
         const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Текст не сохранен.';
         return ctx.reply(raw.substring(0, 4000));
     }
-if (data.startsWith('cal_')) {
+    if (data.startsWith('cal_')) {
         const parts = data.split('_');
         const action = parts[1]; 
         const eventId = parts[2]; 
@@ -878,6 +878,44 @@ if (data.startsWith('cal_')) {
             };
             return ctx.reply('Введите новое название:', kb.BACK_KEYBOARD);
         }
+    }
+    // 1. Показ меню причин
+    if (data.startsWith('cal_cancel_menu_')) {
+        const eventId = data.split('_')[3];
+        return ctx.editMessageText('Причина отмены?', Markup.inlineKeyboard([
+            [Markup.button.callback('🤝 Согласовано / Каникулы', `cal_cx_agreed_${eventId}`)],
+            [Markup.button.callback('👨‍🏫 Я отменил', `cal_cx_teacher_${eventId}`)],
+            [Markup.button.callback('🎓 Ученик отменил', `cal_cx_student_${eventId}`)],
+            [Markup.button.callback('🔙 Назад', `cal_back_${eventId}`)] // Нужно добавить логику возврата меню, если хочешь
+        ]));
+    }
+
+    // 2. Фиксация отмены
+    if (data.startsWith('cal_cx_')) {
+        const parts = data.split('_');
+        const reason = parts[2]; // agreed, teacher, student
+        const eventId = parts[3];
+        
+        // Парсим имя из старого текста сообщения (он есть в ctx)
+        // (Тут упрощенно, лучше вынести парсинг в функцию, как было выше)
+        const msgLines = ctx.callbackQuery.message.text.split('\n');
+        const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
+        const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
+        const { studentName } = gcal.parseLessonInfo(summary);
+
+        await db.addLessonHistory({
+            studentId: null, 
+            studentName: studentName,
+            date: new Date().toISOString(),
+            status: `cancelled_${reason}`,
+            reason: reason,
+            lostIncome: config.LESSON_PRICE
+        });
+
+        // Помечаем как обработанное (status = cancelled)
+        await db.markEventProcessed(eventId, summary, 'cancelled');
+        
+        return ctx.editMessageText(`Записана отмена: ${reason}.`);
     }
     
 });
@@ -1061,6 +1099,32 @@ cron.schedule('0 7 * * *', async () => {
                 agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
             });
         }
+        // 3. Дела из БД
+        const allTodos = await db.getTodos();
+        const active = allTodos.filter(t => !t.is_done);
+        
+        if (active.length > 0) {
+            agendaMsg += `\n\n *Дела:*`;
+            // Группировка
+            const urgent = active.filter(t => t.period === 'urgent');
+            const medium = active.filter(t => t.period === 'medium');
+            const later = active.filter(t => t.period === 'later');
+            // Старые задачи без периода (today) кидаем в срочные
+            const legacy = active.filter(t => !t.period || t.period === 'today');
+
+            if(urgent.length || legacy.length) { 
+                agendaMsg += `\n СРОЧНО:`; 
+                [...urgent, ...legacy].forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
+            }
+            if(medium.length) { 
+                agendaMsg += `\n Средне:`; 
+                medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
+            }
+            if(later.length) { 
+                agendaMsg += `\n Несрочно:`; 
+                later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
+            }
+            
 
         await bot.telegram.sendMessage(adminId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
     } catch (e) {
