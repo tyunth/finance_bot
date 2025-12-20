@@ -479,6 +479,66 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
 });
 
+
+// Добавь обработчик текста
+bot.hears('Дела', async (ctx) => {
+    const list = await db.getTodos();
+    // Активные сверху
+    const active = list.filter(t => !t.is_done);
+    
+    let msg = `📝 *Список дел (${active.length}):*\n\n`;
+    const buttons = [];
+
+    if (list.length === 0) msg += "_Список пуст_";
+    else {
+        list.forEach(t => {
+            const statusIcon = t.is_done ? '✅' : '⬜';
+            const delBtn = t.is_done ? `🗑` : ''; // Удалять можно только выполненные (для экономии места) или все
+            
+            // В сообщении показываем список
+            msg += `${statusIcon} ${t.text}\n`;
+            
+            // В кнопках даем управление (только для активных или последних 5, чтобы не спамить кнопками)
+            if (!t.is_done) {
+                buttons.push([Markup.button.callback(`Выполнить: ${t.text}`, `todo_done_${t.id}`)]);
+            } else {
+                 // Кнопка удалить выполненное
+                 buttons.push([Markup.button.callback(`Удалить: ${t.text}`, `todo_del_${t.id}`)]);
+            }
+        });
+    }
+
+    // Кнопка добавления (через режим диалога или команду)
+    // Самый простой способ добавить дело через бота - команда: /todo Текст
+    msg += `\n\n_Чтобы добавить: /todo Текст задачи_`;
+    
+    ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
+});
+
+// Команда добавления
+bot.command('todo', async (ctx) => {
+    const text = ctx.message.text.replace('/todo', '').trim();
+    if (!text) return ctx.reply('Напиши задачу: /todo Помыть кота');
+    await db.addTodo(text);
+    ctx.reply(`Записал: ${text}`);
+});
+
+// Обработка кнопок
+bot.action(/^todo_done_(\d+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    await db.toggleTodo(id, 1);
+    await ctx.answerCbQuery('Сделано!');
+    // Можно обновить сообщение, вызвав ту же логику что в 'Дела'
+    ctx.editMessageText('✅ Задача выполнена! Жми "Дела" чтобы обновить список.');
+});
+
+bot.action(/^todo_del_(\d+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    await db.deleteTodo(id);
+    await ctx.answerCbQuery('Удалено!');
+    ctx.deleteMessage(); // Просто удаляем сообщение или строку
+});
+
 // --- СПИСКИ (НОВАЯ ЛОГИКА) ---
 
 // Универсальная функция показа списка
@@ -970,6 +1030,41 @@ async function runDailyBackup() {
         lastBackupDate = todayStr;
     } catch (e) { console.error('Ошибка бэкапа:', e); }
 }
+
+// 7 утра (по серверному времени, если сервер в KZ - ок, если нет - поправь цифру)
+cron.schedule('0 7 * * *', async () => {
+    try {
+        const adminId = config.ADMIN_ID;
+        const now = new Date();
+        
+        // Обновленный URL с осадками
+        const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto';
+        const wRes = await axios.get(weatherUrl);
+        const todayWeather = wRes.data.daily;
+        const tempMax = todayWeather.temperature_2m_max[0];
+        const tempMin = todayWeather.temperature_2m_min[0];
+        const precip = todayWeather.precipitation_sum[0]; // Осадки в мм
+        
+        let weatherMsg = `🌤 *Погода:*\nОт ${tempMin}°C до ${tempMax}°C`;
+        if (precip > 0.5) weatherMsg += `\n☔ Ожидаются осадки (~${precip} мм). Возьми зонт!`;
+        else weatherMsg += `\n☂️ Без существенных осадков.`;
+        // 2. Календарь
+        const events = await gcal.getEventsForDate(now);
+        let agendaMsg = `📅 *План на сегодня:*`;
+        if (events.length === 0) {
+            agendaMsg += `\nСвободно!`;
+        } else {
+            events.forEach(e => {
+                const time = e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день';
+                agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
+            });
+        }
+
+        await bot.telegram.sendMessage(adminId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
+    } catch (e) {
+        console.error('Ошибка Morning Briefing:', e);
+    }
+});
 
 setInterval(() => {
     runMonthlyInterestCheck();
