@@ -104,8 +104,8 @@ async function init() {
 
         // Применяем фильтр сразу, чтобы графики отрисовались
         applyFilters();
-        // --- НОВЫЙ КОД КОНЕЦ ---
-
+        loadDebts(); // Загружаем долги
+        loadKPI();   // Загружаем счетчик уроков
         switchTab('analytics'); 
     }
 }
@@ -496,11 +496,19 @@ function openEditModal(item) {
     const modal = document.getElementById('edit-modal');
     if (!modal) return;
 
+    // Заполняем существующие поля
     document.getElementById('edit-id').value = item.id;
     document.getElementById('edit-amount').value = item.amount;
     document.getElementById('edit-comment').value = item.comment || '';
     document.getElementById('edit-tag').value = item.tag || ''; 
     
+    // --- НОВОЕ: Заполняем Тип и Дату ---
+    document.getElementById('edit-type').value = item.type || 'expense'; 
+    // item.date приходит как ISO строка, нам нужны первые 10 символов (YYYY-MM-DD) для input type="date"
+    if (item.date) {
+        document.getElementById('edit-date').value = item.date.slice(0, 10);
+    }
+
     const select = document.getElementById('edit-category');
     select.innerHTML = '';
     const cats = new Set([...ALL_CATEGORIES, item.category]);
@@ -527,17 +535,33 @@ const editForm = document.getElementById('edit-form');
 if (editForm) {
     editForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
         const id = document.getElementById('edit-id').value;
         const amount = parseFloat(document.getElementById('edit-amount').value);
         const category = document.getElementById('edit-category').value;
         const comment = document.getElementById('edit-comment').value;
-        const tag = document.getElementById('edit-tag').value; 
+        const tag = document.getElementById('edit-tag').value;
+        
+        // НОВЫЕ ПОЛЯ
+        const type = document.getElementById('edit-type').value;
+        const date = document.getElementById('edit-date').value;
+
+        // Если ID есть — это редактирование, если нет — добавление
+        const isEdit = !!id; 
+        const url = isEdit ? API_URL_EDIT : API_BASE_URL + '/transactions/add';
+
+        // Собираем данные. 
+        // Для добавления нужны type и date. Для редактирования type и date мы пока не меняем на сервере (в api_server.js ты их не обрабатывал в /edit), но передать не страшно.
+        const payload = { 
+            id, amount, category, comment, tag, 
+            type, date // Добавили новые поля в отправку
+        };
 
         try {
-            await fetch(API_URL_EDIT, {
+            await fetch(url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id, amount, category, comment, tag})
+                body: JSON.stringify(payload)
             });
             closeModal();
             await loadData(); 
@@ -1144,6 +1168,100 @@ async function deleteUtility(id) {
         });
         loadUtilities();
     } catch(e) { alert('Ошибка'); }
+}
+
+// --- ОБНОВЛЕНИЕ loadData ---
+// Добавь вызов loadDebts() и loadKPI() внутрь loadData или init
+
+async function loadDebts() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/debts`);
+        const debts = await res.json();
+        renderDebts(debts);
+    } catch(e) { console.error(e); }
+}
+
+function renderDebts(debts) {
+    const panel = document.getElementById('debts-panel');
+    const list = document.getElementById('debts-list');
+    if (!debts.length) {
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+    list.innerHTML = debts.map(d => `
+        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+            <div>
+                <span class="font-bold text-gray-800">${d.student_name}</span>
+                <span class="text-sm text-gray-500">(${d.subject})</span>
+                <div class="text-xs text-red-500">${new Date(d.date).toLocaleDateString('ru-RU')}</div>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="font-bold text-gray-900">${formatCurrency(d.amount)}</span>
+                <button onclick="payDebt(${d.id})" class="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold hover:bg-green-200">Оплатить</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function payDebt(id) {
+    if (!confirm('Подтвердить оплату?')) return;
+    try {
+        await fetch(`${API_BASE_URL}/debts/pay`, {
+            method: 'POST', body: JSON.stringify({id})
+        });
+        loadDebts();
+        loadData(); // Обновить баланс
+    } catch(e) { alert('Ошибка'); }
+}
+
+async function loadKPI() {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    try {
+        const res = await fetch(`${API_BASE_URL}/stats/kpi?month=${monthKey}`);
+        const data = await res.json();
+        const el = document.getElementById('stat-lessons-count');
+        if (el) el.textContent = data.count;
+    } catch(e) {}
+}
+
+// --- ПОИСК ---
+function searchTransactions(query) {
+    if (!query) {
+        renderTable(FILTERED_DATA); // FILTERED_DATA - это отфильтрованные по дате данные (из твоего кода)
+        return;
+    }
+    const lower = query.toLowerCase();
+    const found = FILTERED_DATA.filter(t => 
+        (t.comment && t.comment.toLowerCase().includes(lower)) ||
+        (t.category && t.category.toLowerCase().includes(lower)) ||
+        t.amount.toString().includes(lower)
+    );
+    renderTable(found);
+}
+
+// --- РУЧНОЕ ДОБАВЛЕНИЕ ---
+function openAddModal() {
+    const modal = document.getElementById('edit-modal');
+    // Сброс формы (используем ту же форму что для редактирования, но без ID)
+    document.getElementById('edit-form').reset();
+    document.getElementById('edit-id').value = ''; // ПУСТОЙ ID = ДОБАВЛЕНИЕ
+    
+    // Подстановка текущей даты
+    // (надо добавить поле даты в модалку HTML, если его нет, см. ниже)
+    
+    // Загрузка категорий в селект (существующая логика)
+    const select = document.getElementById('edit-category');
+    select.innerHTML = '<option value="" disabled selected>Выберите...</option>';
+    ALL_CATEGORIES.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        select.appendChild(opt);
+    });
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
 }
 
 init();
