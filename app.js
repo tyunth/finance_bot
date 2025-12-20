@@ -19,6 +19,7 @@ let RAW_DATA = [];
 let chartsInstance = {}; 
 let CHART_DATA_CACHE = {}; 
 let ACCOUNTS_INFO = []; // Глобальная переменная для хранения списка счетов
+let CURRENT_TODO_FILTER = 'urgent'; // По умолчанию срочные
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
@@ -746,7 +747,8 @@ const shopTypeEl = document.getElementById('shop-type');
 if (shopTypeEl) {
     shopTypeEl.addEventListener('change', (e) => {
         const priceBlock = document.getElementById('shop-price-block');
-        if (e.target.value === 'wish') priceBlock.classList.remove('hidden');
+        // Цена нужна для вишлиста и маркетплейса (чтобы прикинуть бюджет)
+        if (e.target.value === 'wish' || e.target.value === 'market') priceBlock.classList.remove('hidden');
         else priceBlock.classList.add('hidden');
     });
 }
@@ -763,35 +765,41 @@ async function loadShoppingList() {
 
 function renderShoppingList(list) {
     const buyContainer = document.getElementById('list-buy');
+    const marketContainer = document.getElementById('list-market'); // НОВЫЙ
     const wishContainer = document.getElementById('list-wish');
-    if (!buyContainer || !wishContainer) return;
+    if (!buyContainer) return;
 
     buyContainer.innerHTML = '';
+    if (marketContainer) marketContainer.innerHTML = '';
     wishContainer.innerHTML = '';
 
     const buyItems = list.filter(i => i.type === 'buy');
-    const wishItems = list.filter(i => i.type !== 'buy');
+    const marketItems = list.filter(i => i.type === 'market'); // НОВЫЙ
+    const wishItems = list.filter(i => i.type === 'wish');
 
     if (document.getElementById('count-buy')) document.getElementById('count-buy').textContent = buyItems.length;
+    if (document.getElementById('count-market')) document.getElementById('count-market').textContent = marketItems.length;
     if (document.getElementById('count-wish')) document.getElementById('count-wish').textContent = wishItems.length;
 
-    const createItemHTML = (item, isWish) => `
-        <div class="card p-3 flex justify-between items-center group hover:bg-gray-50 transition cursor-move" data-id="${item.id}">
-            <div class="flex items-center gap-3">
-                <input type="checkbox" onchange="buyItem(${item.id})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer">
-                <div>
-                    <p class="font-medium text-gray-800 ${isWish ? 'text-lg' : ''}">${item.item_name}</p>
-                    ${isWish && item.price_estimate ? `<p class="text-xs text-green-600 font-bold">~${formatCurrency(item.price_estimate)}</p>` : ''}
+    const createItemHTML = (item) => `
+        <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-300 transition cursor-move" data-id="${item.id}">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <input type="checkbox" onchange="buyItem(${item.id})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0">
+                <div class="min-w-0">
+                    <p class="font-medium text-gray-800 text-sm truncate leading-tight" title="${item.item_name}">${item.item_name}</p>
+                    ${item.price_estimate ? `<p class="text-[10px] text-green-600 font-bold mt-0.5">~${formatCurrency(item.price_estimate)}</p>` : ''}
                 </div>
             </div>
-            <button onclick="deleteItem(${item.id})" class="text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition">✕</button>
+            <button onclick="deleteItem(${item.id})" class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition">✕</button>
         </div>
     `;
 
-    buyContainer.innerHTML = buyItems.length ? buyItems.map(i => createItemHTML(i, false)).join('') : '<div class="text-sm text-gray-400 text-center italic">Всё куплено</div>';
-    wishContainer.innerHTML = wishItems.length ? wishItems.map(i => createItemHTML(i, true)).join('') : '<div class="text-sm text-gray-400 text-center italic">Вишлист пуст</div>';
+    buyContainer.innerHTML = buyItems.length ? buyItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Всё куплено</div>';
+    if (marketContainer) marketContainer.innerHTML = marketItems.length ? marketItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Пусто</div>';
+    wishContainer.innerHTML = wishItems.length ? wishItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Пусто</div>';
 
     initSortable(buyContainer, 'buy');
+    if (marketContainer) initSortable(marketContainer, 'market');
     initSortable(wishContainer, 'wish');
 }
 
@@ -1426,6 +1434,63 @@ function renderDepositStats(currentData) {
     if (document.getElementById('bar-savings-out')) {
         document.getElementById('bar-savings-out').style.width = `${(withdrawn / maxVal) * 100}%`;
     }
+}
+
+function setTodoFilter(filter) {
+    CURRENT_TODO_FILTER = filter;
+    ['urgent', 'medium', 'later'].forEach(f => {
+        const btn = document.getElementById(`tf-${f}`);
+        const labelMap = { urgent: 'Срочно', medium: 'Средне', later: 'Несрочно' }; // Для текста
+        // ... (логика классов кнопок та же) ...
+    });
+    loadTodos();
+}
+
+// В todoForm добавляем отправку period
+if (todoForm) {
+    todoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('todo-input');
+        const text = input.value.trim();
+        if(!text) return;
+        try {
+            await fetch(`${API_BASE_URL}/todos/action`, {
+                method: 'POST', body: JSON.stringify({ 
+                    action: 'add', 
+                    text, 
+                    period: CURRENT_TODO_FILTER // Добавляем в текущую открытую вкладку
+                })
+            });
+            input.value = '';
+            loadTodos();
+        } catch(e) { alert('Ошибка'); }
+    });
+}
+
+// Обновленная функция загрузки
+async function loadTodos() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/todos`);
+        const list = await res.json();
+        const container = document.getElementById('todo-list');
+        const countEl = document.getElementById('todo-count');
+        
+        // Фильтруем по текущей вкладке (если у задачи нет периода - считаем today)
+        const filteredList = list.filter(t => (t.period || 'today') === CURRENT_TODO_FILTER);
+        
+        // Считаем активные ТОЛЬКО в текущей вкладке
+        if(countEl) countEl.textContent = filteredList.filter(t => !t.is_done).length;
+
+        container.innerHTML = filteredList.map(t => `
+            <div class="flex items-center justify-between group p-2 hover:bg-gray-50 rounded-lg transition ${t.is_done ? 'opacity-50' : ''}">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${t.is_done ? 0 : 1})" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" ${t.is_done ? 'checked' : ''}>
+                    <span class="${t.is_done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'} truncate text-sm" title="${t.text}">${t.text}</span>
+                </div>
+                <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-1">✕</button>
+            </div>
+        `).join('') || '<div class="text-center text-xs text-gray-400 py-6">Пусто</div>';
+    } catch(e) {}
 }
 
 init();
