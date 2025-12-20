@@ -30,7 +30,7 @@ const SKIP_COMMENT_KEYBOARD = Markup.keyboard([['Пропустить'], ['На�
 const MAIN_KEYBOARD = Markup.keyboard([
     ['Доход', 'Расход', 'Перевод'],
     ['Счета', 'Отчеты', 'Помощь'],
-    ['Список', 'Вишлист'] 
+    ['Список', 'Дела', 'Вишлист'] 
 ]).resize();
 
 module.exports = {
