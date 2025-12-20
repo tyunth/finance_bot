@@ -118,17 +118,16 @@ async function init() {
     }
 }
 
-// --- ОБНОВЛЕННАЯ ФУНКЦИЯ ОТРИСОВКИ СЧЕТОВ ---
 function renderBalances(balances) {
     const list = document.getElementById('deposit-list');
     if (!list) return;
     
     if (!balances || Object.keys(balances).length === 0) {
-        list.innerHTML = 'Нет счетов';
+        list.innerHTML = '<div class="text-gray-400 text-sm">Нет счетов</div>';
         return;
     }
     
-    // Сортировка: Сначала Основной, потом по убыванию денег
+    // Сортировка: Основной первый, остальные по убыванию суммы
     const entries = Object.entries(balances).sort((a, b) => {
         if (a[0] === 'Основной') return -1;
         if (b[0] === 'Основной') return 1;
@@ -137,19 +136,16 @@ function renderBalances(balances) {
 
     list.innerHTML = entries.map(([name, val]) => {
         const isDeposit = ACCOUNTS_INFO.find(a => a.name === name)?.is_deposit;
-        const icon = isDeposit ? '🔹' : (name === 'Основной' ? '💳' : '💰');
         const color = val > 0 ? 'text-gray-900' : (val < 0 ? 'text-red-500' : 'text-gray-400');
+        const typeLabel = isDeposit ? 'Вклад' : 'Счет';
         
         return `
-            <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition">
-                <div class="flex items-center gap-3 overflow-hidden">
-                    <span class="text-lg opacity-80">${icon}</span>
-                    <div class="flex flex-col min-w-0">
-                        <span class="text-sm font-bold text-gray-700 truncate" title="${name}">${name}</span>
-                        ${isDeposit ? '<span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Вклад</span>' : ''}
-                    </div>
+            <div class="flex items-center justify-between p-3 bg-gray-50/50 hover:bg-gray-50 rounded-xl transition border border-transparent hover:border-gray-200">
+                <div class="flex flex-col min-w-0">
+                    <span class="text-sm font-bold text-gray-700 truncate" title="${name}">${name}</span>
+                    <span class="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">${typeLabel}</span>
                 </div>
-                <span class="${color} font-mono font-bold whitespace-nowrap text-base">${formatCurrency(val)}</span>
+                <span class="${color} font-mono font-bold whitespace-nowrap text-lg">${formatCurrency(val)}</span>
             </div>
         `;
     }).join('');
