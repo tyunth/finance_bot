@@ -80,75 +80,104 @@
                     </div>
                 </div>
 
-                <div id="tab-analytics" class="hidden space-y-8">
+               <div id="tab-analytics" class="hidden space-y-6">
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 border-l-4 border-l-green-500 flex flex-col justify-center h-32">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Доход</p>
-                            <h3 id="stat-income" class="text-3xl font-extrabold text-gray-900 tracking-tight">0 T</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500">
+                            <p class="text-xs font-bold text-gray-400 uppercase mb-1">Доход</p>
+                            <h3 id="stat-income" class="text-2xl font-extrabold text-gray-900">0 T</h3>
                         </div>
-                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 border-l-4 border-l-red-500 flex flex-col justify-center h-32">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Расход</p>
-                            <h3 id="stat-expense" class="text-3xl font-extrabold text-gray-900 tracking-tight">0 T</h3>
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-red-500">
+                            <p class="text-xs font-bold text-gray-400 uppercase mb-1">Расход</p>
+                            <h3 id="stat-expense" class="text-2xl font-extrabold text-gray-900">0 T</h3>
                         </div>
-                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500 flex flex-col justify-center h-32">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Итого</p>
-                            <h3 id="stat-balance" class="text-3xl font-extrabold text-gray-900 tracking-tight">0 T</h3>
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-500">
+                            <p class="text-xs font-bold text-gray-400 uppercase mb-1">Итого</p>
+                            <h3 id="stat-balance" class="text-2xl font-extrabold text-gray-900">0 T</h3>
                         </div>
-                        <div class="bg-indigo-50 p-6 rounded-3xl shadow-sm border border-indigo-100 border-l-4 border-l-indigo-500 flex flex-col justify-center h-32">
-                            <p class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Уроков за месяц</p>
-                            <h3 id="stat-lessons-count" class="text-3xl font-extrabold text-indigo-900 tracking-tight">0</h3>
+                        <div class="bg-indigo-50 p-5 rounded-2xl shadow-sm border border-indigo-100 border-l-4 border-l-indigo-500">
+                            <p class="text-xs font-bold text-indigo-500 uppercase mb-1">Уроков за месяц</p>
+                            <h3 id="stat-lessons-count" class="text-2xl font-extrabold text-indigo-900">0</h3>
                         </div>
                     </div>
 
-                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -mr-8 -mt-8 z-0"></div>
-                        <div class="relative z-10">
-                            <p class="text-xs font-bold text-purple-600 uppercase tracking-wider mb-6 flex items-center gap-2">
-                                <span class="bg-purple-100 p-1.5 rounded-lg">💰</span> Счета и Депозиты
-                            </p>
-                            <div id="deposit-list" class="flex flex-col gap-4 text-base font-medium text-gray-700 divide-y divide-gray-100">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        
+                        <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+                            <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-6 -mt-6"></div>
+                            <h3 class="text-sm font-bold text-purple-600 uppercase tracking-wider mb-4 relative z-10 flex items-center gap-2">
+                                💰 Счета и Депозиты
+                            </h3>
+                            <div id="deposit-list" class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 relative z-10">
                                 Loading...
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Движение накоплений</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="text-gray-600">Отложено</span>
+                                        <span class="font-bold text-green-600" id="stat-savings-in">+0 T</span>
+                                    </div>
+                                    <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                        <div class="bg-green-500 h-1.5 rounded-full" style="width: 0%" id="bar-savings-in"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="text-gray-600">Выведено</span>
+                                        <span class="font-bold text-red-500" id="stat-savings-out">-0 T</span>
+                                    </div>
+                                    <div class="w-full bg-gray-100 rounded-full h-1.5">
+                                        <div class="bg-red-400 h-1.5 rounded-full" style="width: 0%" id="bar-savings-out"></div>
+                                    </div>
+                                </div>
+                                <div class="pt-2 border-t border-gray-50 flex justify-between items-center">
+                                    <span class="text-xs text-gray-400">Чистый прирост</span>
+                                    <span class="font-bold text-gray-800" id="stat-savings-net">0 T</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-                        <div class="flex justify-between items-center mb-8">
-                            <h3 class="text-xl font-bold text-gray-900">Динамика по месяцам</h3>
-                            <span class="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg font-medium border border-gray-100">Кликни столбец для фильтра</span>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-bold text-gray-900">Динамика по месяцам</h3>
+                            <span class="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded border border-gray-100">Кликни столбец для фильтра</span>
                         </div>
-                        <div class="relative h-80 w-full"><canvas id="chartMonthly"></canvas></div>
+                        <div class="relative h-64 w-full"><canvas id="chartMonthly"></canvas></div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-                            <div class="flex justify-between items-center mb-8">
-                                <h3 class="text-xl font-bold text-gray-900">Расходы</h3>
-                                <select id="chart-group-by" onchange="applyFilters()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 focus:ring-blue-500 outline-none font-medium">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-lg font-bold text-gray-900">Расходы</h3>
+                                <select id="chart-group-by" onchange="applyFilters()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 outline-none">
                                     <option value="category">По Категориям</option>
                                     <option value="tag">По Тегам</option>
                                 </select>
                             </div>
-                            <div class="relative h-72 w-full flex justify-center"><canvas id="chartCategories"></canvas></div>
+                            <div class="relative h-64 w-full flex justify-center"><canvas id="chartCategories"></canvas></div>
                         </div>
 
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-                            <div class="flex justify-between items-center mb-8">
-                                <h3 class="text-xl font-bold text-gray-900">Доходы</h3>
-                                <select id="chart-income-group-by" onchange="applyFilters()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 focus:ring-blue-500 outline-none font-medium">
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-lg font-bold text-gray-900">Доходы</h3>
+                                <select id="chart-income-group-by" onchange="applyFilters()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 outline-none">
                                     <option value="category">По Категориям</option>
                                     <option value="tag">По Ученикам</option>
                                 </select>
                             </div>
-                            <div class="relative h-72 w-full flex justify-center"><canvas id="chartIncome"></canvas></div>
+                            <div class="relative h-64 w-full flex justify-center"><canvas id="chartIncome"></canvas></div>
                         </div>
                     </div>
-
-                    <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-                        <div class="mb-8 flex justify-between items-center">
-                             <h3 class="text-xl font-bold text-gray-900">Активность</h3>
-                             <select id="chart-day-type" onchange="renderDayChart()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 outline-none font-medium">
+                    
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                        <div class="mb-6 flex justify-between items-center">
+                             <h3 class="text-lg font-bold text-gray-900">Активность</h3>
+                             <select id="chart-day-type" onchange="renderDayChart()" class="text-xs border border-gray-200 rounded-lg p-2 bg-gray-50 outline-none">
                                  <option value="week">По дням недели</option>
                                  <option value="month">По числам месяца</option>
                              </select>
@@ -156,26 +185,21 @@
                         <div class="relative h-64 w-full"><canvas id="chartDays"></canvas></div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div class="px-8 py-5 border-b border-gray-100 bg-gray-50/50">
-                                <h3 class="font-bold text-gray-900 text-lg">Топ-10 Покупок</h3>
+                            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                <h3 class="font-bold text-gray-900">Топ-10 Покупок</h3>
                             </div>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm text-left text-gray-600">
-                                    <tbody id="top-expenses-list" class="divide-y divide-gray-100"></tbody>
-                                </table>
-                            </div>
+                            <table class="w-full text-sm text-left text-gray-600"><tbody id="top-expenses-list" class="divide-y divide-gray-100"></tbody></table>
                         </div>
-
                         <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div class="px-8 py-5 border-b border-gray-100 bg-gray-50/50">
-                                <h3 class="font-bold text-gray-900 text-lg">Частые операции</h3>
+                            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                <h3 class="font-bold text-gray-900">Частые операции</h3>
                             </div>
-                            <div class="p-8">
-                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">По категориям</h4>
-                                <table class="w-full text-sm text-left text-gray-600 mb-8"><tbody id="top-freq-cat-list" class="divide-y divide-gray-100"></tbody></table>
-                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 pt-6 border-t border-gray-100">По комментариям</h4>
+                            <div class="p-6">
+                                <h4 class="text-xs font-bold text-gray-400 uppercase mb-3">По категориям</h4>
+                                <table class="w-full text-sm text-left text-gray-600 mb-6"><tbody id="top-freq-cat-list" class="divide-y divide-gray-100"></tbody></table>
+                                <h4 class="text-xs font-bold text-gray-400 uppercase mb-3 pt-4 border-t border-gray-100">По комментариям</h4>
                                 <table class="w-full text-sm text-left text-gray-600"><tbody id="top-freq-comment-list" class="divide-y divide-gray-100"></tbody></table>
                             </div>
                         </div>
