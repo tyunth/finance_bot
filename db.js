@@ -281,6 +281,40 @@ async function deleteUtilityReading(id) {
     return dbRun("DELETE FROM utility_readings WHERE id = ?", [id]);
 }
 
+// --- НОВЫЕ ФУНКЦИИ (ДЛЯ ОБНОВЛЕНИЯ) ---
+
+// 1. KPI: Считаем уроки за месяц
+async function getLessonCount(monthStr) {
+    // monthStr в формате 'YYYY-MM'
+    const result = await dbGet(
+        `SELECT COUNT(*) as count FROM transactions 
+         WHERE type = 'income' AND category = 'Репетиторство' AND date LIKE ?`, 
+        [`${monthStr}%`]
+    );
+    return result ? result.count : 0;
+}
+
+// 2. Оплата долга (одной транзакцией: создает доход + гасит долг)
+async function payDebt(debtId) {
+    const debt = await dbGet('SELECT * FROM debts WHERE id = ?', [debtId]);
+    if (!debt) throw new Error('Долг не найден');
+
+    // Начинаем "транзакцию" (в логическом смысле)
+    await addTransaction({
+        userId: debt.user_id,
+        type: 'income',
+        amount: debt.amount,
+        category: 'Репетиторство',
+        tag: `Ученик: ${debt.student_name}`,
+        comment: `Оплата долга (${debt.subject}) от ${debt.date.slice(0, 10)}`,
+        sourceAccount: null,
+        targetAccount: 'Основной'
+    });
+
+    await dbRun('UPDATE debts SET is_paid = 1 WHERE id = ?', [debtId]);
+    return true;
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -290,5 +324,6 @@ module.exports = {
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
     getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
+    getLessonCount, payDebt,
     DB_PATH
 };
