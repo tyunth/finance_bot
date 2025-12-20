@@ -249,9 +249,9 @@ async function addStudent(data) {
 async function updateStudent(data) {
     const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
     return dbRun(
-        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?
+        `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?, schedule_days=?
          WHERE id=?`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0, id]
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week, schedule_days || 0, id]
     );
 }
 async function deleteStudent(id) {
