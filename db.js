@@ -247,11 +247,14 @@ async function addStudent(data) {
     );
 }
 async function updateStudent(data) {
-    const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
+    // 1. Добавили schedule_days в список переменных
+    const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week, schedule_days } = data;
+    
     return dbRun(
         `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?, schedule_days=?
          WHERE id=?`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week, schedule_days || 0, id]
+        // 2. Используем '' если пусто
+        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0, schedule_days || '', id]
     );
 }
 async function deleteStudent(id) {
