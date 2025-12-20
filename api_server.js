@@ -243,6 +243,31 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
+
+    // --- TO-DO LIST ---
+    else if (req.url === '/todos' && req.method === 'GET') {
+        try {
+            const list = await db.getTodos();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(list));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    else if (req.url === '/todos/action' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                if (data.action === 'add') await db.addTodo(data.text);
+                else if (data.action === 'toggle') await db.toggleTodo(data.id, data.status);
+                else if (data.action === 'delete') await db.deleteTodo(data.id);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
         
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
