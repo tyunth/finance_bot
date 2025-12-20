@@ -113,8 +113,25 @@ function parseLessonInfo(summary) {
     return { studentName, subject };
 }
 
+async function getEventsForDate(date) { // date object
+    const start = new Date(date); start.setHours(0,0,0,0);
+    const end = new Date(date); end.setHours(23,59,59,999);
+
+    // Используем твою существующую авторизацию
+    const calendar = google.calendar({ version: 'v3', auth: jwtClient }); 
+    const res = await calendar.events.list({
+        calendarId: CALENDAR_ID,
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+    });
+    return res.data.items;
+}
+
 module.exports = {
     getRecentLessons,
     deleteEvent,
-    parseLessonInfo
+    parseLessonInfo,
+    getEventsForDate
 };
