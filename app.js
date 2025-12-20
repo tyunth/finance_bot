@@ -654,6 +654,27 @@ function renderStudents(students) {
     `).join('');
 }
 
+// Отрисовка кнопок дней (1=Пн, 7=Вс)
+function renderScheduleSelector(selectedDaysStr = '') {
+    const container = document.getElementById('schedule-days-container');
+    if (!container) return;
+    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']; 
+    const selected = selectedDaysStr ? selectedDaysStr.split(',').map(Number) : [];
+    
+    container.innerHTML = days.map((d, i) => {
+        const dayNum = i + 1; 
+        const isActive = selected.includes(dayNum);
+        // data-day нужен, чтобы потом считать выбор
+        return `
+            <div data-day="${dayNum}" onclick="this.classList.toggle('bg-blue-600'); this.classList.toggle('text-white'); this.classList.toggle('bg-gray-100');" 
+                 class="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold cursor-pointer transition select-none
+                 ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}">
+                ${d}
+            </div>
+        `;
+    }).join('');
+}
+
 function openStudentModal(s = null) {
     const modal = document.getElementById('student-modal');
     const form = document.getElementById('student-form');
@@ -677,11 +698,13 @@ function openStudentModal(s = null) {
         document.getElementById('st-notes').value = s.notes || '';
         document.getElementById('st-lessons-week').value = s.lessons_per_week || 0;
         delBtn.classList.remove('hidden');
+        renderScheduleSelector(s.schedule_days || '');
     } else {
         document.getElementById('student-modal-title').textContent = 'Новый ученик';
         document.getElementById('student-id').value = '';
         document.getElementById('st-lessons-week').value = '';
         delBtn.classList.add('hidden');
+        renderScheduleSelector('');
     }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -699,6 +722,14 @@ const studentForm = document.getElementById('student-form');
 if (studentForm) {
     studentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        // --- НОВЫЙ КОД СБОРА ДНЕЙ ---
+        const dayEls = document.getElementById('schedule-days-container').children;
+        const selectedDays = [];
+        for(let i=0; i<dayEls.length; i++) {
+        if(dayEls[i].classList.contains('bg-blue-600')) {
+            selectedDays.push(dayEls[i].getAttribute('data-day'));
+        }
+    }
         const id = document.getElementById('student-id').value;
         const action = id ? 'edit' : 'add';
         
@@ -715,6 +746,7 @@ if (studentForm) {
             address: document.getElementById('st-address').value,
             notes: document.getElementById('st-notes').value,
             lessons_per_week: document.getElementById('st-lessons-week').value,
+            schedule_days: selectedDays.join(',')
         };
 
         try {
@@ -902,7 +934,27 @@ async function openStatsModal(id) {
         // Считаем план (Занятий в неделю * 4)
         // Если lessons_per_week не указано, считаем план = факту (чтобы не пугать нулями)
         const weekly = s.lessons_per_week || 0;
-        const planCount = weekly > 0 ? weekly * 4 : factCount; 
+        // Считаем факт
+        const factCount = txs.filter(t => t.date.startsWith(currentMonthKey)).length;
+        
+        // --- НОВЫЙ РАСЧЕТ ПЛАНА ---
+        const weeklyDays = (s.schedule_days || '').split(',').filter(Boolean).map(Number); // [1, 4]
+        let planCount = 0;
+        
+        if (weeklyDays.length > 0) {
+            // Считаем сколько конкретных дней (Пн, Чт) в этом месяце
+            const y = now.getFullYear(), m = now.getMonth();
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+            for (let d = 1; d <= daysInMonth; d++) {
+                let dayOfWeek = new Date(y, m, d).getDay(); // 0=Вс
+                if (dayOfWeek === 0) dayOfWeek = 7; 
+                if (weeklyDays.includes(dayOfWeek)) planCount++;
+            }
+        } else {
+            // Если дни не выбраны - считаем по-старому (недели * 4)
+            const weekly = s.lessons_per_week || 0;
+            planCount = weekly > 0 ? weekly * 4 : factCount; 
+        }
 
         const factEl = document.getElementById('stats-fact');
         const planEl = document.getElementById('stats-plan');
