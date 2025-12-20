@@ -131,6 +131,70 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // 5. Долги учеников
+    else if (req.url === '/debts' && req.method === 'GET') {
+        try {
+            // Берем долги админа (ID 0 или из конфига)
+            const debts = await db.getDebts(config.ADMIN_ID); 
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(debts));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    else if (req.url === '/debts/pay' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { id } = JSON.parse(body);
+                await db.payDebt(id);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
+
+    // 6. KPI (Уроки за месяц)
+    else if (req.url.startsWith('/stats/kpi') && req.method === 'GET') {
+        try {
+            const urlParts = new URL(req.url, `http://${req.headers.host}`);
+            const month = urlParts.searchParams.get('month'); // YYYY-MM
+            const count = await db.getLessonCount(month);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ count }));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+
+    // 7. Ручное добавление транзакции
+    else if (req.url === '/transactions/add' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                // Дополняем данными для функции addTransaction
+                const txData = {
+                    userId: config.ADMIN_ID,
+                    type: data.type,
+                    amount: parseFloat(data.amount),
+                    category: data.category,
+                    tag: data.tag || (data.type === 'income' ? 'Доход' : 'Разное'),
+                    comment: data.comment,
+                    date: data.date,
+                    // Логика счетов:
+                    sourceAccount: data.type === 'expense' ? 'Основной' : null,
+                    targetAccount: data.type === 'income' ? 'Основной' : null
+                };
+                await db.addTransaction(txData);
+                // Если есть категория и коммент, учим бота
+                if (data.comment && data.category) await db.learnKeyword(data.comment, data.category);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
+
     // --- СПИСОК ПОКУПОК ---
     else if (req.url === '/shopping' && req.method === 'GET') {
         try {
