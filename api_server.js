@@ -55,15 +55,17 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
     }
 
-    // 3. Балансы счетов
+// 3. Балансы счетов (ОБНОВЛЕНО: возвращаем и список счетов с их типом)
     else if (req.url === '/balances' && req.method === 'GET') {
         try {
-            const { balances } = await db.getBalances(config.ADMIN_ID || 0); // Можно передать любой ID, если не используем мульти-юзер
+            // getBalances возвращает { balances: {...}, accountsList: [...] }
+            const data = await db.getBalances(config.ADMIN_ID || 0); 
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(balances));
+            // Отправляем ВЕСЬ объект data, а не только balances
+            res.end(JSON.stringify(data));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
-
+        
     // 4. Редактирование транзакции
     else if (req.url === '/transactions/edit' && req.method === 'POST') {
         let body = '';
