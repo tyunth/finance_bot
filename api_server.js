@@ -261,7 +261,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                if (data.action === 'add') await db.addTodo(data.text);
+                if (data.action === 'add') await db.addTodo(data.text, data.period);
                 else if (data.action === 'toggle') await db.toggleTodo(data.id, data.status);
                 else if (data.action === 'delete') await db.deleteTodo(data.id);
                 
