@@ -83,8 +83,29 @@ async function init() {
         if (loadingEl) loadingEl.style.display = 'none';
         
         const filterPanel = document.getElementById('filter-panel');
-        if (filterPanel) filterPanel.classList.remove('hidden');       
-        // По умолчанию грузим аналитику
+        if (filterPanel) filterPanel.classList.remove('hidden');
+
+        // --- НОВЫЙ КОД НАЧАЛО ---
+        // Устанавливаем текущий месяц в фильтры
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Хелпер для форматирования даты в YYYY-MM-DD (с учетом часового пояса, чтобы не убежал день назад)
+        const fmt = d => {
+            const offset = d.getTimezoneOffset() * 60000;
+            return new Date(d.getTime() - offset).toISOString().split('T')[0];
+        };
+
+        const startEl = document.getElementById('filter-date-start');
+        const endEl = document.getElementById('filter-date-end');
+
+        if (startEl) startEl.value = fmt(startOfMonth);
+        if (endEl) endEl.value = fmt(now);
+
+        // Применяем фильтр сразу, чтобы графики отрисовались
+        applyFilters();
+        // --- НОВЫЙ КОД КОНЕЦ ---
+
         switchTab('analytics'); 
     }
 }
