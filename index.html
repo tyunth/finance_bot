@@ -11,16 +11,18 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
-        /* Активный таб: синий текст и фон */
         .tab-btn.active {
             background-color: #eff6ff; /* blue-50 */
             color: #2563eb; /* blue-600 */
         }
-        /* Скроллбар */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+        /* Кастомный скролл для блоков */
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen">
+<body class="bg-gray-50 text-gray-800 min-h-screen font-sans">
 
     <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
@@ -80,7 +82,7 @@
                     </div>
                 </div>
 
-               <div id="tab-analytics" class="hidden space-y-6">
+                <div id="tab-analytics" class="hidden space-y-6">
                     
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-green-500">
@@ -101,8 +103,7 @@
                         </div>
                     </div>
 
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
                             <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-6 -mt-6"></div>
                             <h3 class="text-sm font-bold text-purple-600 uppercase tracking-wider mb-4 relative z-10">
@@ -141,7 +142,6 @@
                             </div>
                         </div>
                     </div>
-                    
 
                     <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                         <div class="flex justify-between items-center mb-6">
@@ -205,9 +205,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div id="tab-transactions" class="hidden">
+                </div> <div id="tab-transactions" class="hidden">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                         <div class="relative w-full md:w-96">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
@@ -349,6 +347,7 @@
                                 <label class="block text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Тип</label>
                                 <select id="shop-type" class="block w-full border border-blue-200 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white shadow-sm">
                                     <option value="buy">🛒 Повседневное</option>
+                                    <option value="market">📦 Маркетплейс</option>
                                     <option value="wish">🎁 Вишлист</option>
                                 </select>
                             </div>
@@ -360,20 +359,29 @@
                         </form>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 h-full">
-                            <h3 class="font-bold text-gray-800 text-lg mb-6 flex items-center gap-3">
-                                🛒 Повседневное 
-                                <span id="count-buy" class="text-xs bg-gray-100 text-gray-500 font-bold px-3 py-1 rounded-full">0</span>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-full flex flex-col">
+                            <h3 class="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">
+                                🛒 <span class="text-sm uppercase tracking-wider text-gray-500">Повседневное</span>
+                                <span id="count-buy" class="ml-auto text-xs bg-gray-100 text-gray-500 font-bold px-2 py-1 rounded-md">0</span>
                             </h3>
-                            <div id="list-buy" class="space-y-3"></div>
+                            <div id="list-buy" class="space-y-2 flex-1"></div>
                         </div>
-                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 h-full">
-                            <h3 class="font-bold text-gray-800 text-lg mb-6 flex items-center gap-3">
-                                🎁 Вишлист 
-                                <span id="count-wish" class="text-xs bg-gray-100 text-gray-500 font-bold px-3 py-1 rounded-full">0</span>
+
+                        <div class="bg-indigo-50 p-6 rounded-3xl shadow-sm border border-indigo-100 h-full flex flex-col">
+                            <h3 class="font-bold text-indigo-900 text-lg mb-4 flex items-center gap-2">
+                                📦 <span class="text-sm uppercase tracking-wider text-indigo-400">Маркетплейс</span>
+                                <span id="count-market" class="ml-auto text-xs bg-white text-indigo-600 font-bold px-2 py-1 rounded-md">0</span>
                             </h3>
-                            <div id="list-wish" class="space-y-3"></div>
+                            <div id="list-market" class="space-y-2 flex-1"></div>
+                        </div>
+
+                        <div class="bg-purple-50 p-6 rounded-3xl shadow-sm border border-purple-100 h-full flex flex-col">
+                            <h3 class="font-bold text-purple-900 text-lg mb-4 flex items-center gap-2">
+                                🎁 <span class="text-sm uppercase tracking-wider text-purple-400">Вишлист</span>
+                                <span id="count-wish" class="ml-auto text-xs bg-white text-purple-600 font-bold px-2 py-1 rounded-md">0</span>
+                            </h3>
+                            <div id="list-wish" class="space-y-2 flex-1"></div>
                         </div>
                     </div>
                 </div>
@@ -399,19 +407,26 @@
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-lg border border-gray-100 flex flex-col h-[600px] xl:h-[calc(100vh-24rem)] max-h-[800px] overflow-hidden">
-                    <div class="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                        <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg">📝 Дела</h3>
-                        <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
+                    <div class="p-4 border-b border-gray-100 bg-gray-50/50">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg">📝 Дела</h3>
+                            <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div class="flex bg-gray-200 p-1 rounded-xl">
+                            <button onclick="setTodoFilter('urgent')" id="tf-urgent" class="flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm transition text-gray-800">Срочно</button>
+                            <button onclick="setTodoFilter('medium')" id="tf-medium" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white/50 transition">Средне</button>
+                            <button onclick="setTodoFilter('later')" id="tf-later" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white/50 transition">Несрочно</button>
+                        </div>
                     </div>
                     
-                    <div class="p-5 border-b border-gray-100 bg-white">
-                        <form id="todo-form" class="flex gap-3">
-                            <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 focus:bg-white transition">
-                            <button type="submit" class="bg-blue-600 text-white px-4 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">+</button>
+                    <div class="p-3 border-b border-gray-100 bg-white">
+                        <form id="todo-form" class="flex gap-2">
+                            <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 focus:bg-white transition">
+                            <button type="submit" class="bg-blue-600 text-white px-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">+</button>
                         </form>
                     </div>
 
-                    <div id="todo-list" class="overflow-y-auto flex-1 p-4 space-y-1.5 scrollbar-hide"></div>
+                    <div id="todo-list" class="overflow-y-auto flex-1 p-3 space-y-1.5 scrollbar-hide"></div>
                 </div>
 
             </aside>
@@ -463,7 +478,7 @@
     </div>
 
     <div id="student-modal" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-md p-4">
-        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scroll">
             <h2 class="text-2xl font-bold mb-8 text-gray-900" id="student-modal-title">Ученик</h2>
             <form id="student-form" class="space-y-6">
                 <input type="hidden" id="student-id">
@@ -477,8 +492,11 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Уроков в неделю</label>
-                        <input type="number" id="st-lessons-week" class="block w-full border border-gray-200 rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Расписание (Дни)</label>
+                        <div class="flex justify-between gap-1" id="schedule-days-container">
+                            </div>
+                        <input type="hidden" id="st-schedule-days">
+                        <input type="hidden" id="st-lessons-week"> 
                     </div>
                 </div>
 
@@ -572,7 +590,7 @@
             <div class="mb-8 h-[180px]"><canvas id="studentChart"></canvas></div>
             
             <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">История</h3>
-            <div id="stats-history" class="space-y-3 text-sm text-gray-600 max-h-48 overflow-y-auto pr-2 custom-scrollbar"></div>
+            <div id="stats-history" class="space-y-3 text-sm text-gray-600 max-h-48 overflow-y-auto pr-2 custom-scroll"></div>
         </div>
     </div>
 
