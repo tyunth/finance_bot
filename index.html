@@ -69,28 +69,71 @@
         </div>
 
         <div id="tab-analytics" class="space-y-6 hidden">
-            <div class="card p-5 border-l-4 border-indigo-500 bg-indigo-50">
-                <p class="text-xs text-indigo-700 font-bold uppercase">Уроков в этом мес.</p>
-                <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-lessons-count">0</h3>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+    
+    <div class="lg:col-span-3 space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="card p-5 border-l-4 border-green-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Доход</p>
+                <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-income">0 T</h3>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div class="card p-5 border-l-4 border-green-500">
-                    <p class="text-xs text-gray-500 font-bold uppercase">Доход</p>
-                    <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-income">0 T</h3>
+            <div class="card p-5 border-l-4 border-red-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Расход</p>
+                <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-expense">0 T</h3>
+            </div>
+            <div class="card p-5 border-l-4 border-blue-500">
+                <p class="text-xs text-gray-500 font-bold uppercase">Итого</p>
+                <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-balance">0 T</h3>
+            </div>
+        </div>
+        
+        <div class="card p-5 border-l-4 border-purple-500 bg-purple-50">
+            <p class="text-xs text-purple-700 font-bold uppercase mb-2">💰 Счета и Депозиты</p>
+            <div id="deposit-list" class="text-sm space-y-1">Loading...</div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1 space-y-6">
+        
+        <div class="card p-5 bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg relative overflow-hidden">
+            <div id="weather-widget-content">
+                <p class="text-xs font-bold text-blue-100 uppercase mb-2">Петропавловск</p>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-4xl font-bold" id="w-temp">--°</div>
+                        <div class="text-sm text-blue-100 mt-1" id="w-desc">Загрузка...</div>
+                    </div>
+                    <div class="text-5xl" id="w-icon">🌤</div>
                 </div>
-                <div class="card p-5 border-l-4 border-red-500">
-                    <p class="text-xs text-gray-500 font-bold uppercase">Расход</p>
-                    <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-expense">0 T</h3>
-                </div>
-                <div class="card p-5 border-l-4 border-blue-500">
-                    <p class="text-xs text-gray-500 font-bold uppercase">Итого</p>
-                    <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-balance">0 T</h3>
-                </div>
-                <div class="card p-5 border-l-4 border-purple-500 bg-purple-50">
-                    <p class="text-xs text-purple-700 font-bold uppercase mb-2">💰 Счета и Депозиты</p>
-                    <div id="deposit-list" class="text-sm space-y-1">Loading...</div>
+                <div class="mt-4 text-sm font-medium bg-white/20 p-2 rounded-lg text-center hidden" id="w-umbrella">
+                    ☔ Бери зонт!
                 </div>
             </div>
+        </div>
+
+        <div class="card p-0 flex flex-col h-[300px]">
+            <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-gray-700">📝 Дела</h3>
+                <span id="todo-count" class="text-xs bg-gray-200 px-2 py-0.5 rounded-full">0</span>
+            </div>
+            
+            <div class="p-2 border-b">
+                <form id="todo-form" class="flex gap-2">
+                    <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-300 rounded px-2 py-1">
+                    <button type="submit" class="bg-blue-600 text-white px-3 rounded font-bold hover:bg-blue-700">+</button>
+                </form>
+            </div>
+
+            <div id="todo-list" class="overflow-y-auto flex-1 p-2 space-y-1"></div>
+        </div>
+        
+        <div class="card p-5 border-l-4 border-indigo-500 bg-indigo-50">
+            <p class="text-xs text-indigo-700 font-bold uppercase">Уроков в этом мес.</p>
+            <h3 class="text-xl font-bold text-gray-900 mt-1" id="stat-lessons-count">0</h3>
+        </div>
+
+    </div>
+</div>
 
             <div class="card p-6">
                 <div class="flex justify-between items-center mb-4">
