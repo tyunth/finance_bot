@@ -18,6 +18,7 @@ let ALL_CATEGORIES = [];
 let RAW_DATA = [];
 let chartsInstance = {}; 
 let CHART_DATA_CACHE = {}; 
+let ACCOUNTS_INFO = []; // Глобальная переменная для хранения списка счетов
 
 function formatCurrency(amount) {
     return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ' + CURRENCY;
@@ -54,7 +55,12 @@ async function loadData() {
 
         ALL_CATEGORIES = await catRes.json();
         RAW_DATA = await txRes.json();
-        const balances = await balRes.json();
+        
+        // --- ИЗМЕНЕНИЕ ---
+        const balData = await balRes.json();
+        const balances = balData.balances;
+        ACCOUNTS_INFO = balData.accountsList || [];
+        // -----------------
 
         const filterSel = document.getElementById('filter-category');
         if (filterSel && filterSel.options.length <= 1) {
@@ -112,6 +118,7 @@ async function init() {
     }
 }
 
+// --- ОБНОВЛЕННАЯ ФУНКЦИЯ ОТРИСОВКИ СЧЕТОВ ---
 function renderBalances(balances) {
     const list = document.getElementById('deposit-list');
     if (!list) return;
@@ -120,12 +127,32 @@ function renderBalances(balances) {
         list.innerHTML = 'Нет счетов';
         return;
     }
-    list.innerHTML = Object.entries(balances)
-        .map(([name, val]) => {
-            const color = val > 0 ? 'text-green-600' : (val < 0 ? 'text-red-500' : 'text-gray-500');
-            return `<div class="flex justify-between"><span>${name}:</span> <span class="${color} font-bold">${formatCurrency(val)}</span></div>`;
-        })
-        .join('');
+    
+    // Сортировка: Сначала Основной, потом по убыванию денег
+    const entries = Object.entries(balances).sort((a, b) => {
+        if (a[0] === 'Основной') return -1;
+        if (b[0] === 'Основной') return 1;
+        return b[1] - a[1];
+    });
+
+    list.innerHTML = entries.map(([name, val]) => {
+        const isDeposit = ACCOUNTS_INFO.find(a => a.name === name)?.is_deposit;
+        const icon = isDeposit ? '🔹' : (name === 'Основной' ? '💳' : '💰');
+        const color = val > 0 ? 'text-gray-900' : (val < 0 ? 'text-red-500' : 'text-gray-400');
+        
+        return `
+            <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <span class="text-lg opacity-80">${icon}</span>
+                    <div class="flex flex-col min-w-0">
+                        <span class="text-sm font-bold text-gray-700 truncate" title="${name}">${name}</span>
+                        ${isDeposit ? '<span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Вклад</span>' : ''}
+                    </div>
+                </div>
+                <span class="${color} font-mono font-bold whitespace-nowrap text-base">${formatCurrency(val)}</span>
+            </div>
+        `;
+    }).join('');
 }
 
 function applyFilters() {
@@ -248,10 +275,7 @@ function renderAnalytics(data) {
     renderDoughnutChart('chartIncome', incomeMap, chartsInstance, 'income', totalIncome);
     
     renderDayChart();
-    
-    // ... (остальной код функции renderAnalytics: динамика, топы - без изменений) ...
-    // Если нужно, я могу прислать функцию целиком, но изменения были только в начале (сбор данных).
-    // Чтобы не запутаться, просто вставь код сбора данных и оставь отрисовку графиков ниже.
+    renderDepositStats(data);
     
     // --- ДИНАМИКА ---
     const sortedMonths = Object.keys(monthMap).sort();
@@ -1353,6 +1377,59 @@ async function deleteTodo(id) {
     if(!confirm('Удалить?')) return;
     await fetch(`${API_BASE_URL}/todos/action`, { method: 'POST', body: JSON.stringify({ action: 'delete', id }) });
     loadTodos();
+}
+
+function renderDepositStats(currentData) {
+    // 1. Находим имена депозитных счетов
+    const depositNames = ACCOUNTS_INFO.filter(a => a.is_deposit).map(a => a.name);
+    
+    if (depositNames.length === 0) return; // Если депозитов нет, нечего считать
+
+    let saved = 0;
+    let withdrawn = 0;
+
+    currentData.forEach(t => {
+        // Перевод НА депозит
+        if (t.type === 'transfer' && depositNames.includes(t.target_account)) {
+            saved += t.amount;
+        }
+        // Прямое пополнение депозита (тип income, категория Депозит) - если бот так пишет
+        else if (t.type === 'income' && (t.target_account && depositNames.includes(t.target_account))) {
+             // Исключаем проценты, если хотим видеть только наши вложения, 
+             // но обычно "отложил" включает всё приходящее извне, кроме процентов. 
+             // Если хочешь чисто свои переводы - оставь только верхний if.
+             // Сейчас добавим всё входящее на депозит кроме процентов.
+             if (t.category !== 'Проценты') saved += t.amount;
+        }
+
+        // Вывод С депозита
+        if (t.type === 'transfer' && depositNames.includes(t.source_account)) {
+            withdrawn += t.amount;
+        }
+    });
+
+    // Отрисовка
+    const savedEl = document.getElementById('stat-savings-in');
+    const withdrawnEl = document.getElementById('stat-savings-out');
+    const netEl = document.getElementById('stat-savings-net');
+    
+    if (savedEl) savedEl.textContent = `+${formatCurrency(saved)}`;
+    if (withdrawnEl) withdrawnEl.textContent = `-${formatCurrency(withdrawn)}`;
+    
+    const net = saved - withdrawn;
+    if (netEl) {
+        netEl.textContent = (net > 0 ? '+' : '') + formatCurrency(net);
+        netEl.className = `font-bold ${net > 0 ? 'text-green-600' : (net < 0 ? 'text-red-500' : 'text-gray-800')}`;
+    }
+
+    // Прогресс бары (Визуализация)
+    const maxVal = Math.max(saved, withdrawn, 1); // 1 чтобы не делить на 0
+    if (document.getElementById('bar-savings-in')) {
+        document.getElementById('bar-savings-in').style.width = `${(saved / maxVal) * 100}%`;
+    }
+    if (document.getElementById('bar-savings-out')) {
+        document.getElementById('bar-savings-out').style.width = `${(withdrawn / maxVal) * 100}%`;
+    }
 }
 
 init();
