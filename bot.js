@@ -883,10 +883,10 @@ bot.on('callback_query', async (ctx) => {
     if (data.startsWith('cal_cancel_menu_')) {
         const eventId = data.split('_')[3];
         return ctx.editMessageText('Причина отмены?', Markup.inlineKeyboard([
-            [Markup.button.callback('🤝 Согласовано / Каникулы', `cal_cx_agreed_${eventId}`)],
-            [Markup.button.callback('👨‍🏫 Я отменил', `cal_cx_teacher_${eventId}`)],
-            [Markup.button.callback('🎓 Ученик отменил', `cal_cx_student_${eventId}`)],
-            [Markup.button.callback('🔙 Назад', `cal_back_${eventId}`)] // Нужно добавить логику возврата меню, если хочешь
+            [Markup.button.callback('Согласовано', `cal_cx_agreed_${eventId}`)],
+            [Markup.button.callback('Я отменил', `cal_cx_teacher_${eventId}`)],
+            [Markup.button.callback('Ученик отменил', `cal_cx_student_${eventId}`)],
+            [Markup.button.callback('Назад', `cal_back_${eventId}`)] // Нужно добавить логику возврата меню, если хочешь
         ]));
     }
 
