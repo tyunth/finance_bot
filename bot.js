@@ -1071,23 +1071,23 @@ async function runDailyBackup() {
     } catch (e) { console.error('Ошибка бэкапа:', e); }
 }
 
-// 7 утра (по серверному времени, если сервер в KZ - ок, если нет - поправь цифру)
-cron.schedule('0 7 * * *', async () => {
+cron.schedule('0 2 * * *', async () => {
     try {
         const adminId = config.ADMIN_ID;
         const now = new Date();
         
-        // Обновленный URL с осадками
+        // 1. Погода
         const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto';
         const wRes = await axios.get(weatherUrl);
         const todayWeather = wRes.data.daily;
         const tempMax = todayWeather.temperature_2m_max[0];
         const tempMin = todayWeather.temperature_2m_min[0];
-        const precip = todayWeather.precipitation_sum[0]; // Осадки в мм
+        const precip = todayWeather.precipitation_sum[0]; 
         
         let weatherMsg = `🌤 *Погода:*\nОт ${tempMin}°C до ${tempMax}°C`;
         if (precip > 0.5) weatherMsg += `\n☔ Ожидаются осадки (~${precip} мм). Возьми зонт!`;
         else weatherMsg += `\n☂️ Без существенных осадков.`;
+
         // 2. Календарь
         const events = await gcal.getEventsForDate(now);
         let agendaMsg = `📅 *План на сегодня:*`;
@@ -1099,17 +1099,17 @@ cron.schedule('0 7 * * *', async () => {
                 agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
             });
         }
+
         // 3. Дела из БД
         const allTodos = await db.getTodos();
         const active = allTodos.filter(t => !t.is_done);
         
         if (active.length > 0) {
-            agendaMsg += `\n\n *Дела:*`;
-            // Группировка
+            agendaMsg += `\n\n *Дела:*`; 
+            
             const urgent = active.filter(t => t.period === 'urgent');
             const medium = active.filter(t => t.period === 'medium');
             const later = active.filter(t => t.period === 'later');
-            // Старые задачи без периода (today) кидаем в срочные
             const legacy = active.filter(t => !t.period || t.period === 'today');
 
             if(urgent.length || legacy.length) { 
@@ -1124,7 +1124,7 @@ cron.schedule('0 7 * * *', async () => {
                 agendaMsg += `\n Несрочно:`; 
                 later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
             }
-            
+        } 
 
         await bot.telegram.sendMessage(adminId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
     } catch (e) {
