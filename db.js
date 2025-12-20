@@ -73,6 +73,14 @@ function initializeTables() {
             comment TEXT
         )`);
 
+        // Таблица Дел (To-Do)
+        db.run(`CREATE TABLE IF NOT EXISTS todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            text TEXT, 
+            is_done INTEGER DEFAULT 0,
+            created_at TEXT
+        )`);
+
         // --- МИГРАЦИИ (ДОБАВЛЕНИЕ КОЛОНОК) ---
         const runMigration = (table, col, type = 'TEXT') => {
             db.all(`PRAGMA table_info(${table})`, (err, cols) => {
@@ -315,6 +323,23 @@ async function payDebt(debtId) {
     return true;
 }
 
+// --- СПИСОК ДЕЛ (TO-DO) ---
+async function getTodos() {
+    // Сначала невыполненные, потом выполненные (чтобы галочки улетали вниз)
+    return dbAll("SELECT * FROM todos ORDER BY is_done ASC, id DESC");
+}
+async function addTodo(text) {
+    const date = new Date().toISOString();
+    return dbRun("INSERT INTO todos (text, created_at) VALUES (?, ?)", [text, date]);
+}
+async function toggleTodo(id, status) {
+    // status: 1 (сделано) или 0 (не сделано)
+    return dbRun("UPDATE todos SET is_done = ? WHERE id = ?", [status, id]);
+}
+async function deleteTodo(id) {
+    return dbRun("DELETE FROM todos WHERE id = ?", [id]);
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -325,5 +350,6 @@ module.exports = {
     getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
+    getTodos, addTodo, toggleTodo, deleteTodo, 
     DB_PATH
 };
