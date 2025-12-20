@@ -32,12 +32,12 @@
 
         <div class="main-layout">
             
-            <main class="main-content">
+            <main>
                 
-                <div id="loading" style="text-align: center; color: var(--primary);">Загрузка данных...</div>
+                <div id="loading" class="loading-text">Загрузка данных...</div>
 
                 <div id="filter-panel" class="card hidden">
-                    <div class="form-row" style="align-items: flex-end; flex-wrap: wrap;">
+                    <div class="form-row">
                         <div>
                             <label class="form-label">С даты</label>
                             <input type="date" id="filter-date-start" class="form-input">
@@ -55,15 +55,15 @@
                                 <option value="transfer">Перевод</option>
                             </select>
                         </div>
-                        <div style="flex-grow: 1;">
+                        <div class="flex-1">
                             <label class="form-label">Категория</label>
                             <select id="filter-category" class="form-select">
                                 <option value="ALL">Все категории</option>
                             </select>
                         </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button onclick="applyFilters()" class="btn btn-primary" style="width: auto;">Применить</button>
-                            <button onclick="resetFilters()" class="btn" style="background: #ddd;">Сброс</button>
+                        <div class="filter-actions">
+                            <button onclick="applyFilters()" class="btn btn-primary">Применить</button>
+                            <button onclick="resetFilters()" class="btn">Сброс</button>
                         </div>
                     </div>
                 </div>
@@ -72,40 +72,40 @@
                     <div class="stats-grid">
                         <div class="stat-card green">
                             <p class="form-label">Доход</p>
-                            <h3 id="stat-income" class="text-xl font-bold">0 T</h3>
+                            <h3 id="stat-income" class="stat-value">0 T</h3>
                         </div>
                         <div class="stat-card red">
                             <p class="form-label">Расход</p>
-                            <h3 id="stat-expense" class="text-xl font-bold">0 T</h3>
+                            <h3 id="stat-expense" class="stat-value">0 T</h3>
                         </div>
                         <div class="stat-card blue">
                             <p class="form-label">Итого</p>
-                            <h3 id="stat-balance" class="text-xl font-bold">0 T</h3>
+                            <h3 id="stat-balance" class="stat-value">0 T</h3>
                         </div>
-                        <div class="stat-card blue" style="border-color: #6366f1; background: #eef2ff;">
-                            <p class="form-label" style="color: #4338ca;">Уроков в мес.</p>
-                            <h3 id="stat-lessons-count" class="text-xl font-bold">0</h3>
+                        <div class="stat-card indigo">
+                            <p class="form-label stat-label-indigo">Уроков в мес.</p>
+                            <h3 id="stat-lessons-count" class="stat-value">0</h3>
                         </div>
                     </div>
 
-                    <div class="stat-card purple" style="margin-bottom: 24px;">
-                        <p class="form-label">💰 Счета и Депозиты</p>
+                    <div class="stat-card purple" style="margin-bottom: 20px;">
+                        <p class="form-label stat-label-purple">💰 Счета и Депозиты</p>
                         <div id="deposit-list">Loading...</div>
                     </div>
 
                     <div class="card">
-                        <div class="header" style="margin-bottom: 10px;">
+                        <div class="chart-header">
                             <h3>Динамика</h3>
-                            <span style="font-size: 12px; color: grey;">Кликни столбец для фильтра</span>
+                            <span class="chart-header-hint">Кликни столбец для фильтра</span>
                         </div>
                         <div class="chart-container"><canvas id="chartMonthly"></canvas></div>
                     </div>
 
                     <div class="charts-row">
                         <div class="card">
-                            <div class="header">
+                            <div class="chart-header">
                                 <h3>Расходы</h3>
-                                <select id="chart-group-by" onchange="applyFilters()" class="form-select" style="width: auto;">
+                                <select id="chart-group-by" onchange="applyFilters()" class="form-select w-auto">
                                     <option value="category">По Категориям</option>
                                     <option value="tag">По Тегам</option>
                                 </select>
@@ -113,9 +113,9 @@
                             <div class="chart-container"><canvas id="chartCategories"></canvas></div>
                         </div>
                         <div class="card">
-                            <div class="header">
+                            <div class="chart-header">
                                 <h3>Доходы</h3>
-                                <select id="chart-income-group-by" onchange="applyFilters()" class="form-select" style="width: auto;">
+                                <select id="chart-income-group-by" onchange="applyFilters()" class="form-select w-auto">
                                     <option value="category">По Категориям</option>
                                     <option value="tag">По Ученикам</option>
                                 </select>
@@ -125,9 +125,9 @@
                     </div>
 
                     <div class="card">
-                         <div class="header">
+                         <div class="chart-header">
                              <h3>Активность</h3>
-                             <select id="chart-day-type" onchange="renderDayChart()" class="form-select" style="width: auto;">
+                             <select id="chart-day-type" onchange="renderDayChart()" class="form-select w-auto">
                                  <option value="week">По дням недели</option>
                                  <option value="month">По числам месяца</option>
                              </select>
@@ -136,22 +136,18 @@
                     </div>
 
                     <div class="charts-row">
-                        <div class="card" style="padding: 0;">
-                            <div style="padding: 15px; background: #f9fafb; border-bottom: 1px solid #eee;">
-                                <b>Топ-10 Покупок</b>
+                        <div class="card card-flush">
+                            <div class="card-header-bg"><b>Топ-10 Покупок</b></div>
+                            <div class="table-wrapper">
+                                <table><tbody id="top-expenses-list"></tbody></table>
                             </div>
-                            <table style="width: 100%;">
-                                <tbody id="top-expenses-list"></tbody>
-                            </table>
                         </div>
-                        <div class="card" style="padding: 0;">
-                            <div style="padding: 15px; background: #f9fafb; border-bottom: 1px solid #eee;">
-                                <b>Частые операции</b>
-                            </div>
-                            <div style="padding: 15px;">
-                                <p class="form-label">По категориям</p>
-                                <table style="margin-bottom: 15px;"><tbody id="top-freq-cat-list"></tbody></table>
-                                <p class="form-label">По комментариям</p>
+                        <div class="card card-flush">
+                            <div class="card-header-bg"><b>Частые операции</b></div>
+                            <div class="card-content-pad">
+                                <p class="list-section-title">По категориям</p>
+                                <table><tbody id="top-freq-cat-list"></tbody></table>
+                                <p class="list-section-title mt-4 pt-4 border-t">По комментариям</p>
                                 <table><tbody id="top-freq-comment-list"></tbody></table>
                             </div>
                         </div>
@@ -160,10 +156,10 @@
 
                 <div id="tab-transactions" class="hidden">
                     <div class="header">
-                        <input type="text" id="tx-search" oninput="searchTransactions(this.value)" placeholder="🔍 Поиск..." class="form-input" style="width: 300px;">
-                        <button onclick="openAddModal()" class="btn btn-primary" style="width: auto;">+ Добавить</button>
+                        <input type="text" id="tx-search" oninput="searchTransactions(this.value)" placeholder="🔍 Поиск..." class="form-input tx-search-input">
+                        <button onclick="openAddModal()" class="btn btn-primary w-auto">+ Добавить</button>
                     </div>
-                    <div class="card table-wrapper" style="padding: 0;">
+                    <div class="card card-flush table-wrapper">
                         <table>
                             <thead><tr id="table-header"></tr></thead>
                             <tbody id="table-body"></tbody>
@@ -172,79 +168,97 @@
                 </div>
 
                 <div id="tab-students" class="hidden">
-                    <div id="debts-panel" class="card hidden" style="background: #fef2f2; border: 1px solid #fecaca;">
-                        <h3 class="text-red">⚠️ Неоплаченные уроки</h3>
-                        <div id="debts-list" style="margin-top: 10px;"></div>
+                    <div id="debts-panel" class="debts-panel hidden">
+                        <h3 class="debts-title">⚠️ Неоплаченные уроки</h3>
+                        <div id="debts-list" class="debts-list"></div>
                     </div>
                     
                     <div class="header">
                         <h2>Список учеников</h2>
-                        <button onclick="openStudentModal()" class="btn btn-primary" style="width: auto;">+ Добавить</button>
+                        <button onclick="openStudentModal()" class="btn btn-primary w-auto">+ Добавить</button>
                     </div>
-                    <div class="students-grid" id="students-grid"></div>
+                    <div id="students-grid" class="stats-grid"></div>
                 </div>
 
                 <div id="tab-calendar" class="hidden">
-                    <div class="card" style="height: 800px; padding: 5px;">
-                        <iframe id="google-calendar-frame" src="" style="border: 0" width="100%" height="100%"></iframe>
+                    <div class="card calendar-frame-container">
+                        <iframe id="google-calendar-frame" src="" style="border: 0; width: 100%; height: 100%;"></iframe>
                     </div>
                 </div>
 
                 <div id="tab-utilities" class="hidden">
                     <div class="charts-row">
                         <div class="card">
-                            <div class="header">
+                            <div class="chart-header">
                                 <h3>Квитанция</h3>
-                                <input type="month" id="util-month" class="form-input" style="width: auto;">
+                                <input type="month" id="util-month" class="form-input util-header-input">
                             </div>
                             <form id="utility-bulk-form">
-                                <div class="form-group" style="background: #eff6ff; padding: 10px; border-radius: 8px;">
-                                    <h4 class="text-blue">💧 Кызылжар су</h4>
+                                <div class="util-group water">
+                                    <h4 class="util-title water">💧 Кызылжар су</h4>
                                     <div class="form-row">
-                                        <input type="number" step="0.01" id="val-water-cold" class="form-input" placeholder="Хол (м3)">
-                                        <input type="number" step="0.01" id="val-water-hot" class="form-input" placeholder="Гор (м3)">
+                                        <input type="number" step="0.01" id="val-water-cold" class="form-input flex-1" placeholder="Хол (м3)">
+                                        <input type="number" step="0.01" id="val-water-hot" class="form-input flex-1" placeholder="Гор (м3)">
                                     </div>
-                                    <div style="margin-top: 5px;">
+                                    <div class="mt-4">
                                         <input type="number" step="0.01" data-service="Кызылжар су" class="util-amount-input form-input" placeholder="Сумма (T)">
                                     </div>
                                 </div>
-                                <div class="form-group" style="background: #fefce8; padding: 10px; border-radius: 8px;">
-                                    <h4 style="color: #b45309;">⚡ Свет</h4>
+                                <div class="util-group light">
+                                    <h4 class="util-title light">⚡ Свет</h4>
                                     <div class="form-row">
-                                        <input type="number" id="val-light-read" class="form-input" placeholder="Показания">
-                                        <input type="number" step="0.01" data-service="СК РЭК" class="util-amount-input form-input" placeholder="Сумма (T)">
+                                        <input type="number" id="val-light-read" class="form-input flex-1" placeholder="Показания">
+                                        <input type="number" step="0.01" data-service="СК РЭК" class="util-amount-input form-input flex-1" placeholder="Сумма (T)">
                                     </div>
                                 </div>
-                                <div class="form-group" style="background: #fef2f2; padding: 10px; border-radius: 8px;">
-                                    <h4 class="text-red">🔥 Тепло</h4>
+                                <div class="util-group heat">
+                                    <h4 class="util-title heat">🔥 Тепло</h4>
                                     <div class="form-row">
-                                        <input type="number" id="val-heat-hot" class="form-input" disabled placeholder="Из воды" style="background: #eee;">
-                                        <input type="number" step="0.01" data-service="ПТС" class="util-amount-input form-input" placeholder="Сумма (T)">
+                                        <input type="number" id="val-heat-hot" class="form-input util-disabled-input flex-1" disabled placeholder="Из воды">
+                                        <input type="number" step="0.01" data-service="ПТС" class="util-amount-input form-input flex-1" placeholder="Сумма (T)">
                                     </div>
                                 </div>
                                 
-                                <div class="form-group"><label>Горгаз</label><input type="number" step="0.01" data-service="Горгаз" class="util-amount-input form-input"></div>
-                                <div class="form-group"><label>Мусор</label><input type="number" step="0.01" data-service="Мусор" class="util-amount-input form-input"></div>
-                                <div class="form-group"><label>ОСИ (Упр)</label><input type="number" step="0.01" data-service="ОСИ Управление" class="util-amount-input form-input"></div>
-                                <div class="form-group"><label>ОСИ (Накоп)</label><input type="number" step="0.01" data-service="ОСИ Накопление" class="util-amount-input form-input"></div>
-                                <div class="form-group"><label>Интернет</label><input type="number" step="0.01" data-service="Казахтелеком" class="util-amount-input form-input"></div>
-                                <div class="form-group"><label>Домофон</label><input type="number" step="0.01" data-service="Домофон" class="util-amount-input form-input"></div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">Горгаз</label>
+                                    <input type="number" step="0.01" data-service="Горгаз" class="util-amount-input form-input flex-1">
+                                </div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">Мусор</label>
+                                    <input type="number" step="0.01" data-service="Мусор" class="util-amount-input form-input flex-1">
+                                </div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">ОСИ (Упр)</label>
+                                    <input type="number" step="0.01" data-service="ОСИ Управление" class="util-amount-input form-input flex-1">
+                                </div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">ОСИ (Накоп)</label>
+                                    <input type="number" step="0.01" data-service="ОСИ Накопление" class="util-amount-input form-input flex-1">
+                                </div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">Интернет</label>
+                                    <input type="number" step="0.01" data-service="Казахтелеком" class="util-amount-input form-input flex-1">
+                                </div>
+                                <div class="form-group form-row">
+                                    <label class="flex-1">Домофон</label>
+                                    <input type="number" step="0.01" data-service="Домофон" class="util-amount-input form-input flex-1">
+                                </div>
 
-                                <div class="header" style="margin-top: 20px;">
-                                    <div>Итого: <span id="total-util-sum" style="font-weight: bold;">0 T</span></div>
-                                    <button type="submit" class="btn btn-primary" style="width: auto;">Сохранить</button>
+                                <div class="util-footer">
+                                    <div>Итого: <span id="total-util-sum" class="util-total">0 T</span></div>
+                                    <button type="submit" class="btn btn-primary w-auto">Сохранить</button>
                                 </div>
                             </form>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                        <div class="util-history-container">
                             <div class="card">
                                 <h3>История за год</h3>
                                 <div class="chart-container"><canvas id="chartUtilities"></canvas></div>
                             </div>
-                            <div class="card table-wrapper" style="height: 400px; overflow-y: auto;">
-                                <div class="header">
+                            <div class="card card-flush util-history-list">
+                                <div class="util-history-header">
                                     <h3>Операции</h3>
-                                    <button onclick="loadUtilities()" style="border:none; background:none; color:blue; cursor:pointer;">Обновить</button>
+                                    <button onclick="loadUtilities()" class="btn-refresh">Обновить</button>
                                 </div>
                                 <table><tbody id="utility-list"></tbody></table>
                             </div>
@@ -253,9 +267,9 @@
                 </div>
 
                 <div id="tab-shopping" class="hidden">
-                    <div class="card" style="background: #eff6ff;">
-                        <form id="shopping-form" class="form-row" style="align-items: flex-end;">
-                            <div style="flex-grow: 1;">
+                    <div class="shopping-form-card">
+                        <form id="shopping-form" class="form-row">
+                            <div class="flex-1">
                                 <label class="form-label">Что купить?</label>
                                 <input type="text" id="shop-item" class="form-input" placeholder="Хлеб..." required>
                             </div>
@@ -270,18 +284,18 @@
                                 <label class="form-label">Цена</label>
                                 <input type="number" id="shop-price" class="form-input">
                             </div>
-                            <button type="submit" class="btn btn-primary" style="width: auto;">+</button>
+                            <button type="submit" class="btn btn-primary w-auto">+</button>
                         </form>
                     </div>
                     
                     <div class="charts-row">
                         <div class="card">
-                            <h3>🛒 Повседневное <span id="count-buy" style="background:#eee; padding:2px 6px; border-radius:10px; font-size:12px;">0</span></h3>
-                            <div id="list-buy" style="margin-top: 10px;"></div>
+                            <h3>🛒 Повседневное <span id="count-buy" class="shop-count-badge">0</span></h3>
+                            <div id="list-buy" class="shop-list-container"></div>
                         </div>
                         <div class="card">
-                            <h3>🎁 Вишлист <span id="count-wish" style="background:#eee; padding:2px 6px; border-radius:10px; font-size:12px;">0</span></h3>
-                            <div id="list-wish" style="margin-top: 10px;"></div>
+                            <h3>🎁 Вишлист <span id="count-wish" class="shop-count-badge">0</span></h3>
+                            <div id="list-wish" class="shop-list-container"></div>
                         </div>
                     </div>
                 </div>
@@ -289,60 +303,55 @@
             </main>
 
             <aside class="sidebar">
-                
                 <div class="weather-widget">
-                    <p style="font-size: 12px; opacity: 0.8; text-transform: uppercase; margin-bottom: 5px;">Петропавловск</p>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <p class="weather-city">Петропавловск</p>
+                    <div class="weather-main">
                         <div>
-                            <div id="w-temp" style="font-size: 36px; font-weight: bold;">--°</div>
-                            <div id="w-desc" style="font-size: 14px; opacity: 0.9;">Загрузка...</div>
+                            <div id="w-temp" class="weather-temp">--°</div>
+                            <div id="w-desc" class="weather-desc">Загрузка...</div>
                         </div>
-                        <div id="w-icon" style="font-size: 48px;">🌤</div>
+                        <div id="w-icon" class="weather-icon">🌤</div>
                     </div>
-                    <div id="w-umbrella" class="hidden" style="margin-top: 15px; background: rgba(255,255,255,0.2); padding: 8px; border-radius: 8px; text-align: center; font-size: 14px;">
-                        ☔ Бери зонт!
-                    </div>
+                    <div id="w-umbrella" class="weather-umbrella hidden">☔ Бери зонт!</div>
                 </div>
 
                 <div class="card todo-widget">
-                    <div style="padding-bottom: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
-                        <b>📝 Дела</b>
-                        <span id="todo-count" style="background:#eee; padding:2px 8px; border-radius:12px; font-size:12px;">0</span>
+                    <div class="todo-header">
+                        <span>📝 Дела</span>
+                        <span id="todo-count" class="shop-count-badge">0</span>
                     </div>
-                    <div style="padding: 10px 0; border-bottom: 1px solid #eee;">
-                        <form id="todo-form" style="display: flex; gap: 5px;">
-                            <input type="text" id="todo-input" placeholder="Новая задача..." class="form-input" style="padding: 6px;">
-                            <button type="submit" class="btn btn-primary" style="width: auto; padding: 6px 12px;">+</button>
+                    <div class="todo-input-area">
+                        <form id="todo-form" class="form-row" style="gap: 5px;">
+                            <input type="text" id="todo-input" placeholder="Новая задача..." class="form-input flex-1">
+                            <button type="submit" class="btn btn-primary w-auto">+</button>
                         </form>
                     </div>
-                    <div id="todo-list" class="todo-list"></div>
+                    <div id="todo-list" class="todo-list-area"></div>
                 </div>
-
             </aside>
         </div>
     </div>
 
     <div id="edit-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <h2>Запись</h2>
+            <h2 class="modal-title">Запись</h2>
+            <br>
             <form id="edit-form">
                 <input type="hidden" id="edit-id">
-                
                 <div class="form-row">
-                    <div style="flex:1">
+                    <div class="flex-1">
                         <label class="form-label">Тип</label>
                         <select id="edit-type" class="form-select">
                             <option value="expense">Расход</option>
                             <option value="income">Доход</option>
                         </select>
                     </div>
-                    <div style="flex:1">
+                    <div class="flex-1">
                         <label class="form-label">Дата</label>
                         <input type="date" id="edit-date" class="form-input" required>
                     </div>
                 </div>
-
-                <div class="form-group" style="margin-top:10px;">
+                <div class="form-group mt-4">
                     <label class="form-label">Сумма</label>
                     <input type="number" step="0.01" id="edit-amount" class="form-input" required>
                 </div>
@@ -358,37 +367,38 @@
                     <label class="form-label">Комментарий</label>
                     <textarea id="edit-comment" rows="3"></textarea>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                    <button type="button" onclick="closeModal()" class="btn" style="background: #eee;">Отмена</button>
-                    <button type="submit" class="btn btn-primary" style="width: auto;">Сохранить</button>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal()" class="btn">Отмена</button>
+                    <button type="submit" class="btn btn-primary w-auto">Сохранить</button>
                 </div>
             </form>
         </div>
     </div>
 
     <div id="student-modal" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width: 600px;">
-            <h2 id="student-modal-title">Ученик</h2>
+        <div class="modal-content modal-lg">
+            <h2 id="student-modal-title" class="modal-title">Ученик</h2>
+            <br>
             <form id="student-form">
                 <input type="hidden" id="student-id">
                 <div class="form-row">
-                    <div style="flex:1"><label class="form-label">Предмет</label><select id="st-subject" class="form-select"><option>Математика</option><option>Го</option></select></div>
-                    <div style="flex:1"><label class="form-label">Уроков в нед.</label><input type="number" id="st-lessons-week" class="form-input"></div>
+                    <div class="flex-1"><label class="form-label">Предмет</label><select id="st-subject" class="form-select"><option>Математика</option><option>Го</option></select></div>
+                    <div class="flex-1"><label class="form-label">Уроков в нед.</label><input type="number" id="st-lessons-week" class="form-input"></div>
                 </div>
-                <div class="form-row" style="margin-top:10px;">
-                    <div style="flex:1"><label class="form-label">Имя</label><input type="text" id="st-name" class="form-input" required></div>
-                    <div style="flex:1"><label class="form-label">Телефон</label><input type="text" id="st-phone" class="form-input"></div>
+                <div class="form-row mt-4">
+                    <div class="flex-1"><label class="form-label">Имя</label><input type="text" id="st-name" class="form-input" required></div>
+                    <div class="flex-1"><label class="form-label">Телефон</label><input type="text" id="st-phone" class="form-input"></div>
                 </div>
-                <div class="form-row" style="margin-top:10px;">
-                    <div style="flex:1"><label class="form-label">Родитель</label><input type="text" id="st-parents" class="form-input"></div>
-                    <div style="flex:1"><label class="form-label">Тел. род.</label><input type="text" id="st-parent-phone" class="form-input"></div>
+                <div class="form-row mt-4">
+                    <div class="flex-1"><label class="form-label">Родитель</label><input type="text" id="st-parents" class="form-input"></div>
+                    <div class="flex-1"><label class="form-label">Тел. род.</label><input type="text" id="st-parent-phone" class="form-input"></div>
                 </div>
-                <div class="form-row" style="margin-top:10px;">
-                    <input type="text" id="st-school" class="form-input" placeholder="Школа">
+                <div class="form-row mt-4">
+                    <input type="text" id="st-school" class="form-input flex-1" placeholder="Школа">
                     <input type="text" id="st-grade" class="form-input" placeholder="Класс" style="width: 80px;">
-                    <input type="text" id="st-teacher" class="form-input" placeholder="Учитель">
+                    <input type="text" id="st-teacher" class="form-input flex-1" placeholder="Учитель">
                 </div>
-                <div class="form-group" style="margin-top:10px;">
+                <div class="form-group mt-4">
                     <label class="form-label">Адрес</label>
                     <input type="text" id="st-address" class="form-input">
                 </div>
@@ -396,11 +406,11 @@
                     <label class="form-label">Заметки</label>
                     <textarea id="st-notes" rows="2"></textarea>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 15px;">
-                    <button type="button" id="btn-delete-student" onclick="deleteStudent()" class="btn btn-danger hidden" style="width: auto;">Удалить</button>
-                    <div style="display: flex; gap: 10px;">
-                        <button type="button" onclick="closeStudentModal()" class="btn" style="background: #eee;">Отмена</button>
-                        <button type="submit" class="btn btn-primary" style="width: auto;">Сохранить</button>
+                <div class="modal-footer modal-footer-between">
+                    <button type="button" id="btn-delete-student" onclick="deleteStudent()" class="btn btn-danger hidden w-auto">Удалить</button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="closeStudentModal()" class="btn">Отмена</button>
+                        <button type="submit" class="btn btn-primary w-auto">Сохранить</button>
                     </div>
                 </div>
             </form>
@@ -409,40 +419,40 @@
 
     <div id="stats-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <div style="display:flex; justify-content:space-between;">
-                <h2 id="stats-title">Статистика</h2>
-                <button onclick="closeStatsModal()" style="border:none; background:none; font-size:20px; cursor:pointer;">✕</button>
+            <div class="modal-header">
+                <h2 id="stats-title" class="modal-title">Статистика</h2>
+                <button onclick="closeStatsModal()" class="modal-close">✕</button>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                <div class="card" style="margin:0; background:#f0fdf4; border:1px solid #dcfce7; padding:10px;">
-                    <p class="form-label" style="color:var(--success)">Всего</p>
-                    <p id="stats-total" style="font-size:20px; font-weight:bold;">0</p>
+            <div class="stats-mini-grid">
+                <div class="stats-mini-card green">
+                    <p class="stats-mini-label green">Всего</p>
+                    <p id="stats-total" class="stats-mini-value">0</p>
                 </div>
-                <div class="card" style="margin:0; background:#eff6ff; border:1px solid #dbeafe; padding:10px;">
-                    <p class="form-label" style="color:var(--primary)">Уроков</p>
-                    <p id="stats-count" style="font-size:20px; font-weight:bold;">0</p>
+                <div class="stats-mini-card blue">
+                    <p class="stats-mini-label blue">Уроков</p>
+                    <p id="stats-count" class="stats-mini-value">0</p>
                 </div>
             </div>
 
-            <div class="card" style="margin:0 0 15px 0; background:#f9fafb; padding:15px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                    <b style="font-size:12px; text-transform:uppercase;">Этот месяц (<span id="stats-month-name"></span>)</b>
+            <div class="stats-progress-card">
+                <div class="stats-progress-header">
+                    <b class="form-label">Этот месяц (<span id="stats-month-name"></span>)</b>
                 </div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-                    <div><span style="font-size:12px; color:grey;">План</span><br><b id="stats-plan" style="font-size:18px;">0</b></div>
-                    <div style="text-align:right;"><span style="font-size:12px; color:grey;">Факт</span><br><b id="stats-fact" style="font-size:18px;">0</b></div>
+                <div class="stats-numbers">
+                    <div><span class="stats-num-label">План</span><br><b id="stats-plan" class="stats-num-val">0</b></div>
+                    <div style="text-align:right;"><span class="stats-num-label">Факт</span><br><b id="stats-fact" class="stats-num-val">0</b></div>
                 </div>
-                <div style="background:#e5e7eb; height:10px; border-radius:5px; margin-top:10px; overflow:hidden;">
-                    <div id="stats-progress" style="background:var(--primary); height:100%; width:0%;"></div>
+                <div class="progress-bar-bg">
+                    <div id="stats-progress" class="progress-bar-fill"></div>
                 </div>
-                <p id="stats-progress-text" style="font-size:12px; text-align:center; margin-top:5px; color:grey;"></p>
+                <p id="stats-progress-text" class="progress-text"></p>
             </div>
 
-            <div style="height:150px; margin-bottom:15px;"><canvas id="studentChart"></canvas></div>
+            <div class="chart-container-sm"><canvas id="studentChart"></canvas></div>
             
             <p class="form-label">История</p>
-            <div id="stats-history" style="height:150px; overflow-y:auto; border-top:1px solid #eee; padding-top:5px;"></div>
+            <div id="stats-history" class="stats-history-list"></div>
         </div>
     </div>
 
