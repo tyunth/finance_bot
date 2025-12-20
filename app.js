@@ -1487,13 +1487,27 @@ function renderDepositStats(currentData) {
 }
 
 function setTodoFilter(filter) {
-    CURRENT_TODO_FILTER = filter;
-    ['urgent', 'medium', 'later'].forEach(f => {
-        const btn = document.getElementById(`tf-${f}`);
-        const labelMap = { urgent: 'Срочно', medium: 'Средне', later: 'Несрочно' }; // Для текста
-        // ... (логика классов кнопок та же) ...
-    });
-    loadTodos();
+    CURRENT_TODO_FILTER = filter;    
+    // Список ID кнопок
+    const buttons = {
+        'urgent': document.getElementById('tf-urgent'),
+        'medium': document.getElementById('tf-medium'),
+        'later': document.getElementById('tf-later')
+    };
+
+    // Проходим по всем кнопкам и меняем стили
+    for (const [key, btn] of Object.entries(buttons)) {
+        if (!btn) continue; // Защита если кнопки нет      
+        if (key === filter) {
+            // Активная кнопка: Белая, яркий текст, тень
+            btn.className = "flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600 transition";
+        } else {
+            // Неактивная: Прозрачная, серый текст
+            btn.className = "flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white/50 transition";
+        }
+    }
+    
+    loadTodos(); // Перерисовываем список
 }
 
 // В todoForm добавляем отправку period
@@ -1520,27 +1534,37 @@ if (todoForm) {
 // Обновленная функция загрузки
 async function loadTodos() {
     try {
-        const res = await fetch(`${API_BASE_URL}/todos`);
+        const res = await fetch(`${API_URL_UTILITIES.replace('/utilities', '/todos')}`); // Или просто '/todos' если есть константа
+        // Лучше использовать: const res = await fetch(`${API_BASE_URL}/todos`);
         const list = await res.json();
+        
         const container = document.getElementById('todo-list');
         const countEl = document.getElementById('todo-count');
         
-        // Фильтруем по текущей вкладке (если у задачи нет периода - считаем today)
-        const filteredList = list.filter(t => (t.period || 'today') === CURRENT_TODO_FILTER);
+        // --- ФИЛЬТРАЦИЯ ---
+        const filteredList = list.filter(t => {
+            // Нормализация статуса:
+            // Если пусто или 'today' -> считаем 'urgent'
+            let period = t.period;
+            if (!period || period === 'today') period = 'urgent';
+            
+            return period === CURRENT_TODO_FILTER;
+        });
+        // ------------------
         
-        // Считаем активные ТОЛЬКО в текущей вкладке
+        // Считаем активные задачи только в текущей вкладке
         if(countEl) countEl.textContent = filteredList.filter(t => !t.is_done).length;
 
         container.innerHTML = filteredList.map(t => `
-            <div class="flex items-center justify-between group p-2 hover:bg-gray-50 rounded-lg transition ${t.is_done ? 'opacity-50' : ''}">
+            <div class="flex items-center justify-between group p-3 hover:bg-gray-50 rounded-xl transition border border-transparent hover:border-gray-100 ${t.is_done ? 'opacity-50' : ''}">
                 <div class="flex items-center gap-3 overflow-hidden">
-                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${t.is_done ? 0 : 1})" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" ${t.is_done ? 'checked' : ''}>
-                    <span class="${t.is_done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'} truncate text-sm" title="${t.text}">${t.text}</span>
+                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${t.is_done ? 0 : 1})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0" ${t.is_done ? 'checked' : ''}>
+                    <span class="${t.is_done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'} truncate text-sm leading-tight" title="${t.text}">${t.text}</span>
                 </div>
-                <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-1">✕</button>
+                <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-2 font-bold">×</button>
             </div>
-        `).join('') || '<div class="text-center text-xs text-gray-400 py-6">Пусто</div>';
-    } catch(e) {}
+        `).join('') || '<div class="text-center text-xs text-gray-400 py-10">В этом списке пусто</div>';
+        
+    } catch(e) { console.error(e); }
 }
-
 init();
