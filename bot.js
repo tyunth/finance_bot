@@ -1,5 +1,7 @@
 const { Telegraf, Markup, session } = require('telegraf');
 const fs = require('fs');
+const cron = require('node-cron'); // <--- ДОБАВЛЕНО
+const axios = require('axios');    // <--- ДОБАВЛЕНО
 require('dotenv').config();
 
 // Импорт модулей
