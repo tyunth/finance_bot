@@ -111,20 +111,29 @@ function parseLessonInfo(summary) {
     return { studentName, subject };
 }
 
-async function getEventsForDate(date) { // date object
-    const start = new Date(date); start.setHours(0,0,0,0);
-    const end = new Date(date); end.setHours(23,59,59,999);
+// Получить события за конкретный день (весь день)
+async function getEventsForDate(dateObj) {
+    try {
+        // Начало дня (00:00)
+        const start = new Date(dateObj);
+        start.setHours(0, 0, 0, 0);
+        
+        // Конец дня (23:59)
+        const end = new Date(dateObj);
+        end.setHours(23, 59, 59, 999);
 
-    // Используем твою существующую авторизацию
-    const calendar = google.calendar({ version: 'v3', auth: jwtClient }); 
-    const res = await calendar.events.list({
-        calendarId: CALENDAR_ID,
-        timeMin: start.toISOString(),
-        timeMax: end.toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime',
-    });
-    return res.data.items;
+        const res = await calendar.events.list({
+            calendarId: CALENDAR_ID,
+            timeMin: start.toISOString(),
+            timeMax: end.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+        return res.data.items || [];
+    } catch (error) {
+        console.error('Ошибка getEventsForDate:', error);
+        return []; // Возвращаем пустой массив, чтобы бот не падал
+    }
 }
 
 module.exports = {
