@@ -91,6 +91,15 @@ function initializeTables() {
             reason TEXT,
             lost_income REAL DEFAULT 0
         )`);
+        // --- МИГРАЦИЯ ДЛЯ ЗАДАЧ ---
+        // Пытаемся добавить колонку period. Если она уже есть, будет ошибка, но мы её проигнорируем.
+        db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+                // Выводим ошибку только если это НЕ ошибка "колонку уже существует"
+                console.error('Ошибка миграции todos:', err.message);
+            } else {
+                console.log('Миграция todos успешна (или колонка уже была).');
+            }
 
         // --- МИГРАЦИИ (ДОБАВЛЕНИЕ КОЛОНОК) ---
         const runMigration = (table, col, type = 'TEXT') => {
