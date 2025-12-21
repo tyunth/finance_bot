@@ -7,7 +7,6 @@ const API_URL_STUDENTS = API_BASE_URL + '/students';
 const API_URL_STUDENT_ACTION = API_BASE_URL + '/students/action';
 const API_URL_SHOPPING = API_BASE_URL + '/shopping';
 const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
-// Коммуналка
 const API_URL_UTILITIES = API_BASE_URL + '/utilities';
 const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
 
@@ -1438,29 +1437,29 @@ async function loadTodos() {
             if (isDone) borderClass = 'border-l-4 border-transparent opacity-50';
 
             return `
-            <div class="flex items-center justify-between group p-3 bg-white hover:bg-gray-50 rounded-r-xl shadow-sm transition ${borderClass}">
-                <div class="flex items-center gap-3 overflow-hidden w-full">
-                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${isDone ? 0 : 1})" 
-                           class="w-5 h-5 text-gray-800 rounded border-gray-300 focus:ring-gray-500 cursor-pointer flex-shrink-0" ${isDone ? 'checked' : ''}>
+            <div class="flex items-start justify-between group p-3 bg-white hover:bg-gray-50 rounded-r-xl shadow-sm transition ${borderClass}">
+                <div class="flex items-start gap-3 w-full min-w-0"> <input type="checkbox" onchange="toggleTodo(${t.id}, ${isDone ? 0 : 1})" 
+                           class="mt-1 w-5 h-5 text-gray-800 rounded border-gray-300 focus:ring-gray-500 cursor-pointer flex-shrink-0" ${isDone ? 'checked' : ''}>
                     
-                    <div class="min-w-0 flex flex-col">
-                        <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} break-words whitespace-normal text-sm leading-tight" title="${t.text}">
+                    <div class="flex flex-col w-full min-w-0">
+                        <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} break-words whitespace-normal text-sm leading-snug">
                             ${t.text}
                         </span>
-                        ${!isDone ? `<span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
+                        ${!isDone ? `<span class="mt-1 text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
                     </div>
                 </div>
                 
-                <div class="flex opacity-0 group-hover:opacity-100 transition gap-1 ml-2">
+                <div class="flex flex-col sm:flex-row opacity-0 group-hover:opacity-100 transition gap-1 ml-2">
                     ${!isDone ? `
-                        <button onclick="changeTodoPeriod(${t.id}, 'urgent')" class="text-[10px] px-1 bg-gray-800 text-white rounded" title="Срочно">!</button>
-                        <button onclick="changeTodoPeriod(${t.id}, 'medium')" class="text-[10px] px-1 bg-gray-500 text-white rounded" title="Средне">~</button>
-                        <button onclick="changeTodoPeriod(${t.id}, 'later')" class="text-[10px] px-1 bg-gray-300 text-gray-700 rounded" title="Позже">Z</button>
+                        <button onclick="changeTodoPeriod(${t.id}, 'urgent')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded font-bold" title="Срочно">!</button>
+                        <button onclick="changeTodoPeriod(${t.id}, 'medium')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-500 text-white rounded font-bold" title="Средне">~</button>
+                        <button onclick="changeTodoPeriod(${t.id}, 'later')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-300 text-gray-700 rounded font-bold" title="Позже">⏳</button> 
                     ` : ''}
-                    <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 px-2 font-bold">×</button>
+                    <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 px-1 font-bold h-6">×</button>
                 </div>
             </div>
-        `}).join('') || '<div class="text-center text-xs text-gray-400 py-10">Задач нет</div>';
+            `;
+        }).join('') || '<div class="text-center text-xs text-gray-400 py-10">Задач нет</div>';
         
     } catch(e) { console.error(e); }
 }
