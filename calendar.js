@@ -114,13 +114,15 @@ function parseLessonInfo(summary) {
 // Получить события за конкретный день (весь день)
 async function getEventsForDate(dateObj) {
     try {
-        // Начало дня (00:00)
         const start = new Date(dateObj);
         start.setHours(0, 0, 0, 0);
-        
-        // Конец дня (23:59)
         const end = new Date(dateObj);
         end.setHours(23, 59, 59, 999);
+
+        // --- ОТЛАДКА ---
+        console.log(`📅 Запрос в календарь: ${CALENDAR_ID}`);
+        console.log(`🕒 Период: ${start.toISOString()} — ${end.toISOString()}`);
+        // ----------------
 
         const res = await calendar.events.list({
             calendarId: CALENDAR_ID,
@@ -129,10 +131,12 @@ async function getEventsForDate(dateObj) {
             singleEvents: true,
             orderBy: 'startTime',
         });
+
+        console.log(`✅ Найдено событий: ${res.data.items ? res.data.items.length : 0}`); // Лог результата
         return res.data.items || [];
     } catch (error) {
-        console.error('Ошибка getEventsForDate:', error);
-        return []; // Возвращаем пустой массив, чтобы бот не падал
+        console.error('❌ Ошибка getEventsForDate:', error);
+        return [];
     }
 }
 
