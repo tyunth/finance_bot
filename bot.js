@@ -1073,6 +1073,11 @@ async function runDailyBackup() {
 
 cron.schedule('0 2 * * *', async () => {
     try {
+        console.log('Running Morning Briefing & Cleanup...');
+        
+        // 0. Авто-архивация (удаление выполненных)
+        await db.dbRun('DELETE FROM todos WHERE is_done = 1');
+
         const adminId = config.ADMIN_ID;
         const now = new Date();
         
@@ -1100,28 +1105,27 @@ cron.schedule('0 2 * * *', async () => {
             });
         }
 
-        // 3. Дела из БД
+        // 3. Дела из БД (Только активные, т.к. выполненные удалили выше)
         const allTodos = await db.getTodos();
-        const active = allTodos.filter(t => !t.is_done);
+        const active = allTodos; // getTodos возвращает всё, но выполненных уже нет в базе
         
         if (active.length > 0) {
-            agendaMsg += `\n\n *Дела:*`; 
+            agendaMsg += `\n\n📝 *Дела:*`;
             
-            const urgent = active.filter(t => t.period === 'urgent');
+            const urgent = active.filter(t => t.period === 'urgent' || (!t.period && t.period !== 'medium' && t.period !== 'later'));
             const medium = active.filter(t => t.period === 'medium');
             const later = active.filter(t => t.period === 'later');
-            const legacy = active.filter(t => !t.period || t.period === 'today');
 
-            if(urgent.length || legacy.length) { 
-                agendaMsg += `\n СРОЧНО:`; 
-                [...urgent, ...legacy].forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
+            if(urgent.length) { 
+                agendaMsg += `\n❗ СРОЧНО:`; 
+                urgent.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
             }
             if(medium.length) { 
-                agendaMsg += `\n Средне:`; 
+                agendaMsg += `\n🔸 Средне:`; 
                 medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
             }
             if(later.length) { 
-                agendaMsg += `\n Несрочно:`; 
+                agendaMsg += `\n💤 Несрочно:`; 
                 later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
             }
         } 
