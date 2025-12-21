@@ -263,6 +263,7 @@ const server = http.createServer(async (req, res) => {
                 const data = JSON.parse(body);
                 if (data.action === 'add') await db.addTodo(data.text, data.period);
                 else if (data.action === 'toggle') await db.toggleTodo(data.id, data.status);
+                else if (data.action === 'update_period') await db.dbRun('UPDATE todos SET period = ? WHERE id = ?', [data.period, data.id]);
                 else if (data.action === 'delete') await db.deleteTodo(data.id);
                 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
