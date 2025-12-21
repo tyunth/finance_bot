@@ -1586,36 +1586,76 @@ if (todoForm) {
 // Обновленная функция загрузки
 async function loadTodos() {
     try {
-        const res = await fetch(`${API_URL_UTILITIES.replace('/utilities', '/todos')}`); // Или просто '/todos' если есть константа
-        // Лучше использовать: const res = await fetch(`${API_BASE_URL}/todos`);
+        const res = await fetch(`${API_BASE_URL}/todos`);
         const list = await res.json();
         
         const container = document.getElementById('todo-list');
         const countEl = document.getElementById('todo-count');
         
-        // --- ФИЛЬТРАЦИЯ ---
-        const filteredList = list.filter(t => {
-            // Нормализация статуса:
-            // Если пусто или 'today' -> считаем 'urgent'
-            let period = t.period;
-            if (!period || period === 'today') period = 'urgent';
-            
-            return period === CURRENT_TODO_FILTER;
-        });
-        // ------------------
-        
-        // Считаем активные задачи только в текущей вкладке
-        if(countEl) countEl.textContent = filteredList.filter(t => !t.is_done).length;
+        // Считаем активные
+        if(countEl) countEl.textContent = list.filter(t => !t.is_done).length;
 
-        container.innerHTML = filteredList.map(t => `
-            <div class="flex items-center justify-between group p-3 hover:bg-gray-50 rounded-xl transition border border-transparent hover:border-gray-100 ${t.is_done ? 'opacity-50' : ''}">
-                <div class="flex items-center gap-3 overflow-hidden">
-                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${t.is_done ? 0 : 1})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0" ${t.is_done ? 'checked' : ''}>
-                    <span class="${t.is_done ? 'line-through text-gray-400' : 'text-gray-700 font-medium'} truncate text-sm leading-tight" title="${t.text}">${t.text}</span>
+        // 1. Нормализация данных
+        // Создаем копию списка, где у каждой задачи гарантировано есть period
+        const normalizedList = list.map(t => ({
+            ...t,                          // <-- Скопировали всё (id, text, is_done)
+            period: t.period || 'urgent'   // <-- Если period пустой, ставим 'urgent'
+        }));
+
+        // 2. Настройка веса для сортировки
+        const priorityWeight = { 'urgent': 3, 'medium': 2, 'later': 1 };
+        
+        // 3. Сортировка
+        normalizedList.sort((a, b) => {
+            // Сначала выполненные вниз
+            if (a.is_done !== b.is_done) return a.is_done - b.is_done;
+            
+            // Потом по весу (3 -> 2 -> 1)
+            const pA = priorityWeight[a.period] || 3;
+            const pB = priorityWeight[b.period] || 3;
+            
+            if (pA !== pB) return pB - pA; // От большего к меньшему
+            
+            // Если вес одинаковый, новые сверху (по ID)
+            return b.id - a.id;
+        });
+
+        // 4. Генерация HTML
+        container.innerHTML = normalizedList.map(t => {
+            const isDone = t.is_done;
+            const period = t.period; // Мы его нормализовали выше
+            
+            // Стили левой границы
+            let borderClass = 'border-l-4 border-gray-200'; // Default
+            if (period === 'urgent') borderClass = 'border-l-4 border-gray-800'; 
+            if (period === 'medium') borderClass = 'border-l-4 border-gray-500'; 
+            if (isDone) borderClass = 'border-l-4 border-transparent opacity-50';
+
+            return `
+            <div class="flex items-start justify-between group p-3 bg-white hover:bg-gray-50 rounded-r-xl shadow-sm transition ${borderClass} mb-2">
+                <div class="flex items-start gap-3 w-full min-w-0">
+                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${isDone ? 0 : 1})" 
+                           class="mt-1 w-5 h-5 text-gray-800 rounded border-gray-300 focus:ring-gray-500 cursor-pointer flex-shrink-0" ${isDone ? 'checked' : ''}>
+                    
+                    <div class="flex flex-col w-full min-w-0">
+                        <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} break-words whitespace-normal text-sm leading-snug">
+                            ${t.text}
+                        </span>
+                        ${!isDone ? `<span class="mt-1 text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
+                    </div>
                 </div>
-                <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-2 font-bold">×</button>
+                
+                <div class="flex flex-col sm:flex-row opacity-0 group-hover:opacity-100 transition gap-1 ml-2">
+                    ${!isDone ? `
+                        <button onclick="changeTodoPeriod(${t.id}, 'urgent')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-800 text-white rounded font-bold" title="Срочно">!</button>
+                        <button onclick="changeTodoPeriod(${t.id}, 'medium')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-500 text-white rounded font-bold" title="Средне">~</button>
+                        <button onclick="changeTodoPeriod(${t.id}, 'later')" class="text-[10px] w-6 h-6 flex items-center justify-center bg-gray-300 text-gray-700 rounded font-bold" title="Позже">⏳</button> 
+                    ` : ''}
+                    <button onclick="deleteTodo(${t.id})" class="text-gray-300 hover:text-red-500 px-1 font-bold h-6">×</button>
+                </div>
             </div>
-        `).join('') || '<div class="text-center text-xs text-gray-400 py-10">В этом списке пусто</div>';
+            `;
+        }).join('') || '<div class="text-center text-xs text-gray-400 py-10">Задач нет</div>';
         
     } catch(e) { console.error(e); }
 }
