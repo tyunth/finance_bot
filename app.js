@@ -1386,21 +1386,6 @@ async function loadWeather() {
 
 // --- СПИСОК ДЕЛ ---
 const todoForm = document.getElementById('todo-form');
-if (todoForm) {
-    todoForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('todo-input');
-        const text = input.value.trim();
-        if(!text) return;
-        try {
-            await fetch(`${API_BASE_URL}/todos/action`, {
-                method: 'POST', body: JSON.stringify({ action: 'add', text })
-            });
-            input.value = '';
-            loadTodos();
-        } catch(e) { alert('Ошибка'); }
-    });
-}
 
 async function loadTodos() {
     try {
