@@ -81,19 +81,17 @@ async function getRecentLessons(logCallback = console.log) {
 /**
  * Удаляет событие из календаря.
  */
+// Функция удаления события
 async function deleteEvent(eventId) {
     try {
         await calendar.events.delete({
-            calendarId: config.CALENDAR_ID,
-            eventId: eventId,
+            calendarId: CALENDAR_ID,
+            eventId: eventId
         });
+        console.log(`Event deleted from Google Calendar: ${eventId}`);
         return true;
-    } catch (error) {
-        // Если событие уже удалено (404), считаем это успехом
-        if (error.code === 404 || (error.errors && error.errors[0].reason === 'notFound')) {
-            return true;
-        }
-        console.error('Ошибка удаления события:', error.message);
+    } catch (err) {
+        console.error('Error deleting event:', err);
         return false;
     }
 }
