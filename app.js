@@ -1577,24 +1577,27 @@ function setTodoFilter(filter) {
 
 // В todoForm добавляем отправку period
 if (todoForm) {
-    todoForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('todo-input');
-        const text = input.value.trim();
-        if(!text) return;
-        try {
-            await fetch(`${API_BASE_URL}/todos/action`, {
-                method: 'POST', body: JSON.stringify({ 
-                    action: 'add', 
-                    text, 
-                    period: CURRENT_TODO_FILTER // Добавляем в текущую открытую вкладку
-                })
-            });
-            input.value = '';
-            loadTodos();
-        } catch(e) { alert('Ошибка'); }
-    });
-}
+        todoForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('todo-input');
+            const select = document.getElementById('todo-period-select'); // <-- Берем селект
+            const text = input.value.trim();
+            const period = select ? select.value : 'urgent'; // <-- Берем значение
+
+            if(!text) return;
+            try {
+                await fetch(`${API_BASE_URL}/todos/action`, {
+                    method: 'POST', body: JSON.stringify({ 
+                        action: 'add', 
+                        text, 
+                        period: period // <-- Отправляем выбранный
+                    })
+                });
+                input.value = '';
+                loadTodos();
+            } catch(e) { alert('Ошибка'); }
+        });
+    }
 
 // Обновленная функция загрузки
 async function loadTodos() {
