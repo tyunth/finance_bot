@@ -1151,7 +1151,10 @@ async function sendMorningBriefing(chatId) {
 
                 if(urgent.length) { agendaMsg += `\n❗ СРОЧНО:`; urgent.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
                 if(medium.length) { agendaMsg += `\n🔸 Средне:`; medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
-                if(later.length) { agendaMsg += `\n⏳ Несрочно: ${later.length} шт.`; }
+                if(later.length) { 
+                agendaMsg += `\n⏳ Несрочно:`; 
+                later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
+            }
             }
             console.log('✅ [Morning] Дела получены');
         } catch (err) { console.error('⚠️ [Morning] Ошибка БД:', err.message); }
