@@ -416,7 +416,7 @@
                             <form id="todo-form" class="flex gap-2">
                             <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-gray-400 outline-none bg-gray-50 focus:bg-white transition">
                             
-                            <select id="todo-period-select" class="bg-gray-100 border-none text-gray-700 text-xs font-bold rounded-xl px-3 cursor-pointer hover:bg-gray-200 transition outline-none h-[42px]">
+                            <select id="todo-period-select" class="bg-gray-100 border-none text-gray-700 text-xs font-bold rounded-xl px-2 cursor-pointer hover:bg-gray-200 transition outline-none h-[42px]">
                                 <option value="urgent">🔥 Срочно</option>
                                 <option value="medium">⚡ Средне</option>
                                 <option value="later">💤 Несрочно</option>
@@ -596,31 +596,36 @@
 
     <script src="app.js"></script>
     <script>
-        function createSnowflake() {
-            const snowflake = document.createElement('div');
-            snowflake.innerHTML = '❄';
-            snowflake.style.position = 'fixed';
-            snowflake.style.top = '-10px';
-            snowflake.style.left = Math.random() * 100 + 'vw';
-            snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
-            snowflake.style.opacity = Math.random() * 0.5 + 0.3;
-            snowflake.style.color = '#dbeafe'; // Светло-голубой
-            snowflake.style.zIndex = '9999';
-            snowflake.style.pointerEvents = 'none';
-            snowflake.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
+        (function() {
+            const month = new Date().getMonth(); // 0 = Янв, 11 = Дек
+            // Если сейчас не зима (не 11, 0 или 1), скрипт не запускается
+            if (month !== 11 && month !== 0 && month !== 1) return;
+
+            function createSnowflake() {
+                const snowflake = document.createElement('div');
+                snowflake.innerHTML = '❄';
+                snowflake.style.position = 'fixed';
+                snowflake.style.top = '-10px';
+                snowflake.style.left = Math.random() * 100 + 'vw';
+                snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
+                snowflake.style.opacity = Math.random() * 0.5 + 0.3;
+                snowflake.style.color = '#dbeafe';
+                snowflake.style.zIndex = '9999';
+                snowflake.style.pointerEvents = 'none';
+                snowflake.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
+                document.body.appendChild(snowflake);
+                setTimeout(() => { snowflake.remove(); }, 5000);
+            }
             
-            document.body.appendChild(snowflake);
-            
-            setTimeout(() => { snowflake.remove(); }, 5000);
-        }
-        // Запускаем снегопад
-        setInterval(createSnowflake, 300);
-        
-        // CSS анимация для падения
-        const style = document.createElement('style');
-        style.innerHTML = `@keyframes fall { to { transform: translateY(100vh) rotate(360deg); } }`;
-        document.head.appendChild(style);
+            // Стиль анимации
+            const style = document.createElement('style');
+            style.innerHTML = `@keyframes fall { to { transform: translateY(100vh) rotate(360deg); } }`;
+            document.head.appendChild(style);
+
+            setInterval(createSnowflake, 300);
+        })();
     </script>
+</body>
 </body>
 </body>
 </html>
