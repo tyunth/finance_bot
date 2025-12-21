@@ -1444,7 +1444,7 @@ async function loadTodos() {
                            class="w-5 h-5 text-gray-800 rounded border-gray-300 focus:ring-gray-500 cursor-pointer flex-shrink-0" ${isDone ? 'checked' : ''}>
                     
                     <div class="min-w-0 flex flex-col">
-                        <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} truncate text-sm leading-tight" title="${t.text}">
+                        <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} break-words whitespace-normal text-sm leading-tight" title="${t.text}">
                             ${t.text}
                         </span>
                         ${!isDone ? `<span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
