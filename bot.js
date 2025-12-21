@@ -1,7 +1,7 @@
 const { Telegraf, Markup, session } = require('telegraf');
 const fs = require('fs');
-const cron = require('node-cron'); // <--- ДОБАВЛЕНО
-const axios = require('axios');    // <--- ДОБАВЛЕНО
+const cron = require('node-cron'); 
+const axios = require('axios');    
 require('dotenv').config();
 
 // Импорт модулей
@@ -463,6 +463,19 @@ bot.command('students', async (ctx) => {
     ctx.reply('Выберите ученика:', Markup.inlineKeyboard(buttons));
 });
 
+// Команда маркетплейс
+bot.command(['market', 'ozon', 'wb'], async (ctx) => {
+    const text = ctx.message.text.replace(/^\/\w+\s*/, '').trim(); 
+    if (!text) return ctx.reply('Напишите товар: /wb Наушники');
+    await db.addShoppingItem({ item_name: text, type: 'market', price_estimate: 0 });
+    return ctx.reply(`Добавлено в маркетплейс: ${text}`);
+});
+
+// Команда Утро (тест)
+bot.command(['morning', 'plan'], async (ctx) => {
+    await sendMorningBriefing(ctx.chat.id); // Вызываем общую функцию
+});
+
 // Обработка клика по ученику
 bot.action(/^show_student_(\d+)$/, async (ctx) => {
     const id = ctx.match[1];
@@ -914,6 +927,10 @@ bot.on('callback_query', async (ctx) => {
 
         // Помечаем как обработанное (status = cancelled)
         await db.markEventProcessed(eventId, summary, 'cancelled');
+        // УДАЛЯЕМ ИЗ ГУГЛА (Новое)
+        try {
+            await gcal.deleteEvent(eventId);
+        } catch(e) { console.error('Ошибка удаления из GCal:', e); }
         
         return ctx.editMessageText(`Записана отмена: ${reason}.`);
     }
@@ -1072,15 +1089,16 @@ async function runDailyBackup() {
 }
 
 cron.schedule('0 2 * * *', async () => {
+    console.log('Running Morning Briefing...');
+    await sendMorningBriefing(config.ADMIN_ID);
+});
+
+// Вынесли логику в функцию
+async function sendMorningBriefing(chatId) {
     try {
-        console.log('Running Morning Briefing & Cleanup...');
-        
-        // 0. Авто-архивация (удаление выполненных)
+        // 0. Чистка старых дел
         await db.dbRun('DELETE FROM todos WHERE is_done = 1');
 
-        const adminId = config.ADMIN_ID;
-        const now = new Date();
-        
         // 1. Погода
         const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto';
         const wRes = await axios.get(weatherUrl);
@@ -1090,51 +1108,37 @@ cron.schedule('0 2 * * *', async () => {
         const precip = todayWeather.precipitation_sum[0]; 
         
         let weatherMsg = `🌤 *Погода:*\nОт ${tempMin}°C до ${tempMax}°C`;
-        if (precip > 0.5) weatherMsg += `\n☔ Ожидаются осадки (~${precip} мм). Возьми зонт!`;
-        else weatherMsg += `\n☂️ Без существенных осадков.`;
+        if (precip > 0.5) weatherMsg += `\n☔ Осадки (~${precip} мм).`;
+        else weatherMsg += `\n☂️ Без осадков.`;
 
         // 2. Календарь
-        const events = await gcal.getEventsForDate(now);
+        const events = await gcal.getEventsForDate(new Date());
         let agendaMsg = `📅 *План на сегодня:*`;
-        if (events.length === 0) {
-            agendaMsg += `\nСвободно!`;
-        } else {
-            events.forEach(e => {
-                const time = e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день';
-                agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
-            });
-        }
+        if (events.length === 0) agendaMsg += `\nСвободно!`;
+        else events.forEach(e => {
+            const time = e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день';
+            agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
+        });
 
-        // 3. Дела из БД (Только активные, т.к. выполненные удалили выше)
+        // 3. Дела
         const allTodos = await db.getTodos();
-        const active = allTodos; // getTodos возвращает всё, но выполненных уже нет в базе
-        
+        const active = allTodos.filter(t => !t.is_done);
         if (active.length > 0) {
             agendaMsg += `\n\n📝 *Дела:*`;
-            
             const urgent = active.filter(t => t.period === 'urgent' || (!t.period && t.period !== 'medium' && t.period !== 'later'));
             const medium = active.filter(t => t.period === 'medium');
             const later = active.filter(t => t.period === 'later');
 
-            if(urgent.length) { 
-                agendaMsg += `\n❗ СРОЧНО:`; 
-                urgent.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
-            }
-            if(medium.length) { 
-                agendaMsg += `\n🔸 Средне:`; 
-                medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
-            }
-            if(later.length) { 
-                agendaMsg += `\n💤 Несрочно:`; 
-                later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
-            }
-        } 
+            if(urgent.length) { agendaMsg += `\n❗ СРОЧНО:`; urgent.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
+            if(medium.length) { agendaMsg += `\n🔸 Средне:`; medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
+            if(later.length) { agendaMsg += `\n⏳ Несрочно: ${later.length} шт.`; }
+        }
 
-        await bot.telegram.sendMessage(adminId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
+        await bot.telegram.sendMessage(chatId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
     } catch (e) {
-        console.error('Ошибка Morning Briefing:', e);
+        console.error('Ошибка Briefing:', e);
     }
-});
+}
 
 setInterval(() => {
     runMonthlyInterestCheck();
