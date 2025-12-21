@@ -1561,12 +1561,12 @@ function setTodoFilter(filter) {
 
 // В todoForm добавляем отправку period
 if (todoForm) {
-        todoForm.addEventListener('submit', async (e) => {
+            todoForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('todo-input');
-            const select = document.getElementById('todo-period-select'); // <-- Берем селект
+            const select = document.getElementById('todo-period-select'); 
             const text = input.value.trim();
-            const period = select ? select.value : 'urgent'; // <-- Берем значение
+            const period = select ? select.value : 'urgent'; 
 
             if(!text) return;
             try {
@@ -1574,12 +1574,12 @@ if (todoForm) {
                     method: 'POST', body: JSON.stringify({ 
                         action: 'add', 
                         text, 
-                        period: period // <-- Отправляем выбранный
+                        period: period // 
                     })
                 });
                 input.value = '';
                 loadTodos();
-            } catch(e) { alert('Ошибка'); }
+            } catch(e) { console.error(e); }
         });
     }
 
