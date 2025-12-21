@@ -407,26 +407,19 @@
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-lg border border-gray-100 flex flex-col h-[600px] xl:h-[calc(100vh-24rem)] max-h-[800px] overflow-hidden">
-                    <div class="p-4 border-b border-gray-100 bg-gray-50/50">
-                        <div class="flex justify-between items-center mb-3">
-                            <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg">📝 Дела</h3>
-                            <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
-                        </div>
-                        <div class="flex bg-gray-200 p-1 rounded-xl">
-                            <button onclick="setTodoFilter('urgent')" id="tf-urgent" class="flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm transition text-gray-800">Срочно</button>
-                            <button onclick="setTodoFilter('medium')" id="tf-medium" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white/50 transition">Средне</button>
-                            <button onclick="setTodoFilter('later')" id="tf-later" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white/50 transition">Несрочно</button>
-                        </div>
+                    <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800 text-lg">Дела</h3>
+                        <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
                     </div>
                     
-                    <div class="p-3 border-b border-gray-100 bg-white">
+                    <div class="p-4 border-b border-gray-100 bg-white">
                         <form id="todo-form" class="flex gap-2">
-                            <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 focus:bg-white transition">
-                            <button type="submit" class="bg-blue-600 text-white px-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">+</button>
+                            <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-gray-400 outline-none bg-gray-50 focus:bg-white transition">
+                            <button type="submit" class="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-gray-700 transition shadow-sm">+</button>
                         </form>
                     </div>
 
-                    <div id="todo-list" class="overflow-y-auto flex-1 p-3 space-y-1.5 scrollbar-hide"></div>
+                    <div id="todo-list" class="overflow-y-auto flex-1 p-4 space-y-2 scrollbar-hide"></div>
                 </div>
 
             </aside>
