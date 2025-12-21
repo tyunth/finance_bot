@@ -343,9 +343,9 @@ async function getTodos() {
     // Сначала невыполненные, потом выполненные (чтобы галочки улетали вниз)
     return dbAll("SELECT * FROM todos ORDER BY is_done ASC, id DESC");
 }
-async function addTodo(text) {
-    const date = new Date().toISOString();
-    return dbRun("INSERT INTO todos (text, created_at) VALUES (?, ?)", [text, date]);
+async function addTodo(text, period) {
+    const p = period || 'urgent';
+    return dbRun('INSERT INTO todos (text, is_done, period) VALUES (?, 0, ?)', [text, p]);
 }
 async function toggleTodo(id, status) {
     // status: 1 (сделано) или 0 (не сделано)
