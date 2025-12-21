@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const CURRENCY = 'T';
-const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID;
+const CALENDAR_ID = 'polandszymon@gmail.com';
 const ADMIN_ID = parseInt(process.env.MY_USER_ID); 
 
 // Настройки уроков
