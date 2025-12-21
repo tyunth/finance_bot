@@ -13,11 +13,12 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 
 function initializeTables() {
     db.serialize(() => {
-        // --- СТАРЫЕ ТАБЛИЦЫ ---
+        // --- 1. Создание таблиц (если их нет) ---
+        
         db.run(`CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, amount REAL, category TEXT, tag TEXT, comment TEXT, date TEXT, source_account TEXT, target_account TEXT
         )`);
-        
+
         db.run(`CREATE TABLE IF NOT EXISTS accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, balance REAL DEFAULT 0, is_deposit INTEGER DEFAULT 0, rate REAL DEFAULT 0, term_date TEXT, bank_name TEXT, start_date TEXT, UNIQUE(user_id, name)
         )`);
@@ -31,95 +32,47 @@ function initializeTables() {
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS receipt_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, transaction_id INTEGER, item_name TEXT, price REAL, quantity REAL DEFAULT 1, shop_name TEXT, date TEXT
-        )`);
-        
-        db.run(`CREATE TABLE IF NOT EXISTS product_mappings (
-            raw_name TEXT PRIMARY KEY, category TEXT
-        )`);
-
-        db.run(`CREATE TABLE IF NOT EXISTS keywords (
-            keyword TEXT PRIMARY KEY, category TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, receipt_id INTEGER, product_name TEXT, quantity REAL, price REAL, amount REAL, category TEXT
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            name TEXT, subject TEXT, parents TEXT, 
-            school TEXT, grade TEXT, teacher TEXT, 
-            phone TEXT, address TEXT, notes TEXT,
-            parent_phone TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT ''
         )`);
 
-        // --- НОВЫЕ ТАБЛИЦЫ ---
-
-        // Покупки и Вишлист
         db.run(`CREATE TABLE IF NOT EXISTS shopping_list (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            item_name TEXT, 
-            type TEXT, 
-            person_name TEXT, 
-            price_estimate REAL DEFAULT 0,
-            status TEXT DEFAULT 'active',
-            created_at TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, is_bought INTEGER DEFAULT 0, type TEXT DEFAULT 'buy', price_estimate REAL DEFAULT 0
         )`);
 
-        // Коммуналка
         db.run(`CREATE TABLE IF NOT EXISTS utility_readings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            date TEXT, 
-            service TEXT, 
-            reading REAL, 
-            amount REAL, 
-            comment TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, service_name TEXT, value_read REAL, amount_paid REAL
         )`);
 
-        // Таблица Дел (To-Do)
-        db.run(`CREATE TABLE IF NOT EXISTS todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            text TEXT, 
-            is_done INTEGER DEFAULT 0,
-            created_at TEXT
-        )`);
-
-        // Таблица Истории уроков (включая отмены)
         db.run(`CREATE TABLE IF NOT EXISTS lesson_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            student_id INTEGER,
-            student_name TEXT,
-            date TEXT,
-            status TEXT, -- 'completed', 'cancelled_student', 'cancelled_teacher', 'cancelled_agreed'
-            reason TEXT,
-            lost_income REAL DEFAULT 0
+            id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER, student_name TEXT, date TEXT, status TEXT, reason TEXT, lost_income REAL DEFAULT 0
         )`);
-        // --- МИГРАЦИЯ ДЛЯ ЗАДАЧ ---
-        // Пытаемся добавить колонку period. Если она уже есть, будет ошибка, но мы её проигнорируем.
+
+        // Таблица задач (сразу с period, если создается с нуля)
+        db.run(`CREATE TABLE IF NOT EXISTS todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, is_done INTEGER DEFAULT 0, period TEXT DEFAULT 'urgent'
+        )`);
+
+
+        // --- 2. Миграции (добавление колонок в старые таблицы) ---
+
+        // Миграция для студентов (schedule_days)
+        const studentCols = ['schedule_days'];
+        studentCols.forEach(col => {
+            db.run(`ALTER TABLE students ADD COLUMN ${col} TEXT DEFAULT ''`, (err) => {
+                // Игнорируем ошибку "duplicate column", если колонка уже есть
+            });
+        });
+
+        // Миграция для задач (period) - ВОТ ТУТ БЫЛА ОШИБКА
         db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", (err) => {
             if (err && !err.message.includes('duplicate column')) {
-                // Выводим ошибку только если это НЕ ошибка "колонку уже существует"
-                console.error('Ошибка миграции todos:', err.message);
-            } else {
-                console.log('Миграция todos успешна (или колонка уже была).');
+                console.error('Migration error (todos):', err.message);
             }
-
-        // --- МИГРАЦИИ (ДОБАВЛЕНИЕ КОЛОНОК) ---
-        const runMigration = (table, col, type = 'TEXT') => {
-            db.all(`PRAGMA table_info(${table})`, (err, cols) => {
-                if (!err && !cols.map(c => c.name).includes(col)) {
-                    db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
-                    console.log(`Migration: Added ${col} to ${table}`);
-                }
-            });
-        };
-
-        // Миграции для старых таблиц
-        ['comment', 'tag', 'source_account', 'target_account', 'lesson_type'].forEach(c => runMigration('transactions', c));
-        ['rate', 'term_date', 'bank_name', 'start_date'].forEach(c => runMigration('accounts', c));
-        ['parent_phone', 'lessons_per_week'].forEach(c => runMigration('students', c, 'INTEGER DEFAULT 0'));
-        ['sort_order'].forEach(c => runMigration('shopping_list', c, 'INTEGER DEFAULT 0'));
-
-        // ВАЖНО: Миграция для Коммуналки (исправляет твою ошибку)
-        ['service', 'reading', 'amount', 'comment'].forEach(c => runMigration('utility_readings', c));
-        ['schedule_days'].forEach(c => runMigration('students', c, "TEXT DEFAULT ''"));
+        });
     });
 }
 
