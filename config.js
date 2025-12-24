@@ -102,5 +102,6 @@ module.exports = {
     AUTO_TAGS,
     EXPENSE_CATEGORIES,
     INCOME_CATEGORIES,
+	calendarId: process.env.GOOGLE_CALENDAR_ID,
     STATE
 };
