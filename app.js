@@ -1424,26 +1424,51 @@ async function loadTodos() {
             return pB - pA; // От большего веса к меньшему
         });
 
-        container.innerHTML = list.map(t => {
+// 4. Генерация HTML (ВНУТРИ loadTodos)
+        container.innerHTML = normalizedList.map(t => {
             const isDone = t.is_done;
-            const period = t.period || 'urgent';
+            const period = t.period;
+            const days = t.days_active || 0; // Получаем дни с сервера
             
-            // Стили для разных приоритетов (оттенки серого)
-            let borderClass = 'border-l-4 border-gray-200'; // Default/Later
-            if (period === 'urgent' || period === 'today') borderClass = 'border-l-4 border-gray-800'; // Срочно - темный
-            if (period === 'medium') borderClass = 'border-l-4 border-gray-500'; // Средне
-            if (isDone) borderClass = 'border-l-4 border-transparent opacity-50';
+            // Стили левой границы
+            let borderClass = 'border-l-4 border-gray-200'; // Default
+            
+            // Логика давления на совесть (только для активных)
+            let alertIcon = '';
+            let daysText = '';
+            
+            if (!isDone) {
+                if (period === 'urgent') borderClass = 'border-l-4 border-gray-800'; 
+                if (period === 'medium') borderClass = 'border-l-4 border-gray-500'; 
+                
+                // Если задача висит долго - меняем цвет на агрессивный
+                if (days > 7) {
+                    borderClass = 'border-l-4 border-red-500';
+                    alertIcon = '🔥'; // 7+ дней
+                } else if (days > 3) {
+                    borderClass = 'border-l-4 border-yellow-500';
+                    alertIcon = '⚠️'; // 3+ дня
+                }
+                
+                if (days > 0) daysText = `<span class="text-[9px] text-gray-400 ml-1">(${days} дн)</span>`;
+            } else {
+                borderClass = 'border-l-4 border-transparent opacity-50';
+            }
 
             return `
-            <div class="flex items-start justify-between group p-3 bg-white hover:bg-gray-50 rounded-r-xl shadow-sm transition ${borderClass}">
-                <div class="flex items-start gap-3 w-full min-w-0"> <input type="checkbox" onchange="toggleTodo(${t.id}, ${isDone ? 0 : 1})" 
+            <div class="flex items-start justify-between group p-3 bg-white hover:bg-gray-50 rounded-r-xl shadow-sm transition ${borderClass} mb-2">
+                <div class="flex items-start gap-3 w-full min-w-0">
+                    <input type="checkbox" onchange="toggleTodo(${t.id}, ${isDone ? 0 : 1})" 
                            class="mt-1 w-5 h-5 text-gray-800 rounded border-gray-300 focus:ring-gray-500 cursor-pointer flex-shrink-0" ${isDone ? 'checked' : ''}>
                     
                     <div class="flex flex-col w-full min-w-0">
                         <span class="${isDone ? 'line-through text-gray-400' : 'text-gray-800 font-medium'} break-words whitespace-normal text-sm leading-snug">
-                            ${t.text}
+                            ${alertIcon} ${t.text}
                         </span>
-                        ${!isDone ? `<span class="mt-1 text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
+                        <div class="flex items-center gap-2 mt-1">
+                            ${!isDone ? `<span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">${formatPeriod(period)}</span>` : ''}
+                            ${daysText}
+                        </div>
                     </div>
                 </div>
                 
