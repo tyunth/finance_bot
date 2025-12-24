@@ -433,6 +433,62 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
+async function createReceipt(userId, data, photoFileId) {
+    const created = new Date().toISOString();
+    
+    // 1. Создаем запись чека
+    return new Promise((resolve, reject) => {
+        db.run(
+            `INSERT INTO receipts (user_id, shop_name, shop_address, date, total_sum, calculated_sum, item_count, discount, raw_json, photo_file_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                userId, 
+                data.shop.name || 'Магазин', 
+                data.shop.address || '', 
+                data.date, 
+                data.meta.total_receipt, 
+                data.meta.total_calculated, 
+                data.items.length, 
+                data.meta.discount || 0, 
+                JSON.stringify(data), 
+                photoFileId, 
+                created
+            ],
+            async function (err) {
+                if (err) return reject(err);
+                
+                const receiptId = this.lastID;
+
+                // 2. Создаем транзакции для каждого товара
+                // (Используем нашу же функцию addTransaction, чтобы обновились балансы!)
+                try {
+                    for (const item of data.items) {
+                        // Тут можно подключить getUserSettings, когда сделаем его
+                        // Пока хардкод или передача извне, но упростим:
+                        const tag = 'Покупка'; // Или передавай маппинг тегов сюда
+                        
+                        await addTransaction({
+                            userId,
+                            type: 'expense',
+                            amount: item.sum,
+                            category: item.category,
+                            tag: tag,
+                            comment: `${item.name} (${item.qty} шт)`,
+                            sourceAccount: 'Основной', // Хардкод пока, потом параметризуем
+                            targetAccount: null,
+                            date: data.date,
+                            receipt_id: receiptId // <--- ВОТ ОНО, СВЯЗЫВАНИЕ
+                        });
+                    }
+                    resolve(receiptId);
+                } catch (txErr) {
+                    reject(txErr);
+                }
+            }
+        );
+    });
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -453,5 +509,6 @@ module.exports = {
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
     addLessonHistory, checkLessonHistoryExists, 
+    createReceipt,
     DB_PATH
 };
