@@ -3,6 +3,7 @@ const fs = require('fs');
 const cron = require('node-cron'); 
 const axios = require('axios');    
 require('dotenv').config();
+const ai = require('./ai');
 
 // Импорт модулей
 const config = require('./config');
@@ -1099,69 +1100,61 @@ cron.schedule('0 2 * * *', async () => {
 async function sendMorningBriefing(chatId) {
     console.log('🚀 [Morning] Начинаем формирование сводки...');
     try {
-        if (!chatId) {
-            console.error('❌ [Morning] Ошибка: chatId не передан!');
-            return;
-        }
-
         // 0. Чистка старых дел
         await db.dbRun('DELETE FROM todos WHERE is_done = 1');
-        console.log('✅ [Morning] Старые дела удалены');
+
+        // --- СБОР ДАННЫХ ---
+        const dataContext = {
+            date: new Date().toLocaleDateString('ru-RU', { weekday: 'long', month: 'long', day: 'numeric' }),
+            weather: null,
+            calendar: [],
+            todos: []
+        };
 
         // 1. Погода
-        let weatherMsg = '🌤 Погода недоступна';
         try {
-            const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto';
-            const wRes = await axios.get(weatherUrl);
-            const todayWeather = wRes.data.daily;
-            const tempMax = todayWeather.temperature_2m_max[0];
-            const tempMin = todayWeather.temperature_2m_min[0];
-            const precip = todayWeather.precipitation_sum[0]; 
-            
-            weatherMsg = `🌤 *Погода:*\nОт ${tempMin}°C до ${tempMax}°C`;
-            if (precip > 0.5) weatherMsg += `\n☔ Осадки (~${precip} мм).`;
-            else weatherMsg += `\n☂️ Без осадков.`;
-            console.log('✅ [Morning] Погода получена');
-        } catch (err) { console.error('⚠️ [Morning] Ошибка погоды:', err.message); }
+            const wRes = await axios.get('https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto');
+            const daily = wRes.data.daily;
+            dataContext.weather = {
+                temp_min: daily.temperature_2m_min[0],
+                temp_max: daily.temperature_2m_max[0],
+                precipitation: daily.precipitation_sum[0],
+                desc: daily.precipitation_sum[0] > 0.5 ? 'Осадки' : 'Без осадков'
+            };
+        } catch (e) { console.error('Ошибка погоды:', e.message); }
 
         // 2. Календарь
-        let agendaMsg = `📅 *План на сегодня:*`;
         try {
             const events = await gcal.getEventsForDate(new Date());
-            if (events.length === 0) agendaMsg += `\nСвободно!`;
-            else events.forEach(e => {
-                const time = e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день';
-                agendaMsg += `\n⏰ ${time} — ${escapeMarkdown(e.summary)}`;
-            });
-            console.log('✅ [Morning] Календарь получен');
-        } catch (err) { 
-            console.error('⚠️ [Morning] Ошибка календаря:', err.message);
-            agendaMsg += `\n(Ошибка доступа к календарю)`;
-        }
+            dataContext.calendar = events.map(e => ({
+                time: e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день',
+                title: e.summary
+            }));
+        } catch (e) { console.error('Ошибка календаря:', e.message); }
 
         // 3. Дела
         try {
             const allTodos = await db.getTodos();
             const active = allTodos.filter(t => !t.is_done);
-            if (active.length > 0) {
-                agendaMsg += `\n\n📝 *Дела:*`;
-                const urgent = active.filter(t => t.period === 'urgent' || (!t.period && t.period !== 'medium' && t.period !== 'later'));
-                const medium = active.filter(t => t.period === 'medium');
-                const later = active.filter(t => t.period === 'later');
+            dataContext.todos = active.map(t => ({
+                text: t.text,
+                priority: t.period || 'urgent' // Передаем приоритет, чтобы ИИ видел
+            }));
+        } catch (e) { console.error('Ошибка БД:', e.message); }
 
-                if(urgent.length) { agendaMsg += `\n❗ СРОЧНО:`; urgent.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
-                if(medium.length) { agendaMsg += `\n🔸 Средне:`; medium.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); }
-                if(later.length) { 
-                agendaMsg += `\n⏳ Несрочно:`; 
-                later.forEach(t => agendaMsg += `\n• ${escapeMarkdown(t.text)}`); 
-            }
-            }
-            console.log('✅ [Morning] Дела получены');
-        } catch (err) { console.error('⚠️ [Morning] Ошибка БД:', err.message); }
+        // --- ГЕНЕРАЦИЯ И ОТПРАВКА ---
+        console.log('🤖 Отправляем данные в Gemini...');
+        const aiText = await ai.generateMorningBriefing(dataContext);
 
-        // ОТПРАВКА
-        await bot.telegram.sendMessage(chatId, `${agendaMsg}\n\n${weatherMsg}`, { parse_mode: 'Markdown' });
-        console.log('✅ [Morning] Сообщение успешно отправлено!');
+        if (aiText) {
+            // Если ИИ справился
+            await bot.telegram.sendMessage(chatId, aiText, { parse_mode: 'Markdown' });
+            console.log('✅ AI Сводка отправлена');
+        } else {
+            // ФОЛЛБЭК: Если ИИ не ответил, шлем по-старинке (или просто ошибку, но лучше заглушку)
+            await bot.telegram.sendMessage(chatId, "⚠️ ИИ не проснулся, но вот данные:\n" + 
+                JSON.stringify(dataContext, null, 2)); // Временно так, для отладки
+        }
 
     } catch (e) {
         console.error('❌ [Morning] КРИТИЧЕСКАЯ ОШИБКА:', e);
