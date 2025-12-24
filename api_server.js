@@ -212,28 +212,38 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                console.log('Shopping Action:', data); // <-- Добавим лог, чтобы видеть в консоли, что пришло
+                console.log('Shopping Action:', data); // Лог оставляем, полезно
 
                 if (data.action === 'add') {
                     await db.addShoppingItem(data);
                 } 
-                // Добавил 'toggle', так как фронтенд может слать его вместо 'status'
                 else if (data.action === 'status' || data.action === 'toggle') {
-                    // Берем статус явно: если пришло is_bought, то его, иначе status
-                    const newStatus = (data.is_bought !== undefined) ? data.is_bought : data.status;
-                    await db.updateShoppingStatus(data.id, newStatus);
+                    // --- ЛОГИКА ИСПРАВЛЕНА ТУТ ---
+                    
+                    // 1. Если статус пришел как "deleted" -> Удаляем
+                    if (data.status === 'deleted') {
+                        await db.deleteShoppingItem(data.id);
+                    } 
+                    // 2. Если статус "bought" или true -> Ставим 1, иначе 0
+                    else {
+                        const isBought = (data.status === 'bought' || data.status === 'done' || data.status === true || data.status == 1) ? 1 : 0;
+                        await db.updateShoppingStatus(data.id, isBought);
+                    }
                 } 
                 else if (data.action === 'reorder') {
                     await db.reorderShoppingList(data.ids);
                 }
-                // !!! ВОТ ЭТОГО НЕ ХВАТАЛО !!!
+                // На случай, если фронтенд когда-то начнет слать нормальный action='delete'
                 else if (data.action === 'delete') {
                     await db.deleteShoppingItem(data.id);
                 }
                 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
-            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+            } catch (e) { 
+                console.error(e);
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
+            }
         });
     }
 
