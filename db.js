@@ -244,10 +244,21 @@ async function getStudentStats(studentName) {
 
 async function getShoppingList() {
     return new Promise((resolve, reject) => {
-        // SELECT *, is_bought as is_done -> Возвращаем и то, и другое, чтобы фронтенд понял статус
-        db.all("SELECT *, is_bought as is_done FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
+        // Берем сырые данные
+        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
             if (err) reject(err);
-            else resolve(rows);
+            else {
+                // ПРЕВРАЩАЕМ В УНИВЕРСАЛЬНЫЙ ФОРМАТ
+                const fixedRows = rows.map(r => ({
+                    ...r,
+                    // 1. Дублируем статус во все возможные поля
+                    is_bought: r.is_bought, 
+                    is_done: r.is_bought,          // Для фронтенда Todo-стиля
+                    checked: !!r.is_bought,        // Boolean true/false
+                    status: r.is_bought ? 'bought' : 'active' // Текстовый статус
+                }));
+                resolve(fixedRows);
+            }
         });
     });
 }
@@ -267,10 +278,25 @@ async function addShoppingItem(data) {
 async function updateShoppingStatus(id, isBought) {
     const now = new Date().toISOString();
     const completedAt = isBought ? now : null;
-    return dbRun(
-        'UPDATE shopping_list SET is_bought = ?, completed_at = ? WHERE id = ?', 
-        [isBought, completedAt, id]
-    );
+    
+    // Принудительно приводим к числу (0 или 1), чтобы SQLite не тупил
+    const val = isBought ? 1 : 0;
+
+    return new Promise((resolve, reject) => {
+        db.run(
+            'UPDATE shopping_list SET is_bought = ?, completed_at = ? WHERE id = ?', 
+            [val, completedAt, id],
+            function (err) {
+                if (err) {
+                    console.error('❌ DB Update Error:', err);
+                    reject(err);
+                } else {
+                    console.log(`✅ Updated ID ${id}: set is_bought = ${val}, changed: ${this.changes}`);
+                    resolve({ id: this.lastID, changes: this.changes });
+                }
+            }
+        );
+    });
 }
 
 async function deleteShoppingItem(id) {
