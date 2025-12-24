@@ -11,7 +11,7 @@ const API_URL_UTILITIES = API_BASE_URL + '/utilities';
 const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
 
 const CURRENCY = 'T';
-const CALENDAR_EMBED_ID = process.env.GOOGLE_CALENDAR_ID; 
+// const CALENDAR_EMBED_ID = process.env.GOOGLE_CALENDAR_ID; 
 
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
@@ -43,6 +43,28 @@ function switchTab(tabName) {
     if (tabName === 'students') loadStudents();
     if (tabName === 'shopping') loadShoppingList();
     if (tabName === 'utilities') loadUtilities();
+}
+
+// Функция инициализации календаря
+async function initCalendar() {
+    try {
+        // 1. Спрашиваем у сервера конфиг
+        const res = await fetch('/config');
+        const data = await res.json();
+        const calendarId = data.calendarId;
+
+        if (!calendarId) return; // Если не настроен
+
+        // 2. Находим iframe и вставляем ID
+        const iframe = document.getElementById('calendar-frame'); // Убедись, что у iframe есть этот id в index.html
+        if (iframe) {
+            // Вставляем ID в ссылку (URL-encode важен, если там @)
+            const encodedId = encodeURIComponent(calendarId);
+            iframe.src = `https://calendar.google.com/calendar/embed?src=${encodedId}&ctz=Asia%2FAlmaty`;
+        }
+    } catch (e) {
+        console.error('Ошибка загрузки календаря:', e);
+    }
 }
 
 async function loadData() {
@@ -114,6 +136,7 @@ async function init() {
         loadKPI();   // Загружаем счетчик уроков
         loadWeather();
         loadTodos();
+        initCalendar();
         switchTab('analytics'); 
     }
 }
