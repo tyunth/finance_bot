@@ -940,41 +940,184 @@ bot.on('callback_query', async (ctx) => {
         
         return ctx.editMessageText(`Записана отмена: ${reason}.`);
     }
+
+    // --- УПРАВЛЕНИЕ ЧЕКАМИ (VISION V2) ---
+    
+    // 1. УДАЛЕНИЕ ЧЕКА
+    if (data.startsWith('receipt_del_')) {
+        const receiptId = data.replace('receipt_del_', '');
+        
+        // Удаляем сам чек
+        await db.dbRun('DELETE FROM receipts WHERE id = ?', [receiptId]);
+        
+        // Удаляем все транзакции, связанные с этим чеком
+        // (Мы добавили колонку receipt_id в миграции)
+        await db.dbRun('DELETE FROM transactions WHERE receipt_id = ?', [receiptId]);
+        
+        return ctx.editMessageText('🗑 Чек и все связанные позиции удалены.');
+    }
+
+    // 2. ПОКАЗАТЬ ДЕТАЛИ (Список товаров)
+    if (data.startsWith('receipt_show_')) {
+        const receiptId = data.replace('receipt_show_', '');
+        
+        // Достаем чек
+        const receipt = await db.dbGet('SELECT * FROM receipts WHERE id = ?', [receiptId]);
+        if (!receipt) return ctx.reply('Чек не найден.');
+        
+        // Достаем товары
+        const items = await db.dbAll('SELECT * FROM transactions WHERE receipt_id = ?', [receiptId]);
+        
+        let msg = `🧾 **Детали чека #${receiptId}**\n`;
+        msg += `🏪 ${receipt.shop_name}\n`;
+        if (receipt.shop_address) msg += `📍 ${receipt.shop_address}\n`;
+        msg += `📅 ${receipt.date}\n\n`;
+        
+        if (items.length === 0) {
+            msg += "_Нет сохраненных позиций_";
+        } else {
+            items.forEach((t, i) => {
+                // Пытаемся красиво отформатировать: "1. Молоко (Продукты) - 500т"
+                // Комментарий у нас содержит "Название (кол-во)"
+                msg += `${i+1}. ${t.comment} — **${formatAmount(t.amount)}**\n`;
+                msg += `   └ _${t.category}_\n`;
+            });
+        }
+        
+        msg += `\n💰 **Итого:** ${formatAmount(receipt.total_sum)}`;
+        if (receipt.discount > 0) msg += ` (Скидка: ${formatAmount(receipt.discount)})`;
+
+        // Кнопка "Скрыть" (удаляет сообщение с деталями, чтобы не захламлять чат)
+        const closeBtn = Markup.inlineKeyboard([
+            Markup.button.callback('Скрыть', 'delete_msg') 
+        ]);
+        
+        // Если это ответ на нажатие кнопки, можно отредактировать сообщение или отправить новое
+        // Лучше отправить новое, так как список может быть длинным
+        await ctx.replyWithMarkdown(msg, closeBtn);
+        return ctx.answerCbQuery(); // Снимаем часики загрузки
+    }
+
+    // Простая кнопка для скрытия (если её еще нет)
+    if (data === 'delete_msg') {
+        return ctx.deleteMessage();
+    }
     
 });
 
-// Photo (OCR) Handler
+// --- AI VISION HANDLER (ЧЕКИ V2) ---
 bot.on('photo', async (ctx) => {
     try {
-        ctx.reply('🔍 Анализирую чек...');
-        const photo = ctx.message.photo.pop();
-        const fileLink = await ctx.telegram.getFileLink(photo.file_id);
-        const response = await fetch(fileLink.href);
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const receiptData = await ocr.parseReceipt(buffer);
+        const msg = await ctx.reply('👀 Смотрю на чек...');
         
-        ctx.session.receipt = {
-            rawText: receiptData.rawText, shopName: receiptData.shopName || 'Unknown', address: receiptData.address,
-            date: receiptData.date, items: [], currentIndex: 0, totalSum: receiptData.total || 0, totalWarning: receiptData.totalWarning
-        };
-        if (receiptData.error || !receiptData.items || receiptData.items.length === 0) {
-             return ctx.reply('Товары не найдены или ошибка.', Markup.inlineKeyboard([Markup.button.callback('Показать сырой текст (Debug)', 'show_raw_ocr')]));
+        // 1. Скачиваем фото
+        const photo = ctx.message.photo.pop(); // Берем самое лучшее качество
+        const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+        const response = await axios.get(fileLink.href, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data);
+
+        // 2. Список категорий (берем из конфига или базы)
+        // Если ты уже перешел на БД, тут должен быть запрос db.getCategories()
+        // Пока берем из твоего старого конфига для совместимости
+        const userCategories = config.EXPENSE_CATEGORIES.flat(); 
+
+        // 3. Отправляем в AI
+        await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, '🧠 Анализирую товары...');
+        const data = await ai.parseReceipt(buffer, userCategories);
+
+        if (!data) {
+            return ctx.editMessageText('❌ ИИ не смог прочитать чек. Попробуй сфотографировать четче.');
         }
-        const itemsToProcess = [];
-        for (const item of receiptData.items) {
-            let category = await db.getProductCategory(item.name);
-            if (!category) {
-                const shopKey = Object.keys(config.SHOP_MAPPINGS).find(key => receiptData.shopName.toLowerCase().includes(key.toLowerCase()));
-                if (shopKey) category = config.SHOP_MAPPINGS[shopKey];
-            }
-            item.category = category; 
-            itemsToProcess.push(item);
+
+        // 4. Сверка сумм
+        const diff = Math.abs(data.meta.total_receipt - data.meta.total_calculated);
+        const isValid = diff < 5; // Допускаем погрешность в 5 тенге
+        const warningIcon = isValid ? '✅' : '⚠️';
+        const warningText = isValid ? '' : `\n\n⚠️ *Расхождение:* Чек=${data.meta.total_receipt}, Товары=${data.meta.total_calculated}`;
+
+        // 5. Сохранение в БД (Транзакционно)
+        // Сначала создаем Чек
+        await db.dbRun(
+            `INSERT INTO receipts (user_id, shop_name, shop_address, date, total_sum, calculated_sum, item_count, discount, raw_json, photo_file_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                ctx.from.id, 
+                data.shop.name || 'Магазин', 
+                data.shop.address || '', 
+                data.date, 
+                data.meta.total_receipt, 
+                data.meta.total_calculated, 
+                data.items.length, 
+                data.meta.discount || 0, 
+                JSON.stringify(data), 
+                photo.file_id, 
+                new Date().toISOString()
+            ]
+        );
+
+        // Получаем ID только что созданного чека
+        const receiptRow = await db.dbGet('SELECT last_insert_rowid() as id');
+        const receiptId = receiptRow.id;
+
+        // Теперь сохраняем позиции как транзакции
+        for (const item of data.items) {
+            // Определяем тег автоматически
+            const tag = config.AUTO_TAGS[item.category] || 'Разное';
+            
+            await db.addTransaction({
+                userId: ctx.from.id,
+                type: 'expense',
+                amount: item.sum, // Важно: берем item.sum (цена * кол-во)
+                category: item.category,
+                tag: tag,
+                comment: `${item.name} (${item.qty} шт)`, // В коммент пишем детали
+                sourceAccount: 'Основной', // По умолчанию
+                targetAccount: null,
+                date: data.date || new Date().toISOString(),
+                // ВАЖНО: Мы должны были обновить addTransaction, чтобы она принимала receiptId
+                // Но пока её не обновили, давай запишем receipt_id прямым SQL апдейтом, чтобы не ломать db.js сейчас
+            });
+
+            // "Грязный хак" чтобы привязать последнюю транзакцию к чеку, 
+            // пока мы не обновили функцию addTransaction официально.
+            const txRow = await db.dbGet('SELECT last_insert_rowid() as id');
+            await db.dbRun('UPDATE transactions SET receipt_id = ? WHERE id = ?', [receiptId, txRow.id]);
         }
-        ctx.session.receipt.items = itemsToProcess;
-        await processNextReceiptItem(ctx);
-    } catch (e) { console.error(e); ctx.reply('Ошибка обработки фото.'); }
+
+        // 6. Отчет
+        let report = `🧾 *Чек сохранен!* (ID: ${receiptId})\n`;
+        report += `🏪 ${data.shop.name}\n`;
+        if (data.shop.address) report += `📍 ${data.shop.address}\n`;
+        report += `📅 ${data.date}\n`;
+        report += `💰 *Итого: ${data.meta.total_receipt}* ${warningText}\n\n`;
+        
+        // Краткая сводка по категориям
+        const catSummary = {};
+        data.items.forEach(i => {
+            catSummary[i.category] = (catSummary[i.category] || 0) + i.sum;
+        });
+        
+        Object.entries(catSummary).forEach(([cat, sum]) => {
+            report += `• ${cat}: ${sum}\n`;
+        });
+
+        // Кнопки действий
+        const buttons = Markup.inlineKeyboard([
+            [Markup.button.callback('📜 Показать детали', `receipt_show_${receiptId}`)],
+            [Markup.button.callback('❌ Удалить чек', `receipt_del_${receiptId}`)]
+        ]);
+
+        await ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id); // Удаляем "Анализирую..."
+        await ctx.replyWithMarkdown(report, buttons);
+
+    } catch (e) {
+        console.error(e);
+        ctx.reply(`Ошибка обработки чека: ${e.message}`);
+    }
 });
+
+// Обработчик кнопок чека (добавь это где-то в bot.on('callback_query'))
+// if (data.startsWith('receipt_del_')) ...
 
 async function processNextReceiptItem(ctx) {
     const receipt = ctx.session.receipt;
