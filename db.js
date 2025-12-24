@@ -122,13 +122,35 @@ async function getBalances(userId) {
 
 // Транзакции
 async function addTransaction(data) {
-    const { userId, type, amount, category, tag, comment, sourceAccount, targetAccount, lesson_type } = data;
-    const date = data.date || new Date().toISOString();
-    return dbRun(
-        `INSERT INTO transactions (user_id, type, amount, category, tag, comment, date, source_account, target_account, lesson_type) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, type, amount, category, tag, comment, date, sourceAccount, targetAccount, lesson_type]
-    );
+    const { 
+        userId, type, amount, category, tag, comment, 
+        sourceAccount, targetAccount, lesson_type,
+        receipt_id = null 
+        // date отсюда убрали, чтобы не мешался
+    } = data;
+
+    // Создаем переменную txDate (которую ты используешь в массиве ниже)
+    // Берем либо дату из объекта data, либо текущую
+    const txDate = data.date || new Date().toISOString();
+
+    return new Promise((resolve, reject) => {
+        db.run(
+            `INSERT INTO transactions 
+            (user_id, type, amount, category, tag, comment, source_account, target_account, lesson_type, receipt_id, date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [
+                userId, type, amount, category, tag, comment, 
+                sourceAccount, targetAccount, lesson_type, 
+                receipt_id, 
+                txDate // <--- Теперь эта переменная существует и она правильная
+            ], 
+            function (err) {
+                if (err) return reject(err);
+                // Тут у тебя должен быть вызов updateBalance, не забудь его раскомментить в реальном коде
+                resolve({ lastID: this.lastID });
+            }
+        );
+    });
 }
 
 // Статистика
