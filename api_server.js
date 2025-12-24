@@ -271,6 +271,15 @@ const server = http.createServer(async (req, res) => {
         });
     }
         
+    // --- НОВЫЙ МАРШРУТ: Отдача публичного конфига ---
+    else if (req.url === '/config' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        // Отдаем только то, что можно видеть фронтенду! Не отдавай тут пароли!
+        res.end(JSON.stringify({ 
+            calendarId: process.env.GOOGLE_CALENDAR_ID 
+        }));
+    }
+        
     // --- TO-DO LIST (С ПОДСЧЕТОМ ДНЕЙ) ---
     else if (req.url === '/todos' && req.method === 'GET') {
         try {
