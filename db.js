@@ -58,7 +58,8 @@ function initializeTables() {
 
 
         // --- 2. Миграции (добавление колонок в старые таблицы) ---
-
+        // Добавляем sort_order отдельно для shopping_list (чтобы reorder работал)
+        db.run(`ALTER TABLE shopping_list ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {});
         // --- МИГРАЦИЯ V2: ВРЕМЕННЫЕ МЕТКИ И SOFT DELETE ---
         const tablesToUpdate = ['todos', 'shopping_list'];
         const newColumns = [
