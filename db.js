@@ -56,28 +56,37 @@ function initializeTables() {
         )`);
 
 
-        // --- 2. Миграции ---
+        // --- 2. Миграции (ЛЕЧИМ БАЗУ) ---
 
-        // V2: ВРЕМЕННЫЕ МЕТКИ, SOFT DELETE и СОРТИРОВКА
-        const tablesToUpdate = ['todos', 'shopping_list'];
-        const newColumns = [
-            "created_at TEXT", 
-            "completed_at TEXT", 
-            "deleted_at TEXT"
-        ];
-        
-        tablesToUpdate.forEach(table => {
-            newColumns.forEach(colDefinition => {
-                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, () => {});
+        // Список всех колонок, которые могли потеряться или новые
+        const tablesToUpdate = {
+            'shopping_list': [
+                "is_bought INTEGER DEFAULT 0", // <--- ВОТ ЛЕКАРСТВО ОТ ТВОЕЙ ОШИБКИ
+                "type TEXT DEFAULT 'buy'",
+                "created_at TEXT", 
+                "completed_at TEXT", 
+                "deleted_at TEXT",
+                "sort_order INTEGER DEFAULT 0"
+            ],
+            'todos': [
+                "period TEXT DEFAULT 'urgent'",
+                "created_at TEXT", 
+                "completed_at TEXT", 
+                "deleted_at TEXT"
+            ],
+            'students': [
+                "schedule_days TEXT DEFAULT ''"
+            ]
+        };
+
+        // Проходим по всем таблицам и пытаемся добавить колонки
+        for (const [table, columns] of Object.entries(tablesToUpdate)) {
+            columns.forEach(colDefinition => {
+                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, (err) => {
+                    // Игнорируем ошибку, если колонка уже есть (duplicate column)
+                });
             });
-        });
-
-        // !!! ВАЖНО: Добавляем колонку для сортировки, иначе reorder упадет !!!
-        db.run(`ALTER TABLE shopping_list ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {});
-        
-        // Остальные миграции
-        db.run(`ALTER TABLE students ADD COLUMN schedule_days TEXT DEFAULT ''`, () => {});
-        db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", () => {});
+        }
     });
 }
 
@@ -243,9 +252,8 @@ async function getShoppingList() {
     });
 }
 
-// ИСПРАВЛЕНО: Принимаем data (объект), потому что сервер шлет {action, item, type}
+// Функция принимает объект, так как сервер шлет объект data
 async function addShoppingItem(data) {
-    // В api_server data - это весь объект. Берем item оттуда.
     const item = data.item || data.text; // Подстраховка
     const type = data.type || 'buy';
     
@@ -256,7 +264,6 @@ async function addShoppingItem(data) {
     );
 }
 
-// ИСПРАВЛЕНО: Сервер шлет updateShoppingStatus(id, status)
 async function updateShoppingStatus(id, isBought) {
     const now = new Date().toISOString();
     const completedAt = isBought ? now : null;
@@ -266,7 +273,6 @@ async function updateShoppingStatus(id, isBought) {
     );
 }
 
-// Удаление через Soft Delete
 async function deleteShoppingItem(id) {
     const now = new Date().toISOString();
     return dbRun('UPDATE shopping_list SET deleted_at = ? WHERE id = ?', [now, id]);
@@ -381,7 +387,7 @@ module.exports = {
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
     
-    // Твои названия функций (как в api_server.js)
+    // Покупки
     getShoppingList, 
     addShoppingItem, 
     updateShoppingStatus, 
