@@ -59,6 +59,24 @@ function initializeTables() {
 
         // --- 2. Миграции (добавление колонок в старые таблицы) ---
 
+        // --- МИГРАЦИЯ V2: ВРЕМЕННЫЕ МЕТКИ И SOFT DELETE ---
+        const tablesToUpdate = ['todos', 'shopping_list'];
+        const newColumns = [
+            "created_at TEXT", 
+            "completed_at TEXT", 
+            "deleted_at TEXT"
+        ];
+        tablesToUpdate.forEach(table => {
+            newColumns.forEach(colDefinition => {
+                // Пытаемся добавить колонку. Если есть - игнорируем ошибку.
+                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, (err) => {
+                    if (err && !err.message.includes('duplicate column')) {
+                         // console.error(`Migration skip: ${table} ${colDefinition}`); 
+                    }
+                });
+            });
+        });
+        
         // Миграция для студентов (schedule_days)
         const studentCols = ['schedule_days'];
         studentCols.forEach(col => {
@@ -67,7 +85,7 @@ function initializeTables() {
             });
         });
 
-        // Миграция для задач (period) - ВОТ ТУТ БЫЛА ОШИБКА
+        // Миграция для задач (period) 
         db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", (err) => {
             if (err && !err.message.includes('duplicate column')) {
                 console.error('Migration error (todos):', err.message);
@@ -231,18 +249,34 @@ async function getStudentStats(studentName) {
 
 // --- СПИСОК ПОКУПОК ---
 async function getShoppingList() {
-    return dbAll("SELECT * FROM shopping_list WHERE status = 'active' ORDER BY sort_order ASC, id ASC");
+    return new Promise((resolve, reject) => {
+        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL", [], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
 }
-async function addShoppingItem(item) {
-    const { item_name, type, person_name, price_estimate } = item;
-    const created_at = new Date().toISOString();
+
+async function addToShoppingList(item, type = 'buy') {
+    const now = new Date().toISOString();
     return dbRun(
-        `INSERT INTO shopping_list (item_name, type, person_name, price_estimate, status, created_at) VALUES (?, ?, ?, ?, 'active', ?)`,
-        [item_name, type, person_name, price_estimate, created_at]
+        'INSERT INTO shopping_list (item_name, is_bought, type, created_at) VALUES (?, 0, ?, ?)', 
+        [item, type, now]
     );
 }
-async function updateShoppingStatus(id, status) {
-    return dbRun("UPDATE shopping_list SET status = ? WHERE id = ?", [status, id]);
+
+async function toggleShoppingItem(id, isBought) {
+    const now = new Date().toISOString();
+    const completedAt = isBought ? now : null;
+    return dbRun(
+        'UPDATE shopping_list SET is_bought = ?, completed_at = ? WHERE id = ?', 
+        [isBought, completedAt, id]
+    );
+}
+
+async function deleteShoppingItem(id) {
+    const now = new Date().toISOString();
+    return dbRun('UPDATE shopping_list SET deleted_at = ? WHERE id = ?', [now, id]);
 }
 async function reorderShoppingList(ids) {
     const promises = ids.map((id, index) => {
@@ -302,19 +336,40 @@ async function payDebt(debtId) {
 
 // --- СПИСОК ДЕЛ (TO-DO) ---
 async function getTodos() {
-    // Сначала невыполненные, потом выполненные (чтобы галочки улетали вниз)
-    return dbAll("SELECT * FROM todos ORDER BY is_done ASC, id DESC");
+    return new Promise((resolve, reject) => {
+        // ПОКАЗЫВАЕМ ТОЛЬКО ЖИВЫЕ (не удаленные)
+        db.all("SELECT * FROM todos WHERE deleted_at IS NULL", [], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
 }
+
 async function addTodo(text, period) {
     const p = period || 'urgent';
-    return dbRun('INSERT INTO todos (text, is_done, period) VALUES (?, 0, ?)', [text, p]);
+    const now = new Date().toISOString();
+    return dbRun(
+        'INSERT INTO todos (text, is_done, period, created_at) VALUES (?, 0, ?, ?)', 
+        [text, p, now]
+    );
 }
-async function toggleTodo(id, status) {
-    // status: 1 (сделано) или 0 (не сделано)
-    return dbRun("UPDATE todos SET is_done = ? WHERE id = ?", [status, id]);
+
+async function toggleTodo(id, isDone) {
+    const now = new Date().toISOString();
+    // Если отмечаем как сделанное (1) -> ставим completed_at
+    // Если возвращаем в работу (0) -> очищаем completed_at
+    const completedAt = isDone ? now : null;
+    
+    return dbRun(
+        'UPDATE todos SET is_done = ?, completed_at = ? WHERE id = ?', 
+        [isDone, completedAt, id]
+    );
 }
+
 async function deleteTodo(id) {
-    return dbRun("DELETE FROM todos WHERE id = ?", [id]);
+    const now = new Date().toISOString();
+    // SOFT DELETE: Не удаляем, а ставим метку времени
+    return dbRun('UPDATE todos SET deleted_at = ? WHERE id = ?', [now, id]);
 }
 
 // --- ИСТОРИЯ УРОКОВ ---
@@ -337,6 +392,17 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
+// --- ВСПОМОГАТЕЛЬНЫЕ ---
+
+function dbRun(sql, params = []) {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function (err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, changes: this.changes });
+        });
+    });
+}
+
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -344,10 +410,11 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
-    getShoppingList, addShoppingItem, updateShoppingStatus, reorderShoppingList,
+    getShoppingList, addToShoppingList,toggleShoppingItem, deleteShoppingItem, reorderShoppingList,
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
     addLessonHistory, checkLessonHistoryExists, 
+    dbRun,
     DB_PATH
 };
