@@ -39,7 +39,7 @@ function switchTab(tabName) {
     if (targetEl) targetEl.classList.remove('hidden');
     if (targetBtn) targetBtn.classList.add('active');   
     
-    if (tabName === 'calendar') loadCalendar();
+    if (tabName === 'calendar') initCalendar();
     if (tabName === 'students') loadStudents();
     if (tabName === 'shopping') loadShoppingList();
     if (tabName === 'utilities') loadUtilities();
@@ -616,14 +616,7 @@ if (editForm) {
 }
 
 let calendarLoaded = false;
-function loadCalendar() {
-    if (calendarLoaded) return;
-    const iframe = document.getElementById('google-calendar-frame');
-    if (iframe) {
-        iframe.src = `https://calendar.google.com/calendar/embed?src=${calendarId}&ctz=Asia/Almaty&mode=WEEK`; 
-        calendarLoaded = true;
-    }
-}
+
 
 async function loadStudents() {
     try {
