@@ -1344,15 +1344,27 @@ async function sendMorningBriefing(chatId) {
                 };
             });
         } catch (e) { console.error('Ошибка календаря:', e.message); }
-        // 3. Дела
+        // 3. Дела (ОБНОВЛЕНО: считаем дни)
         try {
             const allTodos = await db.getTodos();
             const active = allTodos.filter(t => !t.is_done);
-            dataContext.todos = active.map(t => ({
-                text: t.text,
-                priority: t.period || 'urgent' // Передаем приоритет, чтобы ИИ видел
-            }));
-        } catch (e) { console.error('Ошибка БД:', e.message); }
+            
+            const now = new Date();
+            
+            dataContext.todos = active.map(t => {
+                let days = 0;
+                if (t.created_at) {
+                    const created = new Date(t.created_at);
+                    const diffTime = Math.abs(now - created);
+                    days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                }
+                return {
+                    text: t.text,
+                    priority: t.period || 'urgent',
+                    days_active: days // <--- Отправляем возраст задачи ИИ
+                };
+            });
+            } catch (e) { console.error('Ошибка БД:', e.message); }
 
         // --- ГЕНЕРАЦИЯ И ОТПРАВКА ---
         console.log('🤖 Отправляем данные в Gemini...');
