@@ -13,7 +13,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 
 function initializeTables() {
     db.serialize(() => {
-        // --- 1. Создание таблиц (если их нет) ---
+        // --- 1. Создание таблиц ---
         
         db.run(`CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, amount REAL, category TEXT, tag TEXT, comment TEXT, date TEXT, source_account TEXT, target_account TEXT
@@ -51,51 +51,37 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER, student_name TEXT, date TEXT, status TEXT, reason TEXT, lost_income REAL DEFAULT 0
         )`);
 
-        // Таблица задач (сразу с period, если создается с нуля)
         db.run(`CREATE TABLE IF NOT EXISTS todos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, is_done INTEGER DEFAULT 0, period TEXT DEFAULT 'urgent'
         )`);
 
 
-        // --- 2. Миграции (добавление колонок в старые таблицы) ---
-        // Добавляем sort_order отдельно для shopping_list (чтобы reorder работал)
-        db.run(`ALTER TABLE shopping_list ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {});
-        // --- МИГРАЦИЯ V2: ВРЕМЕННЫЕ МЕТКИ И SOFT DELETE ---
+        // --- 2. Миграции ---
+
+        // V2: ВРЕМЕННЫЕ МЕТКИ, SOFT DELETE и СОРТИРОВКА
         const tablesToUpdate = ['todos', 'shopping_list'];
         const newColumns = [
             "created_at TEXT", 
             "completed_at TEXT", 
             "deleted_at TEXT"
         ];
+        
         tablesToUpdate.forEach(table => {
             newColumns.forEach(colDefinition => {
-                // Пытаемся добавить колонку. Если есть - игнорируем ошибку.
-                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, (err) => {
-                    if (err && !err.message.includes('duplicate column')) {
-                         // console.error(`Migration skip: ${table} ${colDefinition}`); 
-                    }
-                });
-            });
-        });
-        
-        // Миграция для студентов (schedule_days)
-        const studentCols = ['schedule_days'];
-        studentCols.forEach(col => {
-            db.run(`ALTER TABLE students ADD COLUMN ${col} TEXT DEFAULT ''`, (err) => {
-                // Игнорируем ошибку "duplicate column", если колонка уже есть
+                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, () => {});
             });
         });
 
-        // Миграция для задач (period) 
-        db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-                console.error('Migration error (todos):', err.message);
-            }
-        });
+        // !!! ВАЖНО: Добавляем колонку для сортировки, иначе reorder упадет !!!
+        db.run(`ALTER TABLE shopping_list ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {});
+        
+        // Остальные миграции
+        db.run(`ALTER TABLE students ADD COLUMN schedule_days TEXT DEFAULT ''`, () => {});
+        db.run("ALTER TABLE todos ADD COLUMN period TEXT DEFAULT 'urgent'", () => {});
     });
 }
 
-// Обертки для удобства (экспортируем их для api_server.js)
+// Обертки
 const dbRun = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function(e) { e ? reject(e) : resolve(this) }));
 const dbAll = (sql, params = []) => new Promise((resolve, reject) => db.all(sql, params, (e, r) => e ? reject(e) : resolve(r)));
 const dbGet = (sql, params = []) => new Promise((resolve, reject) => db.get(sql, params, (e, r) => e ? reject(e) : resolve(r)));
@@ -228,13 +214,10 @@ async function addStudent(data) {
     );
 }
 async function updateStudent(data) {
-    // 1. Добавили schedule_days в фигурные скобки
     const { id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week, schedule_days } = data;
-    
     return dbRun(
         `UPDATE students SET name=?, subject=?, parents=?, school=?, grade=?, teacher=?, phone=?, address=?, notes=?, parent_phone=?, lessons_per_week=?, schedule_days=?
          WHERE id=?`,
-        // 2. Используем '' (пустую строку) если данных нет
         [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0, schedule_days || '', id]
     );
 }
@@ -249,16 +232,23 @@ async function getStudentStats(studentName) {
 }
 
 // --- СПИСОК ПОКУПОК ---
+
 async function getShoppingList() {
     return new Promise((resolve, reject) => {
-        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL", [], (err, rows) => {
+        // Учитываем soft delete и сортировку
+        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
     });
 }
 
-async function addShoppingItem(item, type = 'buy') {
+// ИСПРАВЛЕНО: Принимаем data (объект), потому что сервер шлет {action, item, type}
+async function addShoppingItem(data) {
+    // В api_server data - это весь объект. Берем item оттуда.
+    const item = data.item || data.text; // Подстраховка
+    const type = data.type || 'buy';
+    
     const now = new Date().toISOString();
     return dbRun(
         'INSERT INTO shopping_list (item_name, is_bought, type, created_at) VALUES (?, 0, ?, ?)', 
@@ -266,6 +256,7 @@ async function addShoppingItem(item, type = 'buy') {
     );
 }
 
+// ИСПРАВЛЕНО: Сервер шлет updateShoppingStatus(id, status)
 async function updateShoppingStatus(id, isBought) {
     const now = new Date().toISOString();
     const completedAt = isBought ? now : null;
@@ -275,10 +266,12 @@ async function updateShoppingStatus(id, isBought) {
     );
 }
 
+// Удаление через Soft Delete
 async function deleteShoppingItem(id) {
     const now = new Date().toISOString();
     return dbRun('UPDATE shopping_list SET deleted_at = ? WHERE id = ?', [now, id]);
 }
+
 async function reorderShoppingList(ids) {
     const promises = ids.map((id, index) => {
         return dbRun("UPDATE shopping_list SET sort_order = ? WHERE id = ?", [index, id]);
@@ -301,11 +294,8 @@ async function deleteUtilityReading(id) {
     return dbRun("DELETE FROM utility_readings WHERE id = ?", [id]);
 }
 
-// --- НОВЫЕ ФУНКЦИИ (ДЛЯ ОБНОВЛЕНИЯ) ---
-
-// 1. KPI: Считаем уроки за месяц
+// --- ПРОЧЕЕ ---
 async function getLessonCount(monthStr) {
-    // monthStr в формате 'YYYY-MM'
     const result = await dbGet(
         `SELECT COUNT(*) as count FROM transactions 
          WHERE type = 'income' AND category = 'Репетиторство' AND date LIKE ?`, 
@@ -314,12 +304,9 @@ async function getLessonCount(monthStr) {
     return result ? result.count : 0;
 }
 
-// 2. Оплата долга (одной транзакцией: создает доход + гасит долг)
 async function payDebt(debtId) {
     const debt = await dbGet('SELECT * FROM debts WHERE id = ?', [debtId]);
     if (!debt) throw new Error('Долг не найден');
-
-    // Начинаем "транзакцию" (в логическом смысле)
     await addTransaction({
         userId: debt.user_id,
         type: 'income',
@@ -330,7 +317,6 @@ async function payDebt(debtId) {
         sourceAccount: null,
         targetAccount: 'Основной'
     });
-
     await dbRun('UPDATE debts SET is_paid = 1 WHERE id = ?', [debtId]);
     return true;
 }
@@ -338,7 +324,6 @@ async function payDebt(debtId) {
 // --- СПИСОК ДЕЛ (TO-DO) ---
 async function getTodos() {
     return new Promise((resolve, reject) => {
-        // ПОКАЗЫВАЕМ ТОЛЬКО ЖИВЫЕ (не удаленные)
         db.all("SELECT * FROM todos WHERE deleted_at IS NULL", [], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
@@ -357,10 +342,7 @@ async function addTodo(text, period) {
 
 async function toggleTodo(id, isDone) {
     const now = new Date().toISOString();
-    // Если отмечаем как сделанное (1) -> ставим completed_at
-    // Если возвращаем в работу (0) -> очищаем completed_at
     const completedAt = isDone ? now : null;
-    
     return dbRun(
         'UPDATE todos SET is_done = ?, completed_at = ? WHERE id = ?', 
         [isDone, completedAt, id]
@@ -369,7 +351,6 @@ async function toggleTodo(id, isDone) {
 
 async function deleteTodo(id) {
     const now = new Date().toISOString();
-    // SOFT DELETE: Не удаляем, а ставим метку времени
     return dbRun('UPDATE todos SET deleted_at = ? WHERE id = ?', [now, id]);
 }
 
@@ -383,9 +364,7 @@ async function addLessonHistory(data) {
     );
 }
 
-// Проверка: была ли запись в истории за эту дату для этого ученика?
 async function checkLessonHistoryExists(studentName, dateStr) {
-    // dateStr в формате YYYY-MM-DD
     const row = await dbGet(
         `SELECT id FROM lesson_history WHERE student_name = ? AND date LIKE ?`, 
         [studentName, `${dateStr}%`]
@@ -393,7 +372,7 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
-
+// --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
     ensureMainAccount, addTransaction, getBalances, getPeriodStats, getCategoryStats,
@@ -401,7 +380,14 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
-    getShoppingList, addShoppingItem, updateShoppingStatus, deleteShoppingItem, reorderShoppingList,
+    
+    // Твои названия функций (как в api_server.js)
+    getShoppingList, 
+    addShoppingItem, 
+    updateShoppingStatus, 
+    deleteShoppingItem, 
+    reorderShoppingList,
+
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
