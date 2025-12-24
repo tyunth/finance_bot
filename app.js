@@ -796,7 +796,7 @@ async function loadShoppingList() {
 
 function renderShoppingList(list) {
     const buyContainer = document.getElementById('list-buy');
-    const marketContainer = document.getElementById('list-market'); // НОВЫЙ
+    const marketContainer = document.getElementById('list-market'); 
     const wishContainer = document.getElementById('list-wish');
     if (!buyContainer) return;
 
@@ -805,25 +805,34 @@ function renderShoppingList(list) {
     wishContainer.innerHTML = '';
 
     const buyItems = list.filter(i => i.type === 'buy');
-    const marketItems = list.filter(i => i.type === 'market'); // НОВЫЙ
+    const marketItems = list.filter(i => i.type === 'market');
     const wishItems = list.filter(i => i.type === 'wish');
 
     if (document.getElementById('count-buy')) document.getElementById('count-buy').textContent = buyItems.length;
     if (document.getElementById('count-market')) document.getElementById('count-market').textContent = marketItems.length;
     if (document.getElementById('count-wish')) document.getElementById('count-wish').textContent = wishItems.length;
 
-    const createItemHTML = (item) => `
-        <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-300 transition cursor-move" data-id="${item.id}">
+    const createItemHTML = (item) => {
+        // Проверяем статус (сервер шлет is_bought или is_done)
+        const isChecked = item.is_bought || item.is_done;
+        
+        return `
+        <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-300 transition cursor-move ${isChecked ? 'opacity-60 bg-gray-50' : ''}" data-id="${item.id}">
             <div class="flex items-center gap-3 overflow-hidden">
-                <input type="checkbox" onchange="buyItem(${item.id})" class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0">
+                <input type="checkbox" onchange="buyItem(${item.id}, this.checked)" 
+                       class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                       ${isChecked ? 'checked' : ''}>
+                
                 <div class="min-w-0">
-                    <p class="font-medium text-gray-800 text-sm truncate leading-tight" title="${item.item_name}">${item.item_name}</p>
+                    <p class="font-medium text-sm truncate leading-tight ${isChecked ? 'line-through text-gray-400' : 'text-gray-800'}" title="${item.item_name}">
+                        ${item.item_name}
+                    </p>
                     ${item.price_estimate ? `<p class="text-[10px] text-green-600 font-bold mt-0.5">~${formatCurrency(item.price_estimate)}</p>` : ''}
                 </div>
             </div>
             <button onclick="deleteItem(${item.id})" class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition">✕</button>
         </div>
-    `;
+    `};
 
     buyContainer.innerHTML = buyItems.length ? buyItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Всё куплено</div>';
     if (marketContainer) marketContainer.innerHTML = marketItems.length ? marketItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Пусто</div>';
