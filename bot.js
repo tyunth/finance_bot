@@ -562,7 +562,9 @@ bot.action(/^todo_del_(\d+)$/, async (ctx) => {
 // Универсальная функция показа списка
 async function renderList(ctx, type) {
     const list = await db.getShoppingList();
-    const items = list.filter(i => i.type === type);
+    
+    // --- ИЗМЕНЕНИЕ: Фильтруем. Показываем только если тип совпадает И товар НЕ куплен ---
+    const items = list.filter(i => i.type === type && !i.is_bought);
     
     // Проверяем, включен ли режим управления (храним в сессии)
     const isManageMode = ctx.session.manageMode === true;
@@ -585,7 +587,8 @@ async function renderList(ctx, type) {
                     Markup.button.callback(`✏️ Изм.`, `shop_edit_${i.id}_${type}`)
                 ]);
             } else {
-                // В обычном режиме: только галочка
+                // В обычном режиме: кнопка "Куплено"
+                // При нажатии статус станет 1, список обновится, и товар исчезнет благодаря фильтру выше
                 buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}_${type}`)]);
             }
         });
