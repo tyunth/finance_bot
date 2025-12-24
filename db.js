@@ -257,7 +257,7 @@ async function getShoppingList() {
     });
 }
 
-async function addToShoppingList(item, type = 'buy') {
+async function addShoppingItem(item, type = 'buy') {
     const now = new Date().toISOString();
     return dbRun(
         'INSERT INTO shopping_list (item_name, is_bought, type, created_at) VALUES (?, 0, ?, ?)', 
@@ -265,7 +265,7 @@ async function addToShoppingList(item, type = 'buy') {
     );
 }
 
-async function toggleShoppingItem(id, isBought) {
+async function updateShoppingStatus(id, isBought) {
     const now = new Date().toISOString();
     const completedAt = isBought ? now : null;
     return dbRun(
@@ -400,7 +400,7 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
-    getShoppingList, addToShoppingList,toggleShoppingItem, deleteShoppingItem, reorderShoppingList,
+    getShoppingList, addShoppingItem, updateShoppingStatus, deleteShoppingItem, reorderShoppingList,
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
