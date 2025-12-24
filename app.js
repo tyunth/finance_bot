@@ -620,7 +620,7 @@ function loadCalendar() {
     if (calendarLoaded) return;
     const iframe = document.getElementById('google-calendar-frame');
     if (iframe) {
-        iframe.src = `https://calendar.google.com/calendar/embed?src=${CALENDAR_EMBED_ID}&ctz=Asia/Almaty&mode=WEEK`; 
+        iframe.src = `https://calendar.google.com/calendar/embed?src=${calendarId}&ctz=Asia/Almaty&mode=WEEK`; 
         calendarLoaded = true;
     }
 }
