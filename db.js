@@ -265,9 +265,16 @@ async function getShoppingList() {
 
 // Функция принимает объект, так как сервер шлет объект data
 async function addShoppingItem(data) {
-    const item = data.item || data.text; // Подстраховка
+    // Исправлено: ищем item_name (как шлет бот/сайт), либо item, либо text
+    const item = data.item_name || data.item || data.text; 
     const type = data.type || 'buy';
     
+    // Если названия нет - ошибка или заглушка, чтобы не писать null
+    if (!item) {
+        console.error('❌ addShoppingItem: Не получено название товара!', data);
+        return; // Или throw new Error('No name');
+    }
+
     const now = new Date().toISOString();
     return dbRun(
         'INSERT INTO shopping_list (item_name, is_bought, type, created_at) VALUES (?, 0, ?, ?)', 
