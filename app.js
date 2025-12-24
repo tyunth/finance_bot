@@ -1,3 +1,4 @@
+require('dotenv').config();
 const API_BASE_URL = '/budzet'; 
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
@@ -11,7 +12,7 @@ const API_URL_UTILITIES = API_BASE_URL + '/utilities';
 const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
 
 const CURRENCY = 'T';
-const CALENDAR_EMBED_ID = 'polandszymon@gmail.com'; 
+const CALENDAR_EMBED_ID = process.env.GOOGLE_CALENDAR_ID; 
 
 let ALL_CATEGORIES = [];
 let RAW_DATA = [];
