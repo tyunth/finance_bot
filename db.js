@@ -392,16 +392,6 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
-// --- ВСПОМОГАТЕЛЬНЫЕ ---
-
-function dbRun(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function (err) {
-            if (err) reject(err);
-            else resolve({ id: this.lastID, changes: this.changes });
-        });
-    });
-}
 
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -415,6 +405,5 @@ module.exports = {
     getLessonCount, payDebt,
     getTodos, addTodo, toggleTodo, deleteTodo, 
     addLessonHistory, checkLessonHistoryExists, 
-    dbRun,
     DB_PATH
 };
