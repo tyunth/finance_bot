@@ -212,9 +212,24 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                if (data.action === 'add') await db.addShoppingItem(data);
-                else if (data.action === 'status') await db.updateShoppingStatus(data.id, data.status);
-                else if (data.action === 'reorder') await db.reorderShoppingList(data.ids);
+                console.log('Shopping Action:', data); // <-- Добавим лог, чтобы видеть в консоли, что пришло
+
+                if (data.action === 'add') {
+                    await db.addShoppingItem(data);
+                } 
+                // Добавил 'toggle', так как фронтенд может слать его вместо 'status'
+                else if (data.action === 'status' || data.action === 'toggle') {
+                    // Берем статус явно: если пришло is_bought, то его, иначе status
+                    const newStatus = (data.is_bought !== undefined) ? data.is_bought : data.status;
+                    await db.updateShoppingStatus(data.id, newStatus);
+                } 
+                else if (data.action === 'reorder') {
+                    await db.reorderShoppingList(data.ids);
+                }
+                // !!! ВОТ ЭТОГО НЕ ХВАТАЛО !!!
+                else if (data.action === 'delete') {
+                    await db.deleteShoppingItem(data.id);
+                }
                 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'ok' }));
