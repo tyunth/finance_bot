@@ -1091,8 +1091,32 @@ async function runDailyBackup() {
     } catch (e) { console.error('Ошибка бэкапа:', e); }
 }
 
+// Функция отправки бэкапа
+async function sendDatabaseBackup(chatId) {
+    try {
+        const fs = require('fs');
+        if (fs.existsSync('./finance.db')) {
+            const dateStr = new Date().toISOString().split('T')[0]; // 2025-12-24
+            await bot.telegram.sendDocument(chatId, {
+                source: './finance.db',
+                filename: `backup_${dateStr}.db`
+            }, { caption: '💾 Бэкап базы перед утренней чисткой' });
+            console.log('✅ Бэкап отправлен');
+        }
+    } catch (e) {
+        console.error('❌ Ошибка отправки бэкапа:', e.message);
+    }
+}
+
 cron.schedule('0 2 * * *', async () => {
     console.log('Running Morning Briefing...');
+    // 1. Сначала шлем бэкап
+    await sendDatabaseBackup(config.ADMIN_ID);
+
+    // 2. Ждем 3 секунды, чтобы телеграм не перепутал порядок сообщений
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 3. Отправляем AI сводку
     await sendMorningBriefing(config.ADMIN_ID);
 });
 
@@ -1162,7 +1186,6 @@ async function sendMorningBriefing(chatId) {
 }
 setInterval(() => {
     runMonthlyInterestCheck();
-    runDailyBackup();
     runCalendarCheck();
 }, 60 * 60 * 1000); 
 
