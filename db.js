@@ -244,8 +244,8 @@ async function getStudentStats(studentName) {
 
 async function getShoppingList() {
     return new Promise((resolve, reject) => {
-        // Учитываем soft delete и сортировку
-        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
+        // SELECT *, is_bought as is_done -> Возвращаем и то, и другое, чтобы фронтенд понял статус
+        db.all("SELECT *, is_bought as is_done FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
