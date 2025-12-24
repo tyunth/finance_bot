@@ -1135,18 +1135,23 @@ async function sendMorningBriefing(chatId) {
             todos: []
         };
 
-        // 1. Погода
+        // 1. Погода (С деталями по времени суток)
         try {
-            const wRes = await axios.get('https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto');
-            const daily = wRes.data.daily;
+            // Запрашиваем hourly (почасовая температура) вместо daily
+            const wRes = await axios.get('https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&hourly=temperature_2m,precipitation&timezone=auto');
+            
+            const hourly = wRes.data.hourly;
+            
+            // Индексы часов: 8 = 08:00, 14 = 14:00, 20 = 20:00
+            // Округляем (Math.round)
             dataContext.weather = {
-                temp_min: daily.temperature_2m_min[0],
-                temp_max: daily.temperature_2m_max[0],
-                precipitation: daily.precipitation_sum[0],
-                desc: daily.precipitation_sum[0] > 0.5 ? 'Осадки' : 'Без осадков'
+                morning: Math.round(hourly.temperature_2m[8]),
+                day: Math.round(hourly.temperature_2m[14]),
+                evening: Math.round(hourly.temperature_2m[20]),
+                // Если сумма осадков за день > 0 (грубая оценка по первым 24 часам)
+                is_snow: hourly.precipitation.slice(0, 24).reduce((a, b) => a + b, 0) > 0.5
             };
         } catch (e) { console.error('Ошибка погоды:', e.message); }
-
         // 2. Календарь
         try {
             const events = await gcal.getEventsForDate(new Date());
