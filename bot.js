@@ -1150,12 +1150,20 @@ async function sendMorningBriefing(chatId) {
         // 2. Календарь
         try {
             const events = await gcal.getEventsForDate(new Date());
-            dataContext.calendar = events.map(e => ({
-                time: e.start.dateTime ? e.start.dateTime.slice(11, 16) : 'Весь день',
-                title: e.summary
-            }));
+            dataContext.calendar = events.map(e => {
+                // Если событие на весь день (нет времени)
+                if (!e.start.dateTime) {
+                    return { time: 'Весь день', title: e.summary };
+                }
+                // Если есть время (режем строки 2023-12-24T10:00:00...)
+                const start = e.start.dateTime.slice(11, 16);
+                const end = e.end.dateTime ? e.end.dateTime.slice(11, 16) : '??';
+                return {
+                    time: `${start} - ${end}`,
+                    title: e.summary
+                };
+            });
         } catch (e) { console.error('Ошибка календаря:', e.message); }
-
         // 3. Дела
         try {
             const allTodos = await db.getTodos();
