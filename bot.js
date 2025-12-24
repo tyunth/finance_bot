@@ -1124,8 +1124,9 @@ cron.schedule('0 2 * * *', async () => {
 async function sendMorningBriefing(chatId) {
     console.log('🚀 [Morning] Начинаем формирование сводки...');
     try {
-        // 0. Чистка старых дел
-        await db.dbRun('DELETE FROM todos WHERE is_done = 1');
+        // 0. Чистка: Архивируем выполненные задачи (Soft Delete)
+        const now = new Date().toISOString();
+        await db.dbRun('UPDATE todos SET deleted_at = ? WHERE is_done = 1 AND deleted_at IS NULL', [now]);
 
         // --- СБОР ДАННЫХ ---
         const dataContext = {
