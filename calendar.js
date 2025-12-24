@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { google } = require('googleapis');
 const path = require('path');
 const config = require('./config');
@@ -113,7 +114,7 @@ function parseLessonInfo(summary) {
 
 // Получить события за конкретный день (весь день)
 async function getEventsForDate(dateObj) {
-    const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || 'polandszymon@gmail.com';
+    const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID';
     try {
         const start = new Date(dateObj);
         start.setHours(0, 0, 0, 0);
