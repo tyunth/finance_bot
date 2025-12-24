@@ -1014,64 +1014,23 @@ bot.on('callback_query', async (ctx) => {
         const temp = ctx.session.temp_receipt;
         if (!temp) return ctx.editMessageText('⚠️ Данные устарели. Отправьте фото снова.');
         
-        const rData = temp.data;
-        const photoId = temp.photo_file_id;
-
         try {
-            // 1. Сохраняем Чек (Header)
-            await db.dbRun(
-                `INSERT INTO receipts (user_id, shop_name, shop_address, date, total_sum, calculated_sum, item_count, discount, raw_json, photo_file_id, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    ctx.from.id, 
-                    rData.shop.name || 'Магазин', 
-                    rData.shop.address || '', 
-                    rData.date, 
-                    rData.meta.total_receipt, 
-                    rData.meta.total_calculated, 
-                    rData.items.length, 
-                    rData.meta.discount || 0, 
-                    JSON.stringify(rData), 
-                    photoId, 
-                    new Date().toISOString()
-                ]
-            );
-
-            // Получаем ID чека
-            const row = await db.dbGet('SELECT last_insert_rowid() as id');
-            const receiptId = row.id;
-
-            // 2. Сохраняем Транзакции (Items)
-            for (const item of rData.items) {
-                const tag = config.AUTO_TAGS[item.category] || 'Разное';
-                
-                await db.addTransaction({
-                    userId: ctx.from.id,
-                    type: 'expense',
-                    amount: item.sum, 
-                    category: item.category,
-                    tag: tag,
-                    comment: `${item.name} (${item.qty} шт)`, 
-                    sourceAccount: 'Основной', 
-                    targetAccount: null,
-                    date: rData.date || new Date().toISOString()
-                });
-
-                // Привязываем к чеку
-                const txRow = await db.dbGet('SELECT last_insert_rowid() as id');
-                await db.dbRun('UPDATE transactions SET receipt_id = ? WHERE id = ?', [receiptId, txRow.id]);
-            }
+            // ВЕСЬ СТАРЫЙ КОД ЗАМЕНЯЕМ НА ОДНУ СТРОЧКУ:
+            const receiptId = await db.createReceipt(ctx.from.id, temp.data, temp.photo_file_id);
 
             // Очищаем сессию
             delete ctx.session.temp_receipt;
 
-            // 3. Финальный отчет (с кнопками управления)
+            // Финальный отчет
             const finalBtns = Markup.inlineKeyboard([
                 [Markup.button.callback('📜 Детали', `receipt_show_${receiptId}`)],
                 [Markup.button.callback('❌ Удалить', `receipt_del_${receiptId}`)]
             ]);
 
-            return ctx.editMessageText(`✅ **Чек #${receiptId} успешно сохранен!**\nСумма: ${rData.meta.total_receipt}`, { parse_mode: 'Markdown', ...finalBtns });
+            return ctx.editMessageText(
+                `✅ **Чек #${receiptId} успешно сохранен!**\nСумма: ${temp.data.meta.total_receipt}`, 
+                { parse_mode: 'Markdown', ...finalBtns }
+            );
 
         } catch (e) {
             console.error(e);
