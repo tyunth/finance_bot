@@ -804,27 +804,30 @@ function renderShoppingList(list) {
     if (marketContainer) marketContainer.innerHTML = '';
     wishContainer.innerHTML = '';
 
-    const buyItems = list.filter(i => i.type === 'buy');
-    const marketItems = list.filter(i => i.type === 'market');
-    const wishItems = list.filter(i => i.type === 'wish');
+    // --- ИЗМЕНЕНИЕ ЗДЕСЬ: Добавили && !i.is_bought ---
+    // Показываем только те, где is_bought === 0 (не куплено)
+    const buyItems = list.filter(i => i.type === 'buy' && !i.is_bought);
+    const marketItems = list.filter(i => i.type === 'market' && !i.is_bought);
+    const wishItems = list.filter(i => i.type === 'wish' && !i.is_bought);
 
+    // Счетчики
     if (document.getElementById('count-buy')) document.getElementById('count-buy').textContent = buyItems.length;
     if (document.getElementById('count-market')) document.getElementById('count-market').textContent = marketItems.length;
     if (document.getElementById('count-wish')) document.getElementById('count-wish').textContent = wishItems.length;
 
+    // Дальше код отрисовки createItemHTML останется тем же, 
+    // но рисовать он будет только активные товары.
     const createItemHTML = (item) => {
-        // Проверяем статус (сервер шлет is_bought или is_done)
-        const isChecked = item.is_bought || item.is_done;
-        
-        return `
-        <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-300 transition cursor-move ${isChecked ? 'opacity-60 bg-gray-50' : ''}" data-id="${item.id}">
+         // ... (здесь твой старый код createItemHTML) ...
+         // (можешь скопировать его из прошлого сообщения или оставить как есть в файле)
+         const isChecked = item.is_bought || item.is_done;
+         return `
+        <div class="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex justify-between items-center group hover:border-blue-300 transition cursor-move" data-id="${item.id}">
             <div class="flex items-center gap-3 overflow-hidden">
                 <input type="checkbox" onchange="buyItem(${item.id}, this.checked)" 
-                       class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0"
-                       ${isChecked ? 'checked' : ''}>
-                
+                       class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0">
                 <div class="min-w-0">
-                    <p class="font-medium text-sm truncate leading-tight ${isChecked ? 'line-through text-gray-400' : 'text-gray-800'}" title="${item.item_name}">
+                    <p class="font-medium text-sm truncate leading-tight text-gray-800" title="${item.item_name}">
                         ${item.item_name}
                     </p>
                     ${item.price_estimate ? `<p class="text-[10px] text-green-600 font-bold mt-0.5">~${formatCurrency(item.price_estimate)}</p>` : ''}
@@ -834,6 +837,7 @@ function renderShoppingList(list) {
         </div>
     `};
 
+    // ... (конец функции renderShoppingList такой же) ...
     buyContainer.innerHTML = buyItems.length ? buyItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Всё куплено</div>';
     if (marketContainer) marketContainer.innerHTML = marketItems.length ? marketItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Пусто</div>';
     wishContainer.innerHTML = wishItems.length ? wishItems.map(createItemHTML).join('') : '<div class="text-xs text-gray-400 text-center py-4 italic">Пусто</div>';
