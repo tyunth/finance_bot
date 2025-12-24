@@ -270,13 +270,26 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
-
-    // --- TO-DO LIST ---
+        
+    // --- TO-DO LIST (С ПОДСЧЕТОМ ДНЕЙ) ---
     else if (req.url === '/todos' && req.method === 'GET') {
         try {
             const list = await db.getTodos();
+            
+            // Добавляем вычисляемое поле days_active
+            const now = new Date();
+            const enrichedList = list.map(t => {
+                let days = 0;
+                if (t.created_at) {
+                    const created = new Date(t.created_at);
+                    const diffTime = Math.abs(now - created);
+                    days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                }
+                return { ...t, days_active: days };
+            });
+
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(list));
+            res.end(JSON.stringify(enrichedList));
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
     
