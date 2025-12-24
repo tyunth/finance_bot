@@ -3,7 +3,7 @@ require('dotenv').config();
 
 // Инициализация
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Тот самый промпт, который мы утвердили
 const SYSTEM_PROMPT = `
