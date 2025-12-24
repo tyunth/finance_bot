@@ -1,23 +1,38 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const axios = require('axios');
 require('dotenv').config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const API_KEY = process.env.GEMINI_API_KEY;
 
-async function testConnection() {
-    console.log("📡 Пробуем соединиться с Google...");
-    
-    // Попытка 1: Используем самую старую и надежную модель
-    const modelName = "gemini-pro"; 
-    
+async function getAvailableModels() {
+    console.log("📡 Стучимся в Google API напрямую...");
     try {
-        const model = genAI.getGenerativeModel({ model: modelName });
-        const result = await model.generateContent("Привет! Ты работаешь?");
-        const response = await result.response;
-        console.log(`✅ Успех! Модель ${modelName} ответила:`, response.text());
+        // Запрашиваем список всех доступных моделей
+        const response = await axios.get(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`
+        );
+
+        console.log("\n✅ СПИСОК ДОСТУПНЫХ МОДЕЛЕЙ:");
+        const models = response.data.models;
+        
+        // Фильтруем только те, что умеют генерировать контент
+        const chatModels = models.filter(m => m.supportedGenerationMethods.includes("generateContent"));
+        
+        chatModels.forEach(m => {
+            console.log(`🔹 Имя: ${m.name}`);
+            console.log(`   Версия: ${m.version}`);
+            console.log(`   Копируй в ai.js это -> "${m.name.replace('models/', '')}"`);
+            console.log("-".repeat(30));
+        });
+
     } catch (error) {
-        console.error(`❌ Ошибка с моделью ${modelName}:`, error.message);
-        console.log("🔍 Попробуй изменить имя модели в ai.js на 'gemini-1.5-flash-001' или 'gemini-1.0-pro'");
+        console.error("❌ ОШИБКА ЗАПРОСА:");
+        if (error.response) {
+            console.error(`Status: ${error.response.status}`);
+            console.error('Data:', JSON.stringify(error.response.data, null, 2));
+        } else {
+            console.error(error.message);
+        }
     }
 }
 
-testConnection();
+getAvailableModels();
