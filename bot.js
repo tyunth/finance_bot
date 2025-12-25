@@ -1337,6 +1337,35 @@ cron.schedule('0 2 * * *', async () => {
     await sendMorningBriefing(config.ADMIN_ID);
 });
 
+// --- ВЕЧЕРНИЙ ЧЕК-АП (Каждый день в 20:00 местного / 15:00 UTC) ---
+cron.schedule('0 15 * * *', async () => {
+    console.log('Running Evening Sport Check...');
+    try {
+        await bot.telegram.sendMessage(
+            config.ADMIN_ID, 
+            '🔔 **Вечерний спорт-чек!**\nНе забудь отметить выполненные упражнения за сегодня.',
+            Markup.inlineKeyboard([
+                [Markup.button.callback('💪 Открыть тренировку', 'sport_refresh')]
+            ])
+        );
+    } catch (e) { console.error('Evening Cron Error:', e); }
+});
+
+// --- ВОСКРЕСЕНЬЕ: НАПОМИНАНИЕ О ПЛАНЕ (20:05 местного / 15:05 UTC) ---
+// 0 = Воскресенье
+cron.schedule('5 15 * * 0', async () => {
+    console.log('Running Sunday Plan Reminder...');
+    try {
+        await bot.telegram.sendMessage(
+            config.ADMIN_ID,
+            '📅 **Конец недели!**\nСамое время загрузить новый план тренировок на следующую неделю.\n\nНажми кнопку ниже:',
+            Markup.inlineKeyboard([
+                 [Markup.button.callback('⚙️ Загрузить новый план', 'sport_new')]
+            ])
+        );
+    } catch (e) { console.error('Sunday Cron Error:', e); }
+});
+
 // --- ЛОГИКА УТРЕННЕЙ СВОДКИ ---
 async function sendMorningBriefing(chatId) {
     console.log('🚀 [Morning] Начинаем формирование сводки...');
@@ -1350,77 +1379,73 @@ async function sendMorningBriefing(chatId) {
             date: new Date().toLocaleDateString('ru-RU', { weekday: 'long', month: 'long', day: 'numeric' }),
             weather: null,
             calendar: [],
-            todos: []
+            todos: [],
+            sport: { yesterday: null, today: null } // <--- НОВОЕ
         };
 
-        // 1. Погода (С деталями по времени суток)
+        // 1. Погода
         try {
-            // Запрашиваем hourly (почасовая температура) вместо daily
             const wRes = await axios.get('https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&hourly=temperature_2m,precipitation&timezone=auto');
-            
             const hourly = wRes.data.hourly;
-            
-            // Индексы часов: 8 = 08:00, 14 = 14:00, 20 = 20:00
-            // Округляем (Math.round)
             dataContext.weather = {
                 morning: Math.round(hourly.temperature_2m[8]),
                 day: Math.round(hourly.temperature_2m[14]),
                 evening: Math.round(hourly.temperature_2m[20]),
-                // Если сумма осадков за день > 0 (грубая оценка по первым 24 часам)
                 is_snow: hourly.precipitation.slice(0, 24).reduce((a, b) => a + b, 0) > 0.5
             };
         } catch (e) { console.error('Ошибка погоды:', e.message); }
+
         // 2. Календарь
         try {
             const events = await gcal.getEventsForDate(new Date());
             dataContext.calendar = events.map(e => {
-                // Если событие на весь день (нет времени)
-                if (!e.start.dateTime) {
-                    return { time: 'Весь день', title: e.summary };
-                }
-                // Если есть время (режем строки 2023-12-24T10:00:00...)
+                if (!e.start.dateTime) return { time: 'Весь день', title: e.summary };
                 const start = e.start.dateTime.slice(11, 16);
                 const end = e.end.dateTime ? e.end.dateTime.slice(11, 16) : '??';
-                return {
-                    time: `${start} - ${end}`,
-                    title: e.summary
-                };
+                return { time: `${start} - ${end}`, title: e.summary };
             });
         } catch (e) { console.error('Ошибка календаря:', e.message); }
-        // 3. Дела (ОБНОВЛЕНО: считаем дни)
+
+        // 3. Дела
         try {
             const allTodos = await db.getTodos();
             const active = allTodos.filter(t => !t.is_done);
-            
-            const now = new Date();
-            
+            const nowTime = new Date();
             dataContext.todos = active.map(t => {
                 let days = 0;
                 if (t.created_at) {
                     const created = new Date(t.created_at);
-                    const diffTime = Math.abs(now - created);
-                    days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    days = Math.ceil(Math.abs(nowTime - created) / (1000 * 60 * 60 * 24)); 
                 }
-                return {
-                    text: t.text,
-                    priority: t.period || 'urgent',
-                    days_active: days // <--- Отправляем возраст задачи ИИ
-                };
+                return { text: t.text, priority: t.period || 'urgent', days_active: days };
             });
-            } catch (e) { console.error('Ошибка БД:', e.message); }
+        } catch (e) { console.error('Ошибка БД:', e.message); }
+
+        // 4. СПОРТ (НОВОЕ)
+        try {
+            // Получаем сводку за вчера (-1) и план на сегодня (0)
+            dataContext.sport.yesterday = await sport.getDailySummary(chatId, -1);
+            dataContext.sport.today = await sport.getDailySummary(chatId, 0);
+        } catch (e) { console.error('Ошибка спорта:', e.message); }
 
         // --- ГЕНЕРАЦИЯ И ОТПРАВКА ---
         console.log('🤖 Отправляем данные в Gemini...');
-        const aiText = await ai.generateMorningBriefing(dataContext);
+        
+        // ВАЖНО: Мы обновили ai.js в прошлом шаге принимать 4 аргумента.
+        // Если ты не обновлял ai.js, скажи мне, я перепишу вызов под старый формат.
+        // Но сейчас предполагаем, что ai.js новый.
+        const aiText = await ai.generateMorningBriefing(
+            dataContext.weather, 
+            dataContext.calendar, 
+            dataContext.sport.yesterday, 
+            dataContext.sport.today
+        );
 
         if (aiText) {
-            // Если ИИ справился
             await bot.telegram.sendMessage(chatId, aiText, { parse_mode: 'Markdown' });
             console.log('✅ AI Сводка отправлена');
         } else {
-            // ФОЛЛБЭК: Если ИИ не ответил, шлем по-старинке (или просто ошибку, но лучше заглушку)
-            await bot.telegram.sendMessage(chatId, "⚠️ ИИ не проснулся, но вот данные:\n" + 
-                JSON.stringify(dataContext, null, 2)); // Временно так, для отладки
+            await bot.telegram.sendMessage(chatId, "⚠️ ИИ не проснулся, данные:\n" + JSON.stringify(dataContext, null, 2));
         }
 
     } catch (e) {
@@ -1428,7 +1453,7 @@ async function sendMorningBriefing(chatId) {
     }
 }
 
-// Помощник для разбивки массива на кнопки (по 2 в ряд)
+// Помощник для разбивки массива на кнопки (по 3 в ряд)
 function chunkArray(array, chunkSize) {
     const res = [];
     for (let i = 0; i < array.length; i += chunkSize) {
