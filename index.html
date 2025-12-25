@@ -620,35 +620,6 @@
     </div>
     </div>
     <script src="app.js"></script>
-    <script>
-        (function() {
-            const month = new Date().getMonth(); // 0 = Янв, 11 = Дек
-            // Если сейчас не зима (не 11, 0 или 1), скрипт не запускается
-            if (month !== 11 && month !== 0 && month !== 1) return;
 
-            function createSnowflake() {
-                const snowflake = document.createElement('div');
-                snowflake.innerHTML = '❄';
-                snowflake.style.position = 'fixed';
-                snowflake.style.top = '-10px';
-                snowflake.style.left = Math.random() * 100 + 'vw';
-                snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
-                snowflake.style.opacity = Math.random() * 0.5 + 0.3;
-                snowflake.style.color = '#dbeafe';
-                snowflake.style.zIndex = '9999';
-                snowflake.style.pointerEvents = 'none';
-                snowflake.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
-                document.body.appendChild(snowflake);
-                setTimeout(() => { snowflake.remove(); }, 5000);
-            }
-            
-            // Стиль анимации
-            const style = document.createElement('style');
-            style.innerHTML = `@keyframes fall { to { transform: translateY(100vh) rotate(360deg); } }`;
-            document.head.appendChild(style);
-
-            setInterval(createSnowflake, 300);
-        })();
-    </script>
 </body>
 </html>
