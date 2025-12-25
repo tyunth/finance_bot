@@ -1698,13 +1698,17 @@ function initSnowToggle() {
     const btn = document.getElementById('snow-toggle-btn');
     if (!btn) return;
 
-    // Читаем настройку (по умолчанию включено)
-    const isSnowing = localStorage.getItem('isSnowing') !== 'false';
+    // Читаем: если записи нет, считаем true. Если есть "false" (строка), то false.
+    const savedState = localStorage.getItem('isSnowing');
+    const isSnowing = savedState === null ? true : savedState === 'true';
+    
     updateSnowState(isSnowing);
 
     btn.onclick = () => {
-        const current = localStorage.getItem('isSnowing') !== 'false';
+        // Читаем текущее состояние из атрибута, чтобы не путаться
+        const current = btn.dataset.state === 'on';
         const newState = !current;
+        
         localStorage.setItem('isSnowing', newState);
         updateSnowState(newState);
     };
@@ -1714,19 +1718,22 @@ function updateSnowState(enabled) {
     const container = document.getElementById('snow-container');
     const btn = document.getElementById('snow-toggle-btn');
     
-    if (enabled) {
-        if (container) container.style.display = 'block';
-        if (btn) {
-            btn.textContent = '❄️ Снег: ВКЛ';
-            btn.classList.add('bg-blue-100', 'text-blue-600');
-            btn.classList.remove('bg-gray-100', 'text-gray-400');
-        }
-    } else {
-        if (container) container.style.display = 'none';
-        if (btn) {
-            btn.textContent = '❄️ Снег: ВЫКЛ';
-            btn.classList.add('bg-gray-100', 'text-gray-400');
-            btn.classList.remove('bg-blue-100', 'text-blue-600');
+    // 1. Управление контейнером
+    if (container) {
+        // Важно: используем setProperty для надежности или просто display
+        container.style.display = enabled ? 'block' : 'none';
+    }
+
+    // 2. Управление кнопкой (фиксируем ширину классом w-[140px])
+    if (btn) {
+        btn.dataset.state = enabled ? 'on' : 'off';
+        btn.textContent = enabled ? '❄️ Снег: ВКЛ' : '❄️ Снег: ВЫКЛ';
+        
+        // Стили
+        if (enabled) {
+            btn.className = "w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center bg-blue-100 text-blue-600";
+        } else {
+            btn.className = "w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center bg-gray-100 text-gray-400";
         }
     }
 }
