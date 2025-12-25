@@ -41,9 +41,6 @@
                 <button onclick="switchTab('calendar')" id="btn-calendar" class="tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition">Календарь</button>
                 <button onclick="switchTab('shopping')" id="btn-shopping" class="tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition">Покупки</button>
                 <button onclick="switchTab('utilities')" id="btn-utilities" class="tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition">Быт</button>
-                <button onclick="openTrashModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium transition flex items-center gap-1">
-                    🗑<span class="hidden sm:inline">Корзина</span>
-                </button>
             </nav>
         </header>
 
@@ -82,7 +79,12 @@
                             <button onclick="applyFilters()" class="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">Применить</button>
                             <button onclick="resetFilters()" class="bg-gray-100 text-gray-600 px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition">Сброс</button>
                         </div>
-                        <button id="snow-toggle-btn" class="px-3 py-1 rounded-lg text-xs font-bold transition">❄️ Снег</button>
+                        <button id="snow-toggle-btn" class="w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center">
+                        ❄️ Снег
+                        </button>
+                         <button onclick="openTrashModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium transition flex items-center gap-1">
+                            🗑<span class="hidden sm:inline">Корзина</span>
+                            </button>
                     </div>
                 </div>
 
@@ -391,31 +393,30 @@
 
             </main>
 
-            <aside class="xl:col-span-1 space-y-8 sticky top-6">
-            
-                <div class="bg-white rounded-3xl shadow-lg border border-gray-100 flex flex-col h-[600px] xl:h-[calc(100vh-24rem)] max-h-[800px] overflow-hidden">
-                    <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                        <h3 class="font-bold text-gray-800 text-lg">Дела</h3>
-                        <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
-                    </div>
-                    
-                    <div class="p-4 border-b border-gray-100 bg-white">
-                            <form id="todo-form" class="flex gap-2">
-                            <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-gray-400 outline-none bg-gray-50 focus:bg-white transition">
-                            
-                            <select id="todo-period-select" class="bg-gray-100 border-none text-gray-700 text-xs font-bold rounded-xl px-2 cursor-pointer hover:bg-gray-200 transition outline-none h-[42px]">
-                                <option value="urgent">🔥 Срочно</option>
-                                <option value="medium">⚡ Средне</option>
-                                <option value="later">💤 Несрочно</option>
-                            </select>
+            <aside class="xl:col-span-1 sticky top-6">
+            <div class="bg-white rounded-3xl shadow-lg border border-gray-100 flex flex-col h-[600px] xl:h-[calc(100vh-5rem)] overflow-hidden">
+        
+                <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h3 class="font-bold text-gray-800 text-lg">Дела</h3>
+                <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2.5 py-1 rounded-lg">0</span>
+                </div>
+        
+                <div class="p-4 border-b border-gray-100 bg-white">
+                <form id="todo-form" class="flex gap-2">
+                      <input type="text" id="todo-input" placeholder="Новая задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-gray-400 outline-none bg-gray-50 focus:bg-white transition">
+                
+                    <select id="todo-period-select" class="bg-gray-100 border-none text-gray-700 text-xs font-bold rounded-xl px-2 cursor-pointer hover:bg-gray-200 transition outline-none h-[42px]">
+                        <option value="urgent">🔥 Срочно</option>
+                        <option value="medium">⚡ Средне</option>
+                        <option value="later">💤 Несрочно</option>
+                    </select>
 
-                            <button type="submit" class="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-gray-700 transition shadow-sm">+</button>
-                        </form>
+                    <button type="submit" class="bg-gray-800 text-white px-4 rounded-xl font-bold hover:bg-gray-700 transition shadow-sm">+</button>
+                    </form>
                     </div>
 
                     <div id="todo-list" class="overflow-y-auto flex-1 p-4 space-y-2 scrollbar-hide"></div>
                 </div>
-
             </aside>
         </div>
     </div>
