@@ -266,18 +266,22 @@ async function getStudentStats(studentName) {
 
 async function getShoppingList() {
     return new Promise((resolve, reject) => {
-        // Берем сырые данные
-        db.all("SELECT * FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
+        // ИЗМЕНЕНИЕ В SQL:
+        // Пишем "SELECT *, item_name AS title ...", чтобы получить и старые поля, и новое title
+        db.all("SELECT *, item_name AS title FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
             if (err) reject(err);
             else {
-                // ПРЕВРАЩАЕМ В УНИВЕРСАЛЬНЫЙ ФОРМАТ
+                // Оставляем твою логику маппинга, она правильная и нужна для фронтенда
                 const fixedRows = rows.map(r => ({
                     ...r,
-                    // 1. Дублируем статус во все возможные поля
+                    // Гарантируем, что title есть (хотя SQL выше это уже сделал)
+                    title: r.title || r.item_name, 
+                    
+                    // Поля совместимости (не трогаем)
                     is_bought: r.is_bought, 
-                    is_done: r.is_bought,          // Для фронтенда Todo-стиля
-                    checked: !!r.is_bought,        // Boolean true/false
-                    status: r.is_bought ? 'bought' : 'active' // Текстовый статус
+                    is_done: r.is_bought,           
+                    checked: !!r.is_bought,       
+                    status: r.is_bought ? 'bought' : 'active' 
                 }));
                 resolve(fixedRows);
             }
@@ -287,20 +291,21 @@ async function getShoppingList() {
 
 // Функция принимает объект, так как сервер шлет объект data
 async function addShoppingItem(data) {
-    // Исправлено: ищем item_name (как шлет бот/сайт), либо item, либо text
-    const item = data.item_name || data.item || data.text; 
+    // Принимаем title или text (для совместимости), или по старинке item_name
+    const title = data.title || data.text || data.item_name; 
     const type = data.type || 'buy';
-    
-    // Если названия нет - ошибка или заглушка, чтобы не писать null
-    if (!item) {
-        console.error('❌ addShoppingItem: Не получено название товара!', data);
-        return; // Или throw new Error('No name');
+    const price = data.price_estimate || 0;
+
+    if (!title) {
+        console.error('❌ addShoppingItem: Нет названия (title)!', data);
+        return;
     }
 
     const now = new Date().toISOString();
+    // В базу пишем в колонку item_name, но берем из переменной title
     return dbRun(
-        'INSERT INTO shopping_list (item_name, is_bought, type, created_at) VALUES (?, 0, ?, ?)', 
-        [item, type, now]
+        'INSERT INTO shopping_list (item_name, is_bought, type, price_estimate, created_at) VALUES (?, 0, ?, ?, ?)', 
+        [title, type, price, now]
     );
 }
 
