@@ -240,8 +240,16 @@ async function handleExpense(ctx) {
             const { balances } = await db.getBalances(userId);
             return ctx.reply(`🧠 Узнал "${escapeMarkdown(state.comment)}"! Записал в "${autoCategory}".\nБаланс: ${formatAmount(balances['Основной'])}`, kb.MAIN_KEYBOARD);
         }
+        // ЕСЛИ АВТО НЕ СРАБОТАЛО - СПРАШИВАЕМ КАТЕГОРИЮ ИЗ БД
         state.step = config.STATE.AWAITING_CATEGORY;
-        return ctx.reply('Категория:', kb.generateReplyKeyboard(config.EXPENSE_CATEGORIES, true));
+
+        // 1. Получаем категории из базы
+        const cats = await db.getUserCategories(userId, 'expense');
+        // 2. Разбиваем кнопки по 2 в ряд
+        const buttons = chunkArray(cats, 2);
+        buttons.push(['Отмена']); // Кнопка выхода
+
+        return ctx.reply('Категория:', Markup.keyboard(buttons).resize());
     }
 }
 
@@ -276,9 +284,12 @@ async function handleCategoryInput(ctx) {
     const state = ctx.session.state;
     const userId = ctx.from.id;
 
-    const cat = text.split(' (')[0];
-    const allCats = [...config.EXPENSE_CATEGORIES.flat(), ...config.INCOME_CATEGORIES.flat()].map(c => c.split(' (')[0]);
-    
+    // 1. Получаем ВСЕ категории (и расходы, и доходы) из базы
+    const expenseCats = await db.getUserCategories(userId, 'expense');
+    const incomeCats = await db.getUserCategories(userId, 'income');
+    const allCats = [...expenseCats, ...incomeCats];
+
+    const cat = text.split(' (')[0]; // Очищаем от мусора если есть
     if (allCats.includes(cat)) {
         state.category = cat;
         // Фиксированный доход
@@ -1054,8 +1065,8 @@ bot.on('photo', async (ctx) => {
         const buffer = Buffer.from(response.data);
 
         // 2. Список категорий
-        // Берем из конфига (или db.getCategories() если уже сделал)
-        const userCategories = config.EXPENSE_CATEGORIES.flat(); 
+        // Список категорий БЕРЕМ ИЗ БАЗЫ
+        const userCategories = await db.getUserCategories(ctx.from.id, 'expense');
 
         // 3. Отправляем в AI
         await ctx.telegram.editMessageText(ctx.chat.id, msg.message_id, null, '🧠 Анализирую товары...');
@@ -1343,6 +1354,16 @@ async function sendMorningBriefing(chatId) {
         console.error('❌ [Morning] КРИТИЧЕСКАЯ ОШИБКА:', e);
     }
 }
+
+// Помощник для разбивки массива на кнопки (по 2 в ряд)
+function chunkArray(array, chunkSize) {
+    const res = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+        res.push(array.slice(i, i + chunkSize));
+    }
+    return res;
+}
+
 setInterval(() => {
     runMonthlyInterestCheck();
     runCalendarCheck();
