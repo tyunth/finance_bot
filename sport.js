@@ -10,7 +10,6 @@ async function renderMainMenu(ctx) {
     const planRow = await db.dbGet('SELECT * FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
     
     if (!planRow) {
-        // ВОТ ИСПРАВЛЕНИЕ: Добавляем кнопку, если плана нет
         return ctx.reply(
             '🏋️‍♂️ План тренировок не найден.\n\nНажми кнопку ниже, чтобы загрузить его (можно отправить текст от тренера или JSON).',
             Markup.inlineKeyboard([
@@ -34,22 +33,24 @@ async function renderMainMenu(ctx) {
 
     // 3. Рисуем блоки
     if (plan.blocks && Array.isArray(plan.blocks)) {
-        plan.blocks.forEach((block) => {
-            // ФИКС: Поддержка и 'name', и 'title' (как в твоем JSON)
+        plan.blocks.forEach((block, bIndex) => {
             const blockName = block.name || block.title || 'Блок';
             msg += `🔹 *${blockName}*\n`;
             
             if (block.items && Array.isArray(block.items)) {
-                block.items.forEach((item) => {
+                block.items.forEach((item, iIndex) => {
                     const log = logs.find(l => l.exercise_name === item.name);
                     const current = log ? (item.type === 'count' ? log.count : log.is_done) : 0;
                     const isDone = current >= item.target;
                     const statusIcon = isDone ? '✅' : '⬜';
 
+                    // Используем ИНДЕКСЫ вместо имен, чтобы влезть в лимит 64 байта
+                    // Формат: sport_action_bIndex_iIndex_step
+
                     if (item.type === 'check') {
                         msg += `${statusIcon} ${item.name}\n`;
                         if (!isDone) {
-                            buttons.push([Markup.button.callback(`✅ ${item.name}`, `sport_do_${item.name}`)]);
+                            buttons.push([Markup.button.callback(`✅ Сделано`, `sport_do_${bIndex}_${iIndex}`)]);
                         }
                     } else {
                         // Счетчик
@@ -57,15 +58,17 @@ async function renderMainMenu(ctx) {
                         if (!isDone) {
                             const step = item.step || 1;
                             const btns = [];
-                            btns.push(Markup.button.callback(`+${step}`, `sport_add_${item.name}_${step}`));
                             
-                            // Умная кнопка +5 (если цель большая)
+                            // Кнопка +step
+                            btns.push(Markup.button.callback(`+${step}`, `sport_add_${bIndex}_${iIndex}_${step}`));
+                            
+                            // Умная кнопка +5 (если цель >= 20 и шаг маленький)
                             if (item.target >= 20 && step < 5) {
-                                btns.push(Markup.button.callback(`+5`, `sport_add_${item.name}_5`));
+                                btns.push(Markup.button.callback(`+5`, `sport_add_${bIndex}_${iIndex}_5`));
                             }
-                            // Кнопка +10 для отжиманий (если шаг 10 или цель > 40)
+                             // Кнопка +10 (если цель >= 40)
                             if (item.target >= 40 && step <= 10) {
-                                btns.push(Markup.button.callback(`+10`, `sport_add_${item.name}_10`));
+                                btns.push(Markup.button.callback(`+10`, `sport_add_${bIndex}_${iIndex}_10`));
                             }
                             
                             buttons.push(btns);
@@ -87,7 +90,8 @@ async function renderMainMenu(ctx) {
             await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
         }
     } catch (e) {
-        // Игнорируем ошибку "message not modified"
+        console.error('Sport render error:', e); // Теперь ошибка будет видна в консоли
+        if (!ctx.callbackQuery) ctx.reply('Ошибка отображения меню. Проверь консоль.');
     }
 }
 
@@ -104,35 +108,52 @@ async function handleCallback(ctx) {
 
     if (data === 'sport_new') {
         await ctx.reply('📤 Отправь мне текст плана (от тренера) или готовый JSON код.');
-        // Устанавливаем состояние сессии!
         if (!ctx.session) ctx.session = {};
         ctx.session.state = { step: 'AWAITING_SPORT_PLAN' };
         return ctx.answerCbQuery();
     }
 
-    // 1. СДЕЛАТЬ (Чек-лист)
+    // Вспомогательная функция для получения имени из индексов
+    const getExerciseName = async (bIndex, iIndex) => {
+        const planRow = await db.dbGet('SELECT plan_data FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
+        if (!planRow) return null;
+        const plan = JSON.parse(planRow.plan_data);
+        if (plan.blocks[bIndex] && plan.blocks[bIndex].items[iIndex]) {
+            return plan.blocks[bIndex].items[iIndex].name;
+        }
+        return null;
+    };
+
+    // 1. СДЕЛАТЬ (Чек-лист) -> sport_do_BLOCK_ITEM
     if (data.startsWith('sport_do_')) {
-        const name = data.replace('sport_do_', '');
-        // Проверяем, есть ли запись. Если нет - создаем. Если есть - обновляем (хотя для check это одно и то же)
-        const existing = await db.dbGet('SELECT id FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, today, name]);
+        const parts = data.split('_'); // [sport, do, bIndex, iIndex]
+        const bIndex = parts[2];
+        const iIndex = parts[3];
         
-        if (!existing) {
-            await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, is_done, count) VALUES (?, ?, ?, 1, 1)', [userId, name, today]);
+        const name = await getExerciseName(bIndex, iIndex);
+        if (name) {
+            const existing = await db.dbGet('SELECT id FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, today, name]);
+            if (!existing) {
+                await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, is_done, count) VALUES (?, ?, ?, 1, 1)', [userId, name, today]);
+            }
         }
     }
 
-    // 2. ДОБАВИТЬ (Счетчик)
+    // 2. ДОБАВИТЬ (Счетчик) -> sport_add_BLOCK_ITEM_STEP
     if (data.startsWith('sport_add_')) {
-        const parts = data.split('_');
-        const count = parseInt(parts.pop());
-        const name = parts.slice(2).join('_');
+        const parts = data.split('_'); // [sport, add, bIndex, iIndex, step]
+        const bIndex = parts[2];
+        const iIndex = parts[3];
+        const step = parseInt(parts[4]);
 
-        const existing = await db.dbGet('SELECT id, count FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, today, name]);
-        
-        if (existing) {
-            await db.dbRun('UPDATE sport_logs SET count = count + ? WHERE id = ?', [count, existing.id]);
-        } else {
-            await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, count, is_done) VALUES (?, ?, ?, ?, 0)', [userId, name, today, count]);
+        const name = await getExerciseName(bIndex, iIndex);
+        if (name) {
+            const existing = await db.dbGet('SELECT id, count FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, today, name]);
+            if (existing) {
+                await db.dbRun('UPDATE sport_logs SET count = count + ? WHERE id = ?', [step, existing.id]);
+            } else {
+                await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, count, is_done) VALUES (?, ?, ?, ?, 0)', [userId, name, today, step]);
+            }
         }
     }
 
@@ -140,7 +161,7 @@ async function handleCallback(ctx) {
     await ctx.answerCbQuery();
 }
 
-// --- ЗАГРУЗКА ПЛАНА (Теперь умная) ---
+// --- ЗАГРУЗКА ПЛАНА ---
 async function handlePlanUpload(ctx) {
     const text = ctx.message.text;
     
@@ -149,12 +170,10 @@ async function handlePlanUpload(ctx) {
     let json;
     let method = '';
 
-    // 1. Пробуем распарсить как готовый JSON
     try {
         json = JSON.parse(text);
         method = 'Direct JSON';
     } catch (e) {
-        // 2. Если не вышло — отправляем в AI
         const msg = await ctx.reply('🧠 Анализирую план через AI...');
         json = await ai.parseSportPlan(text);
         await ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id);
@@ -165,10 +184,8 @@ async function handlePlanUpload(ctx) {
         return ctx.reply('❌ Не удалось распознать структуру плана. Проверь формат.');
     }
 
-    // Деактивируем старые
     await db.dbRun('UPDATE sport_plans SET is_active = 0 WHERE user_id = ?', [ctx.from.id]);
     
-    // Сохраняем новый
     await db.dbRun(
         'INSERT INTO sport_plans (user_id, title, plan_data, created_at) VALUES (?, ?, ?, ?)',
         [ctx.from.id, json.title || 'Новый план', JSON.stringify(json), new Date().toISOString()]
@@ -176,7 +193,6 @@ async function handlePlanUpload(ctx) {
 
     await ctx.reply(`✅ План принят (${method})!`);
     
-    // Сбрасываем состояние и показываем меню
     if (ctx.session) ctx.session.state = null;
     return renderMainMenu(ctx);
 }
