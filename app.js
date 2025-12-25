@@ -9,6 +9,7 @@ const API_URL_SHOPPING = API_BASE_URL + '/shopping';
 const API_URL_SHOPPING_ACTION = API_BASE_URL + '/shopping/action';
 const API_URL_UTILITIES = API_BASE_URL + '/utilities';
 const API_URL_UTILITIES_ACTION = API_BASE_URL + '/utilities/action';
+const API_URL_TRASH = API_BASE_URL + '/trash';
 
 const CURRENCY = 'T';
 // const CALENDAR_EMBED_ID = process.env.GOOGLE_CALENDAR_ID; 
@@ -1065,7 +1066,7 @@ function closeStatsModal() {
 }
 
 window.onclick = function(event) {
-    const modals = [document.getElementById('edit-modal'), document.getElementById('student-modal'), document.getElementById('stats-modal')];
+    const modals = [document.getElementById('edit-modal'), document.getElementById('student-modal'), document.getElementById('stats-modal', document.getElementById('trash-modal'))];
     modals.forEach(modal => { if (event.target === modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); } });
 }
 
@@ -1625,4 +1626,97 @@ async function loadTodos() {
         
     } catch(e) { console.error(e); }
 }
+
+// --- ЛОГИКА КОРЗИНЫ ---
+
+async function openTrashModal() {
+    const modal = document.getElementById('trash-modal');
+    if (!modal) return;
+    
+    // Показываем окно сразу
+    modal.classList.remove('hidden');
+    modal.classList.add('flex'); // Используем flex для центровки
+    
+    // Грузим данные
+    await loadTrash();
+}
+
+function closeTrashModal() {
+    const modal = document.getElementById('trash-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function loadTrash() {
+    try {
+        const res = await fetch(API_URL_TRASH);
+        const items = await res.json();
+        renderTrash(items);
+    } catch (e) {
+        console.error('Ошибка загрузки корзины:', e);
+        document.getElementById('trash-list').innerHTML = '<div class="text-red-500 text-center">Ошибка загрузки</div>';
+    }
+}
+
+function renderTrash(items) {
+    const listEl = document.getElementById('trash-list');
+    const countEl = document.getElementById('trash-count');
+    
+    if (countEl) countEl.textContent = items.length;
+    
+    if (items.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-gray-400 py-10 italic">Корзина пуста</div>';
+        return;
+    }
+    
+    listEl.innerHTML = items.map(item => {
+        // Определяем иконку и цвет типа
+        const isTodo = item.type === 'todo';
+        const icon = isTodo ? '📝' : '🛒';
+        const typeLabel = isTodo ? 'Дело' : 'Покупка';
+        
+        return `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl group hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition">
+            <div class="min-w-0">
+                <div class="text-sm font-medium text-gray-600 line-through decoration-gray-400 truncate" title="${item.title}">
+                    ${icon} ${item.title}
+                </div>
+                <div class="text-[10px] text-gray-400 mt-0.5">
+                    Удалено: ${new Date(item.deleted_at).toLocaleDateString()}
+                </div>
+            </div>
+            <button onclick="restoreItem('${item.type}', ${item.id})" 
+                    class="ml-3 text-green-600 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1">
+                ♻️ Вернуть
+            </button>
+        </div>
+        `;
+    }).join('');
+}
+
+async function restoreItem(type, id) {
+    if (!confirm('Восстановить этот элемент?')) return;
+    
+    try {
+        await fetch(API_URL_TRASH + '/restore', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type, id })
+        });
+        
+        // Обновляем корзину
+        await loadTrash();
+        
+        // Обновляем основные списки "на фоне", чтобы когда закроем окно, там уже всё появилось
+        loadTodos();
+        loadShoppingList();
+        
+    } catch (e) {
+        alert('Ошибка восстановления');
+    }
+}
+
+
 init();
