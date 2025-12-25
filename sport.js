@@ -10,7 +10,13 @@ async function renderMainMenu(ctx) {
     const planRow = await db.dbGet('SELECT * FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
     
     if (!planRow) {
-        return ctx.reply('🏋️‍♂️ План тренировок не найден.\nНажми "Загрузить новый план" и пришли мне текст или JSON.');
+        // ВОТ ИСПРАВЛЕНИЕ: Добавляем кнопку, если плана нет
+        return ctx.reply(
+            '🏋️‍♂️ План тренировок не найден.\n\nНажми кнопку ниже, чтобы загрузить его (можно отправить текст от тренера или JSON).',
+            Markup.inlineKeyboard([
+                [Markup.button.callback('⚙️ Загрузить новый план', 'sport_new')]
+            ])
+        );
     }
 
     let plan;
