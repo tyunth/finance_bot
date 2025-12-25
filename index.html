@@ -50,43 +50,55 @@
                 
                 <div id="loading" class="text-center py-10 text-blue-600 font-medium animate-pulse">Загрузка данных...</div>
 
-                <div id="filter-panel" class="hidden bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-                    <div class="flex flex-wrap gap-5 items-end">
-                        <div class="w-full sm:w-auto">
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">С даты</label>
-                            <input type="date" id="filter-date-start" class="block w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
-                        </div>
-                        <div class="w-full sm:w-auto">
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">По дату</label>
-                            <input type="date" id="filter-date-end" class="block w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
-                        </div>
-                        <div class="w-full sm:w-auto">
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Тип</label>
-                            <select id="filter-type" class="block w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white transition">
-                                <option value="ALL">Все типы</option>
-                                <option value="expense">Расход</option>
-                                <option value="income">Доход</option>
-                                <option value="transfer">Перевод</option>
-                            </select>
-                        </div>
-                        <div class="flex-1 min-w-[200px]">
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Категория</label>
-                            <select id="filter-category" class="block w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white transition">
-                                <option value="ALL">Все категории</option>
-                            </select>
-                        </div>
-                        <div class="flex gap-3 w-full sm:w-auto">
-                            <button onclick="applyFilters()" class="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">Применить</button>
-                            <button onclick="resetFilters()" class="bg-gray-100 text-gray-600 px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition">Сброс</button>
-                        </div>
-                        <button id="snow-toggle-btn" class="w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center">
-                        ❄️ Снег
-                        </button>
-                         <button onclick="openTrashModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-lg text-sm font-medium transition flex items-center gap-1">
-                            🗑<span class="hidden sm:inline">Корзина</span>
-                            </button>
-                    </div>
-                </div>
+            <div id="filter-panel" class="hidden bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6 transition-all">
+                <div class="flex flex-col lg:flex-row gap-4 items-end lg:items-center justify-between">
+        
+                    <div class="flex flex-wrap gap-2 w-full lg:w-auto items-center">
+            
+            <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 border border-gray-200 h-[42px]">
+                <input type="date" id="filter-date-start" class="bg-transparent text-xs font-bold text-gray-600 outline-none w-24">
+                <span class="text-gray-400">-</span>
+                <input type="date" id="filter-date-end" class="bg-transparent text-xs font-bold text-gray-600 outline-none w-24">
+            </div>
+
+            <div class="relative h-[42px]">
+                <select id="filter-category" class="h-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 pr-8 outline-none cursor-pointer hover:bg-white transition min-w-[140px]">
+                    <option value="ALL">Все категории</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">▼</div>
+            </div>
+
+            <div class="relative h-[42px]">
+                <select id="filter-type" class="h-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 pr-8 outline-none cursor-pointer hover:bg-white transition">
+                    <option value="ALL">Все типы</option>
+                    <option value="income">Доходы</option>
+                    <option value="expense">Расходы</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">▼</div>
+            </div>
+
+            <button onclick="applyFilters()" class="h-[42px] w-[42px] bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition flex items-center justify-center font-bold text-lg">
+                ➜
+            </button>
+            
+             <button onclick="resetFilters()" title="Сбросить фильтры" class="h-[42px] px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl hover:bg-red-100 transition flex items-center justify-center font-bold text-xs gap-1">
+                ✕ <span class="hidden sm:inline">Сброс</span>
+            </button>
+        </div>
+
+        <div class="flex flex-wrap gap-2 w-full lg:w-auto justify-end">
+            
+            <button onclick="openTrashModal()" class="h-[42px] px-4 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 hover:border-blue-300 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                🗑 <span class="hidden sm:inline">Корзина</span>
+            </button>
+
+            <button id="snow-toggle-btn" class="h-[42px] w-[130px] px-3 bg-white border border-gray-200 text-gray-400 rounded-xl text-xs font-bold transition flex items-center justify-center">
+                ❄️ Снег
+            </button>
+
+            </div>
+        </div>
+        </div>
 
                 <div id="tab-analytics" class="hidden space-y-6">
                     
