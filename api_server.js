@@ -47,13 +47,18 @@ const server = http.createServer(async (req, res) => {
     // 2. Категории
     else if (req.url === '/categories' && req.method === 'GET') {
         try {
-            const dbCats = await db.dbAll('SELECT DISTINCT category FROM transactions WHERE category IS NOT NULL AND category != "Перевод"');
-            const dbCatList = dbCats.map(c => c.category);
-            const configCats = [...config.EXPENSE_CATEGORIES.flat(), ...config.INCOME_CATEGORIES.flat()].map(c => c.split(' (')[0]);
-            const allCats = [...new Set([...dbCatList, ...configCats])].sort();
+            // Берем категории админа (пока мульти-юзер не запущен полноценно)
+            const expenseCats = await db.getUserCategories(config.ADMIN_ID, 'expense');
+            const incomeCats = await db.getUserCategories(config.ADMIN_ID, 'income');
+            
+            // Объединяем и сортируем
+            const allCats = [...new Set([...expenseCats, ...incomeCats])].sort();
+            
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(allCats));
-        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: 'DB Error' })); }
+        } catch (e) { 
+            res.writeHead(500); res.end(JSON.stringify({ error: e.message })); 
+        }
     }
 
 // 3. Балансы счетов (ОБНОВЛЕНО: возвращаем и список счетов с их типом)
