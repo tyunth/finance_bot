@@ -117,25 +117,30 @@ async function parseSportPlan(text) {
 }
 
 async function generateMorningBriefing(weatherData, calendarEvents, sportYesterday, sportTodayPlan) {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+    // Добавляем явную проверку на наличие данных перед отправкой в промпт
+    const hasPlan = sportTodayPlan && sportTodayPlan.blocks && sportTodayPlan.blocks.length > 0;
+
+    const prompt = `
+    ВХОДЯЩИЕ ДАННЫЕ (JSON):
+    
+    [WEATHER]: ${JSON.stringify(weatherData)}
+    [CALENDAR]: ${JSON.stringify(calendarEvents)}
+    
+    [SPORT_YESTERDAY_STATS]: 
+    ${JSON.stringify(sportYesterday || { percent: 0 })} 
+    
+    [SPORT_TODAY_PLAN] (Если здесь пусто, значит плана НЕТ. Не выдумывай его!): 
+    ${hasPlan ? JSON.stringify(sportTodayPlan) : "EMPTY_NO_PLAN"}
+    `;
+
     try {
-        const prompt = `
-          Данные на сегодня:
-          Погода: ${JSON.stringify(weatherData)}
-          Календарь: ${JSON.stringify(calendarEvents)}
-    
-          СПОРТ ВЧЕРА:
-          ${sportYesterday ? sportYesterday.text : "Нет данных (возможно, план не активен)."}
-    
-          ПЛАН ТРЕНИРОВОК НА СЕГОДНЯ:
-          ${sportTodayPlan ? sportTodayPlan.text : "Отдых или нет плана."}
-          `;
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        const result = await model.generateContent([SYSTEM_PROMPT_MORNING, prompt]);
+        return result.response.text();
     } catch (error) {
-        console.error("❌ Ошибка Gemini:", error);
-        return null; // Вернем null, чтобы бот мог отправить обычное сообщение, если ИИ упал
+        console.error("AI Error:", error);
+        return "⚠️ Сбой AI. Данные недоступны.";
     }
 }
 
