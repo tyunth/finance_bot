@@ -138,7 +138,7 @@ async function parseSportPlan(text) {
     }
 }
 
-async function generateMorningBriefing(data) {
+async function generateMorningBriefing(weatherData, calendarEvents, sportYesterday, sportTodayPlan) {
     try {
         const prompt = `
           Данные на сегодня:
