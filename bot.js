@@ -246,7 +246,7 @@ async function handleExpense(ctx) {
         // 1. Получаем категории из базы
         const cats = await db.getUserCategories(userId, 'expense');
         // 2. Разбиваем кнопки по 2 в ряд
-        const buttons = chunkArray(cats, 2);
+        const buttons = chunkArray(cats, 3);
         buttons.push(['Отмена']); // Кнопка выхода
 
         return ctx.reply('Категория:', Markup.keyboard(buttons).resize());
