@@ -1440,9 +1440,15 @@ async function sendMorningBriefing(chatId) {
             dataContext.sport.yesterday, 
             dataContext.sport.today
         );
-
+        
         if (aiText) {
-            await bot.telegram.sendMessage(chatId, aiText, { parse_mode: 'Markdown' });
+            // ФИКС ОШИБКИ: Заменяем двойные ** на одиночные *, чтобы Телеграм не падал
+            const safeText = aiText
+                .replace(/\*\*/g, '*')       // **bold** -> *bold*
+                .replace(/^[\s\t]*[-*]\s/gm, '• ') // Списки через дефис или звездочку -> точки (bullet)
+                .replace(/__/g, '_');        // __italic__ -> _italic_
+
+            await bot.telegram.sendMessage(chatId, safeText, { parse_mode: 'Markdown' });
             console.log('✅ AI Сводка отправлена');
         } else {
             await bot.telegram.sendMessage(chatId, "⚠️ ИИ не проснулся, данные:\n" + JSON.stringify(dataContext, null, 2));
