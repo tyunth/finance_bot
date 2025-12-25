@@ -843,8 +843,8 @@ function renderShoppingList(list) {
                 <input type="checkbox" onchange="buyItem(${item.id}, this.checked)" 
                        class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer flex-shrink-0">
                 <div class="min-w-0">
-                    <p class="font-medium text-sm truncate leading-tight text-gray-800" title="${item.item_name}">
-                        ${item.item_name}
+                    <p class="font-medium text-sm truncate leading-tight text-gray-800" title="${item.title}">
+                        ${item.title}
                     </p>
                     ${item.price_estimate ? `<p class="text-[10px] text-green-600 font-bold mt-0.5">~${formatCurrency(item.price_estimate)}</p>` : ''}
                 </div>
@@ -893,7 +893,7 @@ if (shopForm) {
             await fetch(API_URL_SHOPPING_ACTION, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ action: 'add', item_name: name, type: type, price_estimate: price || 0 })
+                body: JSON.stringify({ action: 'add', title: name, type: type, price_estimate: price || 0 })
             });
             document.getElementById('shop-item').value = '';
             document.getElementById('shop-price').value = '';
