@@ -117,7 +117,7 @@ async function parseSportPlan(text) {
 }
 
 async function generateMorningBriefing(weatherData, calendarEvents, sportYesterday, sportTodayPlan) {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Добавляем явную проверку на наличие данных перед отправкой в промпт
     const hasPlan = sportTodayPlan && sportTodayPlan.blocks && sportTodayPlan.blocks.length > 0;
