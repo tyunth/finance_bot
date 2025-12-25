@@ -49,7 +49,7 @@ function switchTab(tabName) {
 async function initCalendar() {
     try {
         // 1. Спрашиваем у сервера конфиг
-        const res = await fetch('/config');
+        const res = await fetch(`${API_BASE_URL}/config`);
         const data = await res.json();
         const calendarId = data.calendarId;
 
