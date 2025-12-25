@@ -11,6 +11,7 @@ const db = require('./db');
 const kb = require('./keyboards');
 const gcal = require('./calendar');
 const ocr = require('./ocr_service'); 
+const sport = require('./sport');
 
 // ---------------- UTILS ----------------
 
@@ -434,7 +435,11 @@ const HELP_MSG = `
 /export - Скачать базу
 /morning
 /ozon
+/sport
 `;
+
+bot.command('sport', (ctx) => sport.renderMainMenu(ctx));
+bot.hears('💪 Спорт', (ctx) => sport.renderMainMenu(ctx));
 
 bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
 bot.command('sync', (ctx) => runCalendarCheck(ctx));
@@ -794,6 +799,9 @@ bot.on('callback_query', async (ctx) => {
     if (data === 'show_raw_ocr') {
         const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Текст не сохранен.';
         return ctx.reply(raw.substring(0, 4000));
+    }
+    if (data.startsWith('sport_')) {
+    return sport.handleCallback(ctx);
     }
     // --- ВОССТАНОВЛЕНИЕ ИЗ КОРЗИНЫ ---
     if (data.startsWith('restore_')) {
@@ -1254,7 +1262,9 @@ bot.on('text', async (ctx) => {
             return ctx.reply('Выберите категорию из кнопок.');
         }
     }
-
+    if (ctx.session.state && ctx.session.state.step === 'AWAITING_SPORT_PLAN') {
+    return sport.handlePlanUpload(ctx);
+    }
     // Если ничего из вышеперечисленного - идем в обычную логику
     handleStandardTextFlow(ctx);
 });
