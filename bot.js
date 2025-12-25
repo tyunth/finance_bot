@@ -1437,6 +1437,7 @@ async function sendMorningBriefing(chatId) {
         const aiText = await ai.generateMorningBriefing(
             dataContext.weather, 
             dataContext.calendar, 
+            dataContext.todos,
             dataContext.sport.yesterday, 
             dataContext.sport.today
         );
