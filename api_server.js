@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('./db'); // Обязательно подключаем db.js
 const config = require('./config');
+const calendar = require('./calendar');
 
 const HOST = '127.0.0.1'; 
 const PORT = 4000;
