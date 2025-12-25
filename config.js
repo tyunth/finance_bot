@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const CURRENCY = 'T';
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID ;
-const ADMIN_ID = parseInt(process.env.MY_USER_ID); 
+const ADMIN_ID = parseInt(process.env.ADMIN_ID); 
 
 // Настройки уроков
 const LESSON_PRICE = 4000;
