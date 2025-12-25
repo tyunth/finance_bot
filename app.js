@@ -133,10 +133,10 @@ async function init() {
 
         // Применяем фильтр сразу, чтобы графики отрисовались
         applyFilters();
-        loadDebts(); // Загружаем долги
-        loadKPI();   // Загружаем счетчик уроков
-        loadWeather();
+        loadDebts(); 
+        loadKPI();  
         loadTodos();
+        initSnowToggle();
         initCalendar();
         switchTab('analytics'); 
     }
@@ -1293,24 +1293,40 @@ async function loadDebts() {
 function renderDebts(debts) {
     const panel = document.getElementById('debts-panel');
     const list = document.getElementById('debts-list');
+    
     if (!debts.length) {
         panel.classList.add('hidden');
         return;
     }
     panel.classList.remove('hidden');
-    list.innerHTML = debts.map(d => `
-        <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm">
-            <div>
-                <span class="font-bold text-gray-800">${d.student_name}</span>
-                <span class="text-sm text-gray-500">(${d.subject})</span>
-                <div class="text-xs text-red-500">${new Date(d.date).toLocaleDateString('ru-RU')}</div>
+
+    // Делаем сетку: на мобильном 1 колонка, на пк 2 колонки
+    list.className = "grid grid-cols-1 sm:grid-cols-2 gap-3"; 
+
+    list.innerHTML = debts.map(d => {
+        // Красивая дата: "25 дек"
+        const dateStr = new Date(d.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        
+        return `
+        <div class="relative bg-white rounded-xl p-4 border-l-4 border-red-500 shadow-sm hover:shadow-md transition flex flex-col justify-between group">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h4 class="font-bold text-gray-800 text-lg leading-none">${d.student_name}</h4>
+                    <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${d.subject}</span>
+                </div>
+                <div class="text-right">
+                    <span class="block font-mono font-bold text-xl text-red-600">${formatCurrency(d.amount)}</span>
+                    <span class="text-[10px] text-gray-400">от ${dateStr}</span>
+                </div>
             </div>
-            <div class="flex items-center gap-3">
-                <span class="font-bold text-gray-900">${formatCurrency(d.amount)}</span>
-                <button onclick="payDebt(${d.id})" class="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold hover:bg-green-200">Оплатить</button>
-            </div>
+            
+            <button onclick="payDebt(${d.id})" 
+                    class="w-full mt-2 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2 opacity-80 hover:opacity-100">
+                💰 Оплатить
+            </button>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function payDebt(id) {
@@ -1371,47 +1387,6 @@ function openAddModal() {
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-}
-
-// --- ПОГОДА ---
-async function loadWeather() {
-    try {
-        // Добавили precipitation_sum и precipitation_probability_max
-        const url = 'https://api.open-meteo.com/v1/forecast?latitude=54.87&longitude=69.14&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto';
-        const res = await fetch(url);
-        const data = await res.json();
-        const today = data.daily;
-        
-        const tempMax = Math.round(today.temperature_2m_max[0]);
-        const tempMin = Math.round(today.temperature_2m_min[0]);
-        const precipSum = today.precipitation_sum[0];
-        const precipProb = today.precipitation_probability_max[0];
-        const code = today.weathercode[0];
-
-        // Интерпретация кода погоды (упрощенно)
-        let icon = '☁️';
-        let desc = 'Облачно';
-        if (code === 0) { icon = '☀️'; desc = 'Ясно'; }
-        else if (code <= 3) { icon = '⛅'; desc = 'Облачно'; }
-        else if (code <= 67) { icon = '🌧'; desc = 'Дождь'; }
-        else if (code <= 77) { icon = '❄️'; desc = 'Снег'; }
-        else { icon = '⛈'; desc = 'Гроза'; }
-
-        document.getElementById('w-temp').textContent = `${tempMax > 0 ? '+' : ''}${tempMax}°`;
-        document.getElementById('w-desc').textContent = `${desc} (${tempMin}..${tempMax})`;
-        document.getElementById('w-icon').textContent = icon;
-
-        // Логика зонта: если осадков > 0.5мм или вероятность > 40% и код дождя
-        const needUmbrella = (precipSum > 0.5 || (precipProb > 40 && code > 50));
-        const umbrellaEl = document.getElementById('w-umbrella');
-        if (needUmbrella) {
-            umbrellaEl.classList.remove('hidden');
-            umbrellaEl.textContent = precipSum > 0 ? `☔ Осадки: ${precipSum}мм` : `☔ Возможен дождь (${precipProb}%)`;
-        } else {
-            umbrellaEl.classList.add('hidden');
-        }
-
-    } catch(e) { console.error('Ошибка погоды', e); }
 }
 
 // --- СПИСОК ДЕЛ ---
@@ -1718,5 +1693,44 @@ async function restoreItem(type, id) {
     }
 }
 
+// --- УПРАВЛЕНИЕ СНЕГОМ ---
+function initSnowToggle() {
+    const btn = document.getElementById('snow-toggle-btn');
+    if (!btn) return;
+
+    // Читаем настройку (по умолчанию включено)
+    const isSnowing = localStorage.getItem('isSnowing') !== 'false';
+    updateSnowState(isSnowing);
+
+    btn.onclick = () => {
+        const current = localStorage.getItem('isSnowing') !== 'false';
+        const newState = !current;
+        localStorage.setItem('isSnowing', newState);
+        updateSnowState(newState);
+    };
+}
+
+function updateSnowState(enabled) {
+    const container = document.getElementById('snow-container');
+    const btn = document.getElementById('snow-toggle-btn');
+    
+    if (enabled) {
+        if (container) container.style.display = 'block';
+        if (btn) {
+            btn.textContent = '❄️ Снег: ВКЛ';
+            btn.classList.add('bg-blue-100', 'text-blue-600');
+            btn.classList.remove('bg-gray-100', 'text-gray-400');
+        }
+    } else {
+        if (container) container.style.display = 'none';
+        if (btn) {
+            btn.textContent = '❄️ Снег: ВЫКЛ';
+            btn.classList.add('bg-gray-100', 'text-gray-400');
+            btn.classList.remove('bg-blue-100', 'text-blue-600');
+        }
+    }
+}
+
+// Добавь вызов initSnowToggle() в функцию init() вверху файла!
 
 init();
