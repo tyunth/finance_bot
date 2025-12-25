@@ -199,7 +199,6 @@ async function handlePlanUpload(ctx) {
 
 // --- ПОЛУЧЕНИЕ СВОДКИ ЗА ДЕНЬ (Для AI) ---
 async function getDailySummary(userId, dateOffset = 0) {
-    // dateOffset = 0 (сегодня), -1 (вчера)
     const date = new Date();
     date.setDate(date.getDate() + dateOffset);
     const dateStr = date.toISOString().split('T')[0];
@@ -210,29 +209,39 @@ async function getDailySummary(userId, dateOffset = 0) {
     const plan = JSON.parse(planRow.plan_data);
     const logs = await db.dbAll('SELECT * FROM sport_logs WHERE user_id = ? AND date = ?', [userId, dateStr]);
 
-    let summary = `Дата: ${dateStr}\n`;
     let totalTarget = 0;
     let totalDone = 0;
+    const blocksData = [];
 
     if (plan.blocks) {
         plan.blocks.forEach(block => {
+            const blockName = block.name || block.title || 'Блок';
+            const itemsData = [];
+            
             if (block.items) {
                 block.items.forEach(item => {
                     const log = logs.find(l => l.exercise_name === item.name);
+                    // Для счетчиков берем число, для чекбоксов 1 или 0
                     const val = log ? (item.type === 'count' ? log.count : (log.is_done ? 1 : 0)) : 0;
-                    
-                    // Формируем строку типа: "Турник: 5/10"
-                    summary += `- ${item.name}: ${val} из ${item.target} (${item.type === 'check' ? (val ? 'Сделано' : 'НЕТ') : val + ' повт.'})\n`;
                     
                     if (val >= item.target) totalDone++;
                     totalTarget++;
+
+                    itemsData.push({
+                        name: item.name,
+                        current: val,
+                        target: item.target,
+                        type: item.type
+                    });
                 });
             }
+            blocksData.push({ name: blockName, items: itemsData });
         });
     }
 
     return {
-        text: summary,
+        date: dateStr,
+        blocks: blocksData, // <-- ОТДАЕМ МАССИВ, А НЕ ТЕКСТ
         percent: totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0
     };
 }
