@@ -552,6 +552,39 @@ bot.command('todo', async (ctx) => {
     ctx.reply(`Записал: ${text}`);
 });
 
+bot.command(['trash', 'archive'], async (ctx) => {
+    const items = await db.getArchivedItems();
+    
+    if (items.length === 0) {
+        return ctx.reply('🗑 Корзина пуста.');
+    }
+
+    let msg = '🗑 **Последние удаленные:**\n\n';
+    const buttons = [];
+
+    items.forEach(item => {
+        // Иконка зависит от типа
+        const icon = item.type === 'todo' ? '📝' : '🛒';
+        
+        // Добавляем в текст
+        msg += `${icon} ~${escapeMarkdown(item.title)}~\n`; // Зачеркнутый текст
+        
+        // Добавляем кнопку восстановления
+        // truncate title, чтобы кнопка не была огромной
+        const shortTitle = item.title.length > 15 ? item.title.slice(0, 15) + '...' : item.title;
+        buttons.push([
+            Markup.button.callback(`♻️ Вернуть: ${shortTitle}`, `restore_${item.type}_${item.id}`)
+        ]);
+    });
+
+    buttons.push([Markup.button.callback('Закрыть', 'delete_msg')]);
+
+    ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
+});
+
+// Добавляем псевдоним для текста
+bot.hears('Корзина', (ctx) => ctx.replyWithMarkdown('Нажмите /trash для просмотра корзины.'));
+
 // Обработка кнопок
 bot.action(/^todo_done_(\d+)$/, async (ctx) => {
     const id = ctx.match[1];
@@ -762,6 +795,36 @@ bot.on('callback_query', async (ctx) => {
         const raw = ctx.session.receipt ? ctx.session.receipt.rawText : 'Текст не сохранен.';
         return ctx.reply(raw.substring(0, 4000));
     }
+    // --- ВОССТАНОВЛЕНИЕ ИЗ КОРЗИНЫ ---
+    if (data.startsWith('restore_')) {
+        // Формат: restore_todo_15 или restore_shop_22
+        const parts = data.split('_');
+        const type = parts[1];
+        const id = parts[2];
+
+        try {
+            await db.restoreItem(type, id);
+            await ctx.answerCbQuery('✅ Восстановлено!');
+            
+            // Опционально: можно удалить строку из сообщения или обновить список
+            // Но проще просто удалить сообщение с корзиной, типа "работа выполнена"
+            // или перезагрузить корзину. Давай перезагрузим текст кнопки.
+            
+            // Просто скажем юзеру, что всё ок, и удалим кнопку, которую он нажал?
+            // Это сложно в Телеграме (редактировать клавиатуру).
+            // Давай просто обновим список корзины.
+            
+            // Вызываем логику отображения корзины заново (но нам нужен текст для editMessage)
+            // Упростим: просто удалим это сообщение, чтобы юзер открыл корзину заново если надо
+            await ctx.deleteMessage();
+            await ctx.reply(`♻️ Элемент восстановлен.`);
+            
+        } catch (e) {
+            console.error(e);
+            await ctx.answerCbQuery('Ошибка восстановления.');
+        }
+    }
+    
     if (data.startsWith('cal_')) {
         const parts = data.split('_');
         const action = parts[1]; 
