@@ -324,6 +324,28 @@ const server = http.createServer(async (req, res) => {
             } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
+
+    // --- КОРЗИНА (TRASH) ---
+    else if (req.url === '/trash' && req.method === 'GET') {
+        try {
+            const items = await db.getArchivedItems(); // <-- Твоя новая функция
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(items));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+    
+    else if (req.url === '/trash/restore' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const { type, id } = JSON.parse(body);
+                await db.restoreItem(type, id); // <-- Твоя новая функция
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+        });
+    }
         
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
