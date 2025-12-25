@@ -89,13 +89,13 @@ async function parseReceipt(imageBuffer, categories) {
         generationConfig: { responseMimeType: "application/json" } 
     });
 
-    const userCategories = await db.getUserCategories(ctx.from.id);
+    const categoriesStr = categories.join(', ');
 
     const prompt = `
     Ты — профессиональный бухгалтерский AI. Твоя задача — оцифровать чек с изображения.
     
     ВХОДНЫЕ ДАННЫЕ:
-    1. Список доступных категорий пользователя: [${userCategories}].
+    1. Список доступных категорий пользователя: [${categoriesStr}].
     
     ИНСТРУКЦИИ:
     1. Магазин: Найди название и Адрес (улица, дом). Если адреса нет, оставь пустым.
