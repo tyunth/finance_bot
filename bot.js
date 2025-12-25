@@ -350,7 +350,7 @@ async function handleShoppingCreation(ctx) {
     const text = ctx.message.text.trim();
     const type = ctx.session.state.shoppingType || 'buy'; // 'buy' или 'wish'
     
-    await db.addShoppingItem({ item_name: text, type: type, price_estimate: 0 });
+    await db.addShoppingItem({ title: text, type: type, price_estimate: 0 });
     
     ctx.session.state = {}; // Сброс состояния
     await ctx.reply(`Добавлено: ${text}`);
@@ -365,7 +365,7 @@ async function handleShoppingEdit(ctx) {
     const { id, type } = ctx.session.state;
     
     // Обновляем в базе (нужен прямой SQL, так как функции editShoppingItem нет в db.js - добавим её ниже, или тут вызовем raw query)
-    await db.dbRun('UPDATE shopping_list SET item_name = ? WHERE id = ?', [text, id]);
+    await db.dbRun('UPDATE shopping_list SET title = ? WHERE id = ?', [text, id]);
     
     ctx.session.state = {};
     await ctx.reply(`Обновлено: ${text}`);
@@ -470,7 +470,7 @@ bot.command('students', async (ctx) => {
 bot.command(['market', 'ozon', 'wb'], async (ctx) => {
     const text = ctx.message.text.replace(/^\/\w+\s*/, '').trim(); 
     if (!text) return ctx.reply('Напишите товар: /wb Наушники');
-    await db.addShoppingItem({ item_name: text, type: 'market', price_estimate: 0 });
+    await db.addShoppingItem({ title: text, type: 'market', price_estimate: 0 });
     return ctx.reply(`Добавлено в маркетплейс: ${text}`);
 });
 
@@ -578,18 +578,18 @@ async function renderList(ctx, type) {
     if (items.length === 0) msg += `_${emptyText}_`;
     else {
         items.forEach(i => {
-            msg += `• ${escapeMarkdown(i.item_name)} ${i.price_estimate ? `(~${i.price_estimate})` : ''}\n`;
+            msg += `• ${escapeMarkdown(i.title)} ${i.price_estimate ? `(~${i.price_estimate})` : ''}\n`;
             
             if (isManageMode) {
                 // В режиме управления: кнопки Удалить и Изменить
                 buttons.push([
-                    Markup.button.callback(`❌ ${i.item_name}`, `shop_del_${i.id}_${type}`),
+                    Markup.button.callback(`❌ ${i.title}`, `shop_del_${i.id}_${type}`),
                     Markup.button.callback(`✏️ Изм.`, `shop_edit_${i.id}_${type}`)
                 ]);
             } else {
                 // В обычном режиме: кнопка "Куплено"
                 // При нажатии статус станет 1, список обновится, и товар исчезнет благодаря фильтру выше
-                buttons.push([Markup.button.callback(`✅ ${i.item_name}`, `shop_done_${i.id}_${type}`)]);
+                buttons.push([Markup.button.callback(`✅ ${i.title}`, `shop_done_${i.id}_${type}`)]);
             }
         });
     }
@@ -625,7 +625,7 @@ bot.command('buy', async (ctx) => {
     const text = ctx.message.text.replace('/buy', '').trim();
     if (!text) return ctx.reply('Напишите что купить: /buy Молоко');
     
-    await db.addShoppingItem({ item_name: text, type: 'buy', price_estimate: 0 });
+    await db.addShoppingItem({ title: text, type: 'buy', price_estimate: 0 });
     return ctx.reply(`🛒 Добавлено: ${text}`);
 });
 
@@ -634,7 +634,7 @@ bot.command('wish', async (ctx) => {
     const text = ctx.message.text.replace('/wish', '').trim();
     if (!text) return ctx.reply('Напишите что в вишлист: /wish PS5');
     
-    await db.addShoppingItem({ item_name: text, type: 'wish', price_estimate: 0 });
+    await db.addShoppingItem({ title: text, type: 'wish', price_estimate: 0 });
     return ctx.reply(`🎁 Добавлено в вишлист: ${text}`);
 });
 
