@@ -517,6 +517,38 @@ async function addCategory(userId, name, type = 'expense') {
     );
 }
 
+// Получить последние удаленные элементы (Дела + Покупки)
+async function getArchivedItems(limit = 15) {
+    return new Promise((resolve, reject) => {
+        // Объединяем две таблицы. 
+        // В todos поле называется text, в shopping_list — item_name.
+        // Приводим всё к общему знаменателю "title".
+        const sql = `
+            SELECT id, text AS title, 'todo' AS type, deleted_at FROM todos WHERE deleted_at IS NOT NULL
+            UNION ALL
+            SELECT id, item_name AS title, 'shop' AS type, deleted_at FROM shopping_list WHERE deleted_at IS NOT NULL
+            ORDER BY deleted_at DESC LIMIT ?
+        `;
+        
+        db.all(sql, [limit], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+}
+
+// Восстановить элемент
+async function restoreItem(type, id) {
+    if (type === 'todo') {
+        // Убираем метку удаления
+        return dbRun('UPDATE todos SET deleted_at = NULL WHERE id = ?', [id]);
+    }
+    if (type === 'shop') {
+        // Восстанавливаем и сразу ставим статус "Не куплено" (is_bought = 0)
+        return dbRun('UPDATE shopping_list SET deleted_at = NULL, is_bought = 0 WHERE id = ?', [id]);
+    }
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -539,5 +571,6 @@ module.exports = {
     addLessonHistory, checkLessonHistoryExists, 
     createReceipt,
     getUserCategories, addCategory,
+    getArchivedItems, restoreItem,
     DB_PATH
 };
