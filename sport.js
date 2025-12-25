@@ -197,8 +197,49 @@ async function handlePlanUpload(ctx) {
     return renderMainMenu(ctx);
 }
 
+// --- ПОЛУЧЕНИЕ СВОДКИ ЗА ДЕНЬ (Для AI) ---
+async function getDailySummary(userId, dateOffset = 0) {
+    // dateOffset = 0 (сегодня), -1 (вчера)
+    const date = new Date();
+    date.setDate(date.getDate() + dateOffset);
+    const dateStr = date.toISOString().split('T')[0];
+
+    const planRow = await db.dbGet('SELECT plan_data FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
+    if (!planRow) return null;
+
+    const plan = JSON.parse(planRow.plan_data);
+    const logs = await db.dbAll('SELECT * FROM sport_logs WHERE user_id = ? AND date = ?', [userId, dateStr]);
+
+    let summary = `Дата: ${dateStr}\n`;
+    let totalTarget = 0;
+    let totalDone = 0;
+
+    if (plan.blocks) {
+        plan.blocks.forEach(block => {
+            if (block.items) {
+                block.items.forEach(item => {
+                    const log = logs.find(l => l.exercise_name === item.name);
+                    const val = log ? (item.type === 'count' ? log.count : (log.is_done ? 1 : 0)) : 0;
+                    
+                    // Формируем строку типа: "Турник: 5/10"
+                    summary += `- ${item.name}: ${val} из ${item.target} (${item.type === 'check' ? (val ? 'Сделано' : 'НЕТ') : val + ' повт.'})\n`;
+                    
+                    if (val >= item.target) totalDone++;
+                    totalTarget++;
+                });
+            }
+        });
+    }
+
+    return {
+        text: summary,
+        percent: totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0
+    };
+}
+
 module.exports = {
     renderMainMenu,
     handleCallback,
-    handlePlanUpload
+    handlePlanUpload,
+    getDailySummary,
 };
