@@ -89,6 +89,49 @@ const SYSTEM_PROMPT_RECEIPT = `
     }
     `
 
+const SYSTEM_PROMPT_SPORT = `
+Ты — AI-тренер. Твоя задача — преобразовать текстовый план тренировок в строгий JSON.
+
+ФОРМАТ JSON:
+{
+  "title": "Название недели/плана",
+  "blocks": [
+    {
+      "name": "Название блока (например: Утро, День)",
+      "items": [
+        { 
+          "name": "Название упражнения", 
+          "type": "check" (если просто сделать) ИЛИ "count" (если нужно считать разы),
+          "target": Число (цель повторений или 1 для check),
+          "step": Число (шаг добавления для кнопок, например 1, 5, 10. По умолчанию 1)
+        }
+      ]
+    }
+  ]
+}
+
+ВАЖНО:
+1. Если упражнение подразумевает накопление (отжимания, подтягивания) — ставь type="count".
+2. Если это разминка, растяжка или "продержаться 30 сек" — ставь type="check".
+3. Верни ТОЛЬКО валидный JSON без Markdown.
+`;
+
+async function parseSportPlan(text) {
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash", 
+        generationConfig: { responseMimeType: "application/json" } 
+    });
+
+    try {
+        const result = await model.generateContent([SYSTEM_PROMPT_SPORT, text]);
+        const response = await result.response;
+        return JSON.parse(response.text());
+    } catch (error) {
+        console.error("AI Sport Error:", error);
+        return null;
+    }
+}
+
 async function generateMorningBriefing(data) {
     try {
         const prompt = `${SYSTEM_PROMPT}\n\nВот данные на сегодня:\n${JSON.stringify(data, null, 2)}`;
@@ -140,5 +183,6 @@ async function parseReceipt(imageBuffer, categories) {
 
 module.exports = { 
    parseReceipt,
-   generateMorningBriefing 
+   generateMorningBriefing,
+   parseSportPlan,
 };
