@@ -494,6 +494,29 @@ async function createReceipt(userId, data, photoFileId) {
     });
 }
 
+// Получить категории пользователя (возвращает простой массив строк)
+async function getUserCategories(userId, type = 'expense') {
+    return new Promise((resolve, reject) => {
+        db.all(
+            "SELECT name FROM categories WHERE user_id = ? AND type = ?", 
+            [userId, type], 
+            (err, rows) => {
+                if (err) reject(err);
+                // Превращаем [{name: 'Еда'}, {name: 'Дом'}] -> ['Еда', 'Дом']
+                else resolve(rows.map(r => r.name)); 
+            }
+        );
+    });
+}
+
+// (На будущее) Добавить новую категорию
+async function addCategory(userId, name, type = 'expense') {
+    return dbRun(
+        "INSERT INTO categories (user_id, name, type, created_at) VALUES (?, ?, ?, ?)",
+        [userId, name, type, new Date().toISOString()]
+    );
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -515,5 +538,6 @@ module.exports = {
     getTodos, addTodo, toggleTodo, deleteTodo, 
     addLessonHistory, checkLessonHistoryExists, 
     createReceipt,
+    getUserCategories, addCategory,
     DB_PATH
 };
