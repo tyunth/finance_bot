@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Тот самый промпт, который мы утвердили
-const SYSTEM_PROMPT = `
+const SYSTEM_PROMPT_MORNING = `
 Ты — строгий ассистент-аналитик. 
 Твоя задача — конвертировать входящий JSON в короткий текст.
 
