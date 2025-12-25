@@ -1718,23 +1718,19 @@ function updateSnowState(enabled) {
     const container = document.getElementById('snow-container');
     const btn = document.getElementById('snow-toggle-btn');
     
-    // 1. Управление контейнером
+    // 1. Жесткое управление видимостью
     if (container) {
-        // Важно: используем setProperty для надежности или просто display
+        // Если включено - block, выключено - none (скрывает всё внутри)
         container.style.display = enabled ? 'block' : 'none';
     }
 
-    // 2. Управление кнопкой (фиксируем ширину классом w-[140px])
+    // 2. Кнопка (фиксированная ширина w-[140px] чтобы не прыгала)
     if (btn) {
         btn.dataset.state = enabled ? 'on' : 'off';
-        btn.textContent = enabled ? '❄️ Снег: ВКЛ' : '❄️ Снег: ВЫКЛ';
+        btn.innerHTML = enabled ? '❄️ Снег: <span class="text-blue-600">ВКЛ</span>' : '❄️ Снег: <span class="text-gray-400">ВЫКЛ</span>';
         
-        // Стили
-        if (enabled) {
-            btn.className = "w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center bg-blue-100 text-blue-600";
-        } else {
-            btn.className = "w-[140px] px-3 py-1 rounded-lg text-xs font-bold transition flex justify-center bg-gray-100 text-gray-400";
-        }
+        // Единый стиль, меняем только цвет рамки и фона
+        btn.className = `w-[130px] h-[42px] px-3 rounded-xl text-xs font-bold transition flex items-center justify-center border ${enabled ? 'bg-blue-50 border-blue-200 text-gray-700' : 'bg-white border-gray-200 text-gray-400'}`;
     }
 }
 
