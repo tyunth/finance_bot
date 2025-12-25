@@ -1734,6 +1734,44 @@ function updateSnowState(enabled) {
     }
 }
 
-// Добавь вызов initSnowToggle() в функцию init() вверху файла!
+
+// --- ГЕНЕРАТОР СНЕГА (Old School Style) ---
+(function() {
+    // Добавляем стиль анимации в head (один раз)
+    const style = document.createElement('style');
+    style.innerHTML = `@keyframes fall { to { transform: translateY(110vh) rotate(360deg); } }`;
+    document.head.appendChild(style);
+
+    function createSnowflake() {
+        const container = document.getElementById('snow-container');
+        
+        // ГЛАВНОЕ ОТЛИЧИЕ: Если контейнера нет или он скрыт (кнопкой) — не генерируем
+        if (!container || container.style.display === 'none') return;
+
+        const snowflake = document.createElement('div');
+        snowflake.innerHTML = '❄'; // Тот самый четкий символ
+        snowflake.style.position = 'absolute'; // Внутри fixed контейнера лучше absolute
+        snowflake.style.top = '-20px';
+        snowflake.style.left = Math.random() * 100 + '%'; // По ширине экрана
+        
+        // Твои старые настройки рандома
+        snowflake.style.fontSize = (Math.random() * 10 + 10) + 'px';
+        snowflake.style.opacity = Math.random() * 0.5 + 0.3;
+        snowflake.style.color = '#dbeafe'; // Приятный голубоватый оттенок
+        snowflake.style.pointerEvents = 'none';
+        
+        // Анимация
+        snowflake.style.animation = `fall ${Math.random() * 3 + 2}s linear forwards`;
+
+        container.appendChild(snowflake);
+
+        // Удаляем через 5 секунд, чтобы не забивать память
+        setTimeout(() => { snowflake.remove(); }, 5000);
+    }
+
+    // Запускаем генерацию каждые 100мс (было 300, поставил чуть чаще для красоты, можешь вернуть 300)
+    setInterval(createSnowflake, 200);
+})();
+
 
 init();
