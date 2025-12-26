@@ -302,7 +302,10 @@ const server = http.createServer(async (req, res) => {
     // Остальное (kpi, config и т.д.)
     else if (req.url === '/config' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ calendarId: process.env.GOOGLE_CALENDAR_ID }));
+        res.end(JSON.stringify({ 
+            calendarId: process.env.GOOGLE_CALENDAR_ID,
+            adminId: config.ADMIN_ID 
+        }));
     }
     else if (req.url.startsWith('/stats/kpi') && req.method === 'GET') {
         try {
@@ -335,6 +338,40 @@ const server = http.createServer(async (req, res) => {
                 console.error(e);
                 res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
             }
+        });
+    }
+
+        // --- АДМИНКА: ПОЛЬЗОВАТЕЛИ ---
+    else if (req.url === '/admin/users' && req.method === 'GET') {
+        try {
+            // Проверка на админа
+            if (currentUserId.toString() !== config.ADMIN_ID.toString()) {
+                res.writeHead(403); res.end(JSON.stringify({ error: 'Access Denied' }));
+                return;
+            }
+            const users = await db.getAllUsers();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(users));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+
+    else if (req.url === '/admin/users/modules' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                // Проверка на админа
+                if (currentUserId.toString() !== config.ADMIN_ID.toString()) {
+                    res.writeHead(403); res.end(JSON.stringify({ error: 'Access Denied' }));
+                    return;
+                }
+
+                const { telegramId, modules } = JSON.parse(body); // modules = ['finance', 'sport']
+                await db.updateUserModules(telegramId, modules);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok' }));
+            } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
         });
     }
 
