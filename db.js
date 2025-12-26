@@ -99,6 +99,8 @@ function initializeTables() {
             weight REAL,
             created_at TEXT
         )`);
+        // Миграция для модулей (Permissions)
+        db.run("ALTER TABLE users ADD COLUMN modules TEXT DEFAULT 'finance'", () => {});
 
 
         // --- 3. МИГРАЦИЯ ДАННЫХ (Добавляем user_id везде, где его нет) ---
@@ -634,6 +636,30 @@ async function addHealthRecord(userId, steps, weight) {
     }
 }
 
+// --- УПРАВЛЕНИЕ ПРАВАМИ (МОДУЛИ) ---
+
+async function getAllUsers() {
+    return dbAll('SELECT id, telegram_id, first_name, username, role, modules FROM users ORDER BY id ASC');
+}
+
+async function updateUserModules(telegramId, modulesArray) {
+    const modulesStr = modulesArray.join(',');
+    return dbRun('UPDATE users SET modules = ? WHERE telegram_id = ?', [modulesStr, telegramId]);
+}
+
+async function getUserModules(telegramId) {
+    const user = await dbGet('SELECT modules, role FROM users WHERE telegram_id = ?', [telegramId]);
+    if (!user) return ['finance']; // По умолчанию только финансы
+    
+    // Если админ - ему можно всё (или можно настроить 'all')
+    if (user.role === 'admin') return ['all'];
+    
+    // Если поле пустое, даем базовый доступ
+    if (!user.modules) return ['finance'];
+    
+    return user.modules.split(',');
+}
+
 
 
 // --- EXPORTS ---
@@ -661,5 +687,6 @@ module.exports = {
     getArchivedItems, restoreItem,
     getUser, createUser, approveUser,
     addHealthRecord,
+    getAllUsers, updateUserModules, getUserModules,
     DB_PATH
 };
