@@ -123,26 +123,20 @@ async function parseSportPlan(text) {
     }
 }
 
-async function generateMorningBriefing(weatherData, calendarEvents, todoList, sportYesterday, sportTodayPlan) {
+async function generateMorningBriefing(weather, calendar, todo, sportYesterday, sportTodayBlocks, englishWord) {
+
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     // Добавляем явную проверку на наличие данных перед отправкой в промпт
     const hasPlan = sportTodayPlan && sportTodayPlan.blocks && sportTodayPlan.blocks.length > 0;
-
     const prompt = `
-    ВХОДЯЩИЕ ДАННЫЕ (JSON):
-    
-    [WEATHER]: ${JSON.stringify(weatherData)}
-    [CALENDAR]: ${JSON.stringify(calendarEvents)}
-    [TASKS]: 
-    ${JSON.stringify(todoList || [])}
-    [SPORT_YESTERDAY_STATS]: 
-    ${JSON.stringify(sportYesterday || { percent: 0 })} 
-    
-    [SPORT_TODAY_PLAN] (Если здесь пусто, значит плана НЕТ. Не выдумывай его!): 
-    ${hasPlan ? JSON.stringify(sportTodayPlan) : "EMPTY_NO_PLAN"}
+    DATA:
+    [WEATHER]: ${JSON.stringify(weather)}
+    [CALENDAR]: ${JSON.stringify(calendar)}
+    [SPORT_YESTERDAY]: ${JSON.stringify(sportYesterday || { percent: 0 })}
+    [SPORT_TODAY_BLOCKS]: ${JSON.stringify(sportTodayBlocks || [])}
+    [ENGLISH_WORD]: ${JSON.stringify(englishWord || {})}
     `;
-
     try {
         const result = await model.generateContent([SYSTEM_PROMPT_MORNING, prompt]);
         return result.response.text();
@@ -188,8 +182,24 @@ async function parseReceipt(imageBuffer, categories) {
     }
 }
 
+async function generateEnglishWord() {
+    const modelJson = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash", 
+        generationConfig: { responseMimeType: "application/json" } 
+    });
+
+    try {
+        const result = await modelJson.generateContent(SYSTEM_PROMPT_ENGLISH);
+        return JSON.parse(result.response.text());
+    } catch (error) {
+        console.error("AI English Error:", error);
+        return null;
+    }
+}
+
 module.exports = { 
    parseReceipt,
    generateMorningBriefing,
    parseSportPlan,
+   generateEnglishWord,
 };
