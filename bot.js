@@ -4,14 +4,13 @@ const cron = require('node-cron');
 const axios = require('axios');    
 require('dotenv').config();
 const ai = require('./ai');
-
-// Импорт модулей
 const config = require('./config');
 const db = require('./db');
 const kb = require('./keyboards');
 const gcal = require('./calendar');
 const ocr = require('./ocr_service'); 
 const sport = require('./sport');
+const exporter = require('./export_service');
 
 // ---------------- UTILS ----------------
 
@@ -547,9 +546,53 @@ bot.hears(/^(?:\/)?latest(?:\s+(\d+))?$/i, async (ctx) => {
 });
 
 bot.command('export', async (ctx) => {
-    if (fs.existsSync(db.DB_PATH)) await ctx.replyWithDocument({ source: db.DB_PATH, filename: 'finance.db' });
-    else ctx.reply('БД не найдена.');
+    const userId = ctx.from.id;
+
+    // Проверка: Если это Админ — даем выбор (DB или Excel)
+    if (userId.toString() === config.ADMIN_ID.toString()) {
+        await ctx.reply('Что выгрузить?', Markup.inlineKeyboard([
+            [Markup.button.callback('💾 Полная база (.db)', 'export_admin_db')],
+            [Markup.button.callback('📊 Мой Excel (.xlsx)', 'export_my_excel')]
+        ]));
+    } else {
+        // Если обычный юзер — сразу генерируем Excel
+        await sendUserExcel(ctx, userId);
+    }
 });
+
+// Обработчики кнопок экспорта
+bot.action('export_admin_db', async (ctx) => {
+    if (ctx.from.id.toString() !== config.ADMIN_ID.toString()) return ctx.answerCbQuery('Нельзя');
+    
+    await ctx.answerCbQuery('Отправляю базу...');
+    if (fs.existsSync(db.DB_PATH)) {
+        await ctx.replyWithDocument({ source: db.DB_PATH, filename: 'finance.db' });
+    } else {
+        await ctx.reply('Файл базы не найден.');
+    }
+});
+
+bot.action('export_my_excel', async (ctx) => {
+    await sendUserExcel(ctx, ctx.from.id);
+    await ctx.answerCbQuery();
+});
+
+async function sendUserExcel(ctx, userId) {
+    const statusMsg = await ctx.reply('⏳ Генерирую Excel отчет...');
+    try {
+        const buffer = await exporter.generateUserExcel(userId);
+        const dateStr = new Date().toISOString().split('T')[0];
+        
+        await ctx.replyWithDocument(
+            { source: buffer, filename: `MyFinance_${dateStr}.xlsx` },
+            { caption: '📊 Ваши данные за всё время.' }
+        );
+        await ctx.telegram.deleteMessage(ctx.chat.id, statusMsg.message_id);
+    } catch (e) {
+        console.error('Export Error:', e);
+        await ctx.editMessageText('❌ Ошибка при создании отчета.');
+    }
+}
 
 // --- СПИСОК УЧЕНИКОВ (БЫСТРЫЙ ПРОСМОТР) ---
 bot.command('students', async (ctx) => {
