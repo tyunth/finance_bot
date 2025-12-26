@@ -138,7 +138,7 @@ bot.action('admin_ignore', (ctx) => {
 // ---------------- CALENDAR POLLING ----------------
 
 async function runCalendarCheck(ctx = null) {
-    const adminId = config.ADMIN_ID || (ctx ? ctx.from.id : null);
+    const userId = config.ADMIN_ID || (ctx ? ctx.from.id : null);
     if (!adminId) {
         console.log('Admin ID не задан.');
         return;
@@ -154,7 +154,7 @@ async function runCalendarCheck(ctx = null) {
         if (events.length === 0) return;
 
         // 1. Получаем список имен учеников из базы
-        const students = await db.getStudents(ctx.from.id);
+        const students = await db.getStudents(userId);
         const studentNames = students.map(s => s.name);
         // Добавляем ключевые слова
         const keywords = [...studentNames, 'Тест', 'Пробный', 'Урок', 'Занятие'];
@@ -435,7 +435,6 @@ async function handleInterestCorrection(ctx) {
 // 9. Добавление покупки
 async function handleShoppingCreation(ctx) {
     const text = ctx.message.text.trim();
-    // 👇 ВОТ ЭТОЙ СТРОКИ НЕ ХВАТАЛО 👇
     const userId = ctx.from.id; 
     
     const type = ctx.session.state.shoppingType || 'buy'; // 'buy' или 'wish'
@@ -554,7 +553,7 @@ bot.command('export', async (ctx) => {
 
 // --- СПИСОК УЧЕНИКОВ (БЫСТРЫЙ ПРОСМОТР) ---
 bot.command('students', async (ctx) => {
-    const students = await db.getStudents(adminId);
+    const students = await db.getStudents(ctx.from.id);
     if (!students.length) return ctx.reply('Список учеников пуст.');
 
     const buttons = students.map(s => [Markup.button.callback(s.name, `show_student_${s.id}`)]);
