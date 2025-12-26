@@ -547,11 +547,13 @@ const HELP_MSG = `
 /sport
 `;
 
-bot.command('sport', (ctx) => sport.renderMainMenu(ctx));
-bot.hears('💪 Спорт', async (ctx) => {
-    if (!await hasAccess(ctx.from.id, 'sport')) return ctx.reply('Модуль "Спорт" отключен.');
-    sport.renderMainMenu(ctx);
-});
+const checkSport = async (ctx, next) => {
+    if (await hasAccess(ctx.from.id, 'sport')) return next();
+    ctx.reply('Модуль "Спорт" отключен для вас.');
+};
+
+bot.command('sport', checkSport, (ctx) => sport.renderMainMenu(ctx));
+bot.hears('💪 Спорт', checkSport, (ctx) => sport.renderMainMenu(ctx));
 
 bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
 bot.command('sync', (ctx) => runCalendarCheck(ctx));
@@ -630,7 +632,12 @@ async function sendUserExcel(ctx, userId) {
 }
 
 // --- СПИСОК УЧЕНИКОВ (БЫСТРЫЙ ПРОСМОТР) ---
-bot.command('students', async (ctx) => {
+const checkStudents = async (ctx, next) => {
+    if (await hasAccess(ctx.from.id, 'students')) return next();
+    ctx.reply('Доступ закрыт.');
+};
+
+bot.command('students', checkStudents, async (ctx) => {
     const students = await db.getStudents(ctx.from.id);
     if (!students.length) return ctx.reply('Список учеников пуст.');
 
@@ -883,7 +890,7 @@ const startDeleteDeposit = async (ctx) => {
 bot.command('delete_deposit', (ctx) => startDeleteDeposit(ctx));
 bot.hears('delete_deposit', (ctx) => startDeleteDeposit(ctx));
 
-bot.command('debts', async (ctx) => {
+bot.command('debts', checkStudents, async (ctx) => {
     const debts = await db.getDebts(ctx.from.id);
     if (!debts.length) return ctx.reply('Долгов нет.', kb.MAIN_KEYBOARD);
     let msg = '*Неоплаченные уроки:*\n';
