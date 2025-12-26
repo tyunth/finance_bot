@@ -150,6 +150,7 @@ async function loadData() {
 async function init() {
     const success = await loadData();
     if (success) {
+        await applyModules();
         const loadingEl = document.getElementById('loading');
         if (loadingEl) loadingEl.style.display = 'none';
         
@@ -1874,6 +1875,45 @@ async function toggleModule(userId, moduleName) {
     } catch(e) { alert('Ошибка сохранения'); }
 }
 
+
+// --- MODULARITY (UI HIDING) ---
+async function applyModules() {
+    try {
+        const res = await fetch('/users/me');
+        if (!res.ok) return;
+        const me = await res.json();
+        
+        const modules = me.modules || [];
+        const isAll = modules.includes('all') || me.role === 'admin';
+
+        // Карта: "Название модуля" -> "ID кнопки в HTML"
+        const mapping = {
+            'students': 'btn-students',
+            'calendar': 'btn-calendar', // Обычно идет вместе с учениками
+            'shopping': 'btn-shopping',
+            'utilities': 'btn-utilities',
+            // 'finance' обычно включен всегда, но можно добавить
+            // 'analytics': 'btn-analytics'
+        };
+
+        // Проходим по всем кнопкам и прячем/показываем
+        for (const [mod, btnId] of Object.entries(mapping)) {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+                if (isAll || modules.includes(mod)) {
+                    btn.classList.remove('hidden');
+                } else {
+                    btn.classList.add('hidden');
+                }
+            }
+        }
+        
+        // Логика: Если текущая вкладка скрыта, переключиться на доступную (Аналитика)
+        // Например, если юзер был на вкладке Students, а мы её скрыли
+        // (Это сложная логика, пока просто оставим по умолчанию Analytics при загрузке)
+
+    } catch (e) { console.error('Error applying modules:', e); }
+}
 
 // --- ГЕНЕРАТОР СНЕГА (Old School Style) ---
 (function() {
