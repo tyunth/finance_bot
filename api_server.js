@@ -314,6 +314,30 @@ const server = http.createServer(async (req, res) => {
         } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
     }
 
+    // --- ЗДОРОВЬЕ (iOS Shortcuts) ---
+    else if (req.url === '/api/health' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                // В шорткате мы будем передавать userId явно или через секрет. 
+                // Для простоты, пусть шорткат шлет { userId: 123, steps: 5000, weight: 80 }
+                
+                // Простая защита (чтобы кто угодно не слал)
+                // Можешь придумать свой secret_key, если сервер смотрит в интернет
+                
+                await db.addHealthRecord(data.userId, data.steps, data.weight);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'ok', msg: 'Health data saved' }));
+            } catch (e) {
+                console.error(e);
+                res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+    }
+
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
