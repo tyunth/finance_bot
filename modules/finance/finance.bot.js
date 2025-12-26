@@ -184,4 +184,48 @@ bot.hears('Счета', async (ctx) => {
     ]));
 });
 
+// --- НОВЫЕ КОМАНДЫ ---
+
+// 1. UNDO (Отмена последней записи)
+bot.command('undo', async (ctx) => {
+    // Ищем последнюю транзакцию
+    const last = await db.dbGet(
+        'SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+        [ctx.from.id]
+    );
+
+    if (!last) return ctx.reply('Нет операций для отмены.');
+
+    // Удаляем
+    await db.dbRun('DELETE FROM transactions WHERE id = ?', [last.id]);
+    
+    // Обновляем баланс для вывода
+    const { balances } = await db.getBalances(ctx.from.id);
+    
+    ctx.reply(
+        `↩️ *Отменено:*\n${last.type === 'income' ? '+' : '-'}${formatAmount(last.amount)} — ${last.category}\n💰 Баланс: ${formatAmount(balances['Основной'])}`,
+        { parse_mode: 'Markdown' }
+    );
+});
+
+// 2. УПРАВЛЕНИЕ КАТЕГОРИЯМИ
+bot.command('categories', async (ctx) => {
+    const expenses = await db.getUserCategories(ctx.from.id, 'expense');
+    const incomes = await db.getUserCategories(ctx.from.id, 'income');
+    
+    let msg = '*📂 Ваши категории:*\n\n📉 *Расходы:*\n' + expenses.join(', ') + '\n\n📈 *Доходы:*\n' + incomes.join(', ');
+    msg += '\n\nЧтобы добавить, пишите: `/add_cat Расход Бензин`';
+    
+    ctx.replyWithMarkdown(msg);
+});
+
+// Добавление: /add_cat Расход Бензин
+bot.hears(/^\/add_cat\s+(Расход|Доход)\s+(.+)$/i, async (ctx) => {
+    const type = ctx.match[1].toLowerCase() === 'расход' ? 'expense' : 'income';
+    const name = ctx.match[2].trim();
+    
+    await db.addCategory(ctx.from.id, type, name);
+    ctx.reply(`✅ Категория "${name}" добавлена в ${type === 'expense' ? 'Расходы' : 'Доходы'}.`);
+});
+
 module.exports = bot;
