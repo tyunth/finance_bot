@@ -13,80 +13,128 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 
 function initializeTables() {
     db.serialize(() => {
-        // --- 1. Создание таблиц ---
+        // --- 1. Таблица Пользователей (Whitelisting) ---
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            telegram_id INTEGER UNIQUE, 
+            username TEXT, 
+            first_name TEXT, 
+            role TEXT DEFAULT 'user', -- 'admin' или 'user'
+            is_approved INTEGER DEFAULT 0, -- 0 = ждет, 1 = принят
+            created_at TEXT
+        )`);
+
+        // --- 2. Основные таблицы (Обновляем структуру) ---
         
         db.run(`CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, amount REAL, category TEXT, tag TEXT, comment TEXT, date TEXT, source_account TEXT, target_account TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, amount REAL, category TEXT, tag TEXT, comment TEXT, date TEXT, source_account TEXT, target_account TEXT, lesson_type TEXT, receipt_id INTEGER
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, balance REAL DEFAULT 0, is_deposit INTEGER DEFAULT 0, rate REAL DEFAULT 0, term_date TEXT, bank_name TEXT, start_date TEXT, UNIQUE(user_id, name)
         )`);
 
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS processed_events (
-            event_id TEXT PRIMARY KEY, summary TEXT, date TEXT, status TEXT
+            event_id TEXT PRIMARY KEY, user_id INTEGER, summary TEXT, date TEXT, status TEXT
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS debts (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, student_name TEXT, subject TEXT, amount REAL, date TEXT, event_id TEXT, is_paid INTEGER DEFAULT 0
         )`);
 
+        // Тут user_id не обязательна, так как item привязан к чеку/транзакции, у которой есть user_id
         db.run(`CREATE TABLE IF NOT EXISTS receipt_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, receipt_id INTEGER, product_name TEXT, quantity REAL, price REAL, amount REAL, category TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT, transaction_id INTEGER, item_name TEXT, quantity REAL, price REAL, shop_name TEXT, date TEXT
         )`);
 
+        // Ранее забытая таблица чеков
+        db.run(`CREATE TABLE IF NOT EXISTS receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, shop_name TEXT, shop_address TEXT, date TEXT, total_sum REAL, calculated_sum REAL, item_count INTEGER, discount REAL, raw_json TEXT, photo_file_id TEXT, created_at TEXT
+        )`);
+
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT ''
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT ''
         )`);
 
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS shopping_list (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, is_bought INTEGER DEFAULT 0, type TEXT DEFAULT 'buy', price_estimate REAL DEFAULT 0
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, item_name TEXT, is_bought INTEGER DEFAULT 0, type TEXT DEFAULT 'buy', price_estimate REAL DEFAULT 0, created_at TEXT, completed_at TEXT, deleted_at TEXT, sort_order INTEGER DEFAULT 0
         )`);
 
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS utility_readings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, service_name TEXT, value_read REAL, amount_paid REAL
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, service_name TEXT, value_read REAL, amount_paid REAL, comment TEXT
         )`);
 
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS lesson_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, student_id INTEGER, student_name TEXT, date TEXT, status TEXT, reason TEXT, lost_income REAL DEFAULT 0
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, student_id INTEGER, student_name TEXT, date TEXT, status TEXT, reason TEXT, lost_income REAL DEFAULT 0
         )`);
 
+        // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT, is_done INTEGER DEFAULT 0, period TEXT DEFAULT 'urgent'
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, text TEXT, is_done INTEGER DEFAULT 0, period TEXT DEFAULT 'urgent', created_at TEXT, completed_at TEXT, deleted_at TEXT
+        )`);
+
+        // Таблицы для обучения (ML) - делаем их персональными
+        db.run(`CREATE TABLE IF NOT EXISTS product_mappings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, raw_name TEXT UNIQUE, category TEXT
+        )`);
+        
+        db.run(`CREATE TABLE IF NOT EXISTS keywords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, keyword TEXT UNIQUE, category TEXT
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, type TEXT, created_at TEXT
         )`);
 
 
-        // --- 2. Миграции (ЛЕЧИМ БАЗУ) ---
+        // --- 3. МИГРАЦИЯ ДАННЫХ (Добавляем user_id везде, где его нет) ---
 
-        // Список всех колонок, которые могли потеряться или новые
-        const tablesToUpdate = {
-            'shopping_list': [
-                "is_bought INTEGER DEFAULT 0", // <--- ВОТ ЛЕКАРСТВО ОТ ТВОЕЙ ОШИБКИ
-                "type TEXT DEFAULT 'buy'",
-                "created_at TEXT", 
-                "completed_at TEXT", 
-                "deleted_at TEXT",
-                "sort_order INTEGER DEFAULT 0"
-            ],
-            'todos': [
-                "period TEXT DEFAULT 'urgent'",
-                "created_at TEXT", 
-                "completed_at TEXT", 
-                "deleted_at TEXT"
-            ],
-            'students': [
-                "schedule_days TEXT DEFAULT ''"
-            ]
-        };
+        const tablesNeedingUserId = [
+            'processed_events', 'students', 'shopping_list', 
+            'utility_readings', 'lesson_history', 'todos', 
+            'product_mappings', 'keywords', 'categories'
+        ];
 
-        // Проходим по всем таблицам и пытаемся добавить колонки
-        for (const [table, columns] of Object.entries(tablesToUpdate)) {
-            columns.forEach(colDefinition => {
-                db.run(`ALTER TABLE ${table} ADD COLUMN ${colDefinition}`, (err) => {
-                    // Игнорируем ошибку, если колонка уже есть (duplicate column)
-                });
+        tablesNeedingUserId.forEach(table => {
+            // 1. Пытаемся добавить колонку user_id
+            db.run(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER`, (err) => {
+                if (!err) {
+                    console.log(`✅ Migrated: Added user_id to ${table}`);
+                    
+                    // 2. Если колонка успешно добавлена, значит это старые данные.
+                    // Нужно присвоить их ТЕБЕ (Админу). 
+                    // Мы возьмем твой ID из таблицы transactions (так как там он точно есть).
+                    const sqlFix = `UPDATE ${table} SET user_id = (SELECT user_id FROM transactions LIMIT 1) WHERE user_id IS NULL`;
+                    
+                    db.run(sqlFix, (updateErr) => {
+                        if (!updateErr) console.log(`🔄 Data fixed: Assigned rows in ${table} to main user.`);
+                    });
+                }
             });
-        }
+        });
+        
+        // Отдельная миграция для shopping_list (твоя прошлая ошибка)
+        const shopCols = ["is_bought INTEGER DEFAULT 0", "type TEXT DEFAULT 'buy'", "created_at TEXT", "completed_at TEXT", "deleted_at TEXT", "sort_order INTEGER DEFAULT 0"];
+        shopCols.forEach(col => {
+            db.run(`ALTER TABLE shopping_list ADD COLUMN ${col}`, () => {});
+        });
+
+        // Миграция для todos
+        const todoCols = ["period TEXT DEFAULT 'urgent'", "created_at TEXT", "completed_at TEXT", "deleted_at TEXT"];
+        todoCols.forEach(col => {
+            db.run(`ALTER TABLE todos ADD COLUMN ${col}`, () => {});
+        });
+        
+        // Миграция для students
+        db.run(`ALTER TABLE students ADD COLUMN schedule_days TEXT DEFAULT ''`, () => {});
+        
+        // Миграция для utility_readings (comment)
+        db.run(`ALTER TABLE utility_readings ADD COLUMN comment TEXT`, () => {});
     });
 }
 
