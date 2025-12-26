@@ -1,89 +1,133 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
-const config = require('../../config');
+const config = require('../../config'); // Убедись, что config.js есть в корне
 
-// Composer — это как "мини-роутер" для бота
 const bot = new Composer();
 
-// Хелперы (можно вынести в utils)
-const formatAmount = (amount) => `${amount.toFixed(0)} ${config.CURRENCY}`;
-const parseAmount = (text) => parseFloat(text.replace(/[^0-9.,]/g, '').replace(',', '.'));
+// Хелперы
+const formatAmount = (amount) => new Intl.NumberFormat('ru-RU').format(amount) + ' ' + config.CURRENCY;
+const parseAmount = (text) => {
+    const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.');
+    const val = parseFloat(cleaned);
+    return isNaN(val) ? null : val;
+};
 
-// --- ОБРАБОТЧИКИ ---
-
+// --- 1. ПРОСМОТР СЧЕТОВ ---
 bot.hears('Счета', async (ctx) => {
     const { balances, accountsList } = await db.getBalances(ctx.from.id);
     let msg = `💳 *Ваши счета:*`;
+    
+    // Основной и другие
     for (const acc of accountsList) {
         msg += `\n\n*${acc.name}*: ${formatAmount(balances[acc.name] || 0)}`;
-        if (acc.is_deposit) msg += `\n_Банк: ${acc.bank_name} (${acc.rate}%)_`;
+        if (acc.is_deposit) {
+            msg += `\n🏦 _${acc.bank_name || 'Банк'} (${acc.rate}%)_`;
+        }
     }
-    ctx.replyWithMarkdown(msg);
+    
+    // Inline кнопки для депозитов
+    const buttons = [
+        [Markup.button.callback('➕ Новый депозит', 'btn_add_deposit')],
+        [Markup.button.callback('🗑 Удалить депозит', 'btn_del_deposit')]
+    ];
+    
+    ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
 });
 
-// Сценарии ввода (упрощенные, без WizardScene пока что, на стейтах как у тебя было)
+// --- 2. ДОБАВЛЕНИЕ ОПЕРАЦИЙ (Wizard на минималках) ---
+
+// Вход в режим "Расходы"
 bot.hears(['📉 Расходы', 'Расход'], (ctx) => {
-    ctx.session.state = { type: 'expense', step: 'AWAITING_AMOUNT' };
-    ctx.reply('💸 Введите сумму расхода:', Markup.removeKeyboard());
+    ctx.session.state = { type: 'expense', step: 'AMOUNT' };
+    ctx.reply('💸 Введите сумму расхода:', Markup.removeKeyboard()); // Убираем клаву, чтобы не мешала
 });
 
+// Вход в режим "Доходы"
 bot.hears(['📈 Доходы', 'Доход'], (ctx) => {
-    ctx.session.state = { type: 'income', step: 'AWAITING_AMOUNT' };
+    ctx.session.state = { type: 'income', step: 'AMOUNT' };
     ctx.reply('💰 Введите сумму дохода:', Markup.removeKeyboard());
 });
 
-// Обработка текста (Ловит ввод суммы и комментов)
+// Вход в режим "Перевод"
+bot.hears('Перевод', async (ctx) => {
+    ctx.session.state = { type: 'transfer', step: 'SOURCE' };
+    
+    // Генерируем кнопки счетов
+    const { accountsList } = await db.getBalances(ctx.from.id);
+    const buttons = accountsList.map(a => [a.name]);
+    buttons.push(['Отмена']);
+    
+    ctx.reply('📤 Откуда переводим?', Markup.keyboard(buttons).resize());
+});
+
+// --- 3. ОБРАБОТЧИК ТЕКСТА (State Machine) ---
 bot.on('text', async (ctx, next) => {
     const state = ctx.session.state || {};
-    const text = ctx.message.text;
+    const text = ctx.message.text.trim();
 
-    // Если мы не в процессе ввода финансов — передаем управление дальше (другим модулям)
-    if (!state.type || !['expense', 'income'].includes(state.type)) return next();
+    // Если нет активного процесса — пропускаем к другим модулям
+    if (!state.step) return next();
 
-    // Шаг 1: Сумма
-    if (state.step === 'AWAITING_AMOUNT') {
-        const amount = parseAmount(text);
-        if (!amount) return ctx.reply('Введите число (или "Отмена").');
-        
-        state.amount = amount;
-        state.step = 'AWAITING_CATEGORY';
-        
-        // Получаем категории
-        const cats = await db.getUserCategories(ctx.from.id, state.type);
-        const buttons = [];
-        for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
-        
-        ctx.reply('Выберите категорию или напишите новую:', 
-            Markup.keyboard([...buttons, ['Отмена']]).resize()
-        );
-        return;
+    // Отмена в любой момент
+    if (text === 'Отмена' || text === '/cancel') {
+        ctx.session.state = {};
+        // Возвращаем главное меню (надо бы вынести его в отдельную функцию, но пока захардкодим)
+        return ctx.reply('❌ Отменено.', Markup.keyboard([
+            ['📉 Расходы', '📈 Доходы'], ['📊 Отчет', 'Счета']
+        ]).resize());
     }
 
-    // Шаг 2: Категория (и сохранение)
-    if (state.step === 'AWAITING_CATEGORY') {
-        if (text === 'Отмена') {
-            ctx.session.state = {};
-            return ctx.reply('Отменено', Markup.keyboard([['📉 Расходы', '📈 Доходы'], ['Счета']]).resize());
+    // === ЛОГИКА РАСХОДОВ И ДОХОДОВ ===
+    if (['expense', 'income'].includes(state.type)) {
+        
+        // Шаг 1: Сумма
+        if (state.step === 'AMOUNT') {
+            const amount = parseAmount(text);
+            if (!amount) return ctx.reply('🔢 Введите число (например 500 или 12.50).');
+            
+            state.amount = amount;
+            state.step = 'CATEGORY'; // Следующий шаг
+            
+            // Показываем категории
+            const cats = await db.getUserCategories(ctx.from.id, state.type);
+            // Разбиваем по 2 кнопки в ряд
+            const buttons = [];
+            for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
+            buttons.push(['Отмена']);
+
+            return ctx.reply('📂 Выберите категорию или напишите новую:', Markup.keyboard(buttons).resize());
         }
 
-        const category = text;
-        await db.addTransaction({
-            userId: ctx.from.id,
-            type: state.type,
-            amount: state.amount,
-            category: category,
-            comment: 'Через бота',
-            tag: state.type === 'income' ? 'Доход' : 'Разное',
-            sourceAccount: state.type === 'expense' ? 'Основной' : null,
-            targetAccount: state.type === 'income' ? 'Основной' : null
-        });
+        // Шаг 2: Категория (+ Комментарий авто)
+        if (state.step === 'CATEGORY') {
+            const category = text; // То, что нажал или написал юзер
+            
+            // Пишем в базу
+            await db.addTransaction({
+                userId: ctx.from.id,
+                type: state.type,
+                amount: state.amount,
+                category: category,
+                tag: state.type === 'income' ? 'Доход' : 'Разное',
+                comment: 'Через бота', // Можно добавить шаг для коммента, если хочешь
+                sourceAccount: state.type === 'expense' ? 'Основной' : null,
+                targetAccount: state.type === 'income' ? 'Основной' : null
+            });
 
-        const { balances } = await db.getBalances(ctx.from.id);
-        ctx.reply(`✅ Записано: ${state.type === 'income' ? '+' : '-'}${formatAmount(state.amount)} (${category})\nБаланс: ${formatAmount(balances['Основной'])}`, 
-            Markup.keyboard([['📉 Расходы', '📈 Доходы'], ['Счета']]).resize()
-        );
-        ctx.session.state = {};
+            const { balances } = await db.getBalances(ctx.from.id);
+            const sign = state.type === 'income' ? '+' : '-';
+            
+            ctx.reply(`✅ *Записано:*\n${sign}${formatAmount(state.amount)} — ${category}\n\n💰 Баланс: ${formatAmount(balances['Основной'])}`, {
+                parse_mode: 'Markdown',
+                ...Markup.keyboard([['📉 Расходы', '📈 Доходы'], ['📊 Отчет', 'Счета']]).resize()
+            });
+            
+            ctx.session.state = {}; // Сброс
+            return;
+        }
     }
+    
+    return next();
 });
 
 module.exports = bot;
