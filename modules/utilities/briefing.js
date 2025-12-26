@@ -1,8 +1,7 @@
-// utils/briefing.js
 const axios = require('axios');
-const db = require('../db');
-const ai = require('../ai');
-const sport = require('../sport');
+const db = require('../../db');
+const ai = require('../../ai');
+const sport = require('../../sport');
 
 async function sendMorningBriefing(bot, chatId) {
     try {
