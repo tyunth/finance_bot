@@ -154,7 +154,7 @@ async function runCalendarCheck(ctx = null) {
         if (events.length === 0) return;
 
         // 1. Получаем список имен учеников из базы
-        const students = await db.getStudents();
+        const students = await db.getStudents(ctx.from.id);
         const studentNames = students.map(s => s.name);
         // Добавляем ключевые слова
         const keywords = [...studentNames, 'Тест', 'Пробный', 'Урок', 'Занятие'];
@@ -437,7 +437,7 @@ async function handleShoppingCreation(ctx) {
     const text = ctx.message.text.trim();
     const type = ctx.session.state.shoppingType || 'buy'; // 'buy' или 'wish'
     
-    await db.addShoppingItem({ title: text, type: type, price_estimate: 0 });
+    await db.addShoppingItem(userId, { title: text, type: type, price_estimate: 0 });
     
     ctx.session.state = {}; // Сброс состояния
     await ctx.reply(`Добавлено: ${text}`);
@@ -550,7 +550,7 @@ bot.command('export', async (ctx) => {
 
 // --- СПИСОК УЧЕНИКОВ (БЫСТРЫЙ ПРОСМОТР) ---
 bot.command('students', async (ctx) => {
-    const students = await db.getStudents();
+    const students = await db.getStudents(adminId);
     if (!students.length) return ctx.reply('Список учеников пуст.');
 
     const buttons = students.map(s => [Markup.button.callback(s.name, `show_student_${s.id}`)]);
@@ -561,7 +561,7 @@ bot.command('students', async (ctx) => {
 bot.command(['market', 'ozon', 'wb'], async (ctx) => {
     const text = ctx.message.text.replace(/^\/\w+\s*/, '').trim(); 
     if (!text) return ctx.reply('Напишите товар: /wb Наушники');
-    await db.addShoppingItem({ title: text, type: 'market', price_estimate: 0 });
+    await db.addShoppingItem(ctx.from.id, { title: text, type: 'market', price_estimate: 0 });
     return ctx.reply(`Добавлено в маркетплейс: ${text}`);
 });
 
@@ -591,7 +591,7 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
 
 // Добавь обработчик текста
 bot.hears('Дела', async (ctx) => {
-    const list = await db.getTodos();
+    const list = await db.getTodos(ctx.from.id);
     // Активные сверху
     const active = list.filter(t => !t.is_done);
     
@@ -628,12 +628,12 @@ bot.hears('Дела', async (ctx) => {
 bot.command('todo', async (ctx) => {
     const text = ctx.message.text.replace('/todo', '').trim();
     if (!text) return ctx.reply('Напиши задачу: /todo Помыть кота');
-    await db.addTodo(text);
+    await db.addTodo(ctx.from.id, text);
     ctx.reply(`Записал: ${text}`);
 });
 
 bot.command(['trash', 'archive'], async (ctx) => {
-    const items = await db.getArchivedItems();
+    const items = await db.getArchivedItems(ctx.from.id);
     
     if (items.length === 0) {
         return ctx.reply('🗑 Корзина пуста.');
@@ -685,7 +685,7 @@ bot.action(/^todo_del_(\d+)$/, async (ctx) => {
 
 // Универсальная функция показа списка
 async function renderList(ctx, type) {
-    const list = await db.getShoppingList();
+    const list = await db.getShoppingList(ctx.from.id);
     
     // --- ИЗМЕНЕНИЕ: Фильтруем. Показываем только если тип совпадает И товар НЕ куплен ---
     const items = list.filter(i => i.type === type && !i.is_bought);
@@ -749,7 +749,7 @@ bot.command('buy', async (ctx) => {
     const text = ctx.message.text.replace('/buy', '').trim();
     if (!text) return ctx.reply('Напишите что купить: /buy Молоко');
     
-    await db.addShoppingItem({ title: text, type: 'buy', price_estimate: 0 });
+    await db.addShoppingItem(ctx.from.id, { title: text, type: 'buy', price_estimate: 0 });
     return ctx.reply(`🛒 Добавлено: ${text}`);
 });
 
@@ -758,7 +758,7 @@ bot.command('wish', async (ctx) => {
     const text = ctx.message.text.replace('/wish', '').trim();
     if (!text) return ctx.reply('Напишите что в вишлист: /wish PS5');
     
-    await db.addShoppingItem({ title: text, type: 'wish', price_estimate: 0 });
+    await db.addShoppingItem(ctx.from.id, { title: text, type: 'wish', price_estimate: 0 });
     return ctx.reply(`🎁 Добавлено в вишлист: ${text}`);
 });
 
