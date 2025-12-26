@@ -58,7 +58,8 @@ bot.use(session());
 bot.use(async (ctx, next) => {
     // Пропускаем системные обновления без отправителя
     if (!ctx.from) return next();
-
+    if (!ctx.session) ctx.session = {}; 
+    if (!ctx.state) ctx.state = {};
     const userId = ctx.from.id;
     
     try {
