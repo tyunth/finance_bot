@@ -1,7 +1,7 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
-const kb = require('../../keyboards'); // Если этот файл есть, используем. Если нет - функции ниже заменят его.
+// Обрати внимание на путь к меню!
 const { getMainMenu } = require('../utilities/menu.js');
 
 const bot = new Composer();
@@ -14,7 +14,7 @@ const parseAmount = (text) => {
     return isNaN(val) ? null : val;
 };
 
-// Генератор клавиатуры счетов (из старого бота)
+// Генератор клавиатуры счетов
 async function generateAccountKeyboard(userId, excludeName = null) {
     const { accountsList } = await db.getBalances(userId);
     const buttons = [];
@@ -26,7 +26,59 @@ async function generateAccountKeyboard(userId, excludeName = null) {
 }
 
 // ==========================================
-// 1. НАВИГАЦИЯ И ВХОД В РЕЖИМЫ
+// 1. КОМАНДЫ УДАЛЕНИЯ И ОТМЕНЫ (НОВОЕ)
+// ==========================================
+
+// Отмена последней записи (/undo)
+bot.command('undo', async (ctx) => {
+    const last = await db.dbGet(
+        'SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+        [ctx.from.id]
+    );
+
+    if (!last) return ctx.reply('Нет операций для отмены.');
+
+    await db.dbRun('DELETE FROM transactions WHERE id = ?', [last.id]);
+    
+    const { balances } = await db.getBalances(ctx.from.id);
+    const sign = last.type === 'income' ? '+' : '-';
+    
+    ctx.reply(
+        `↩️ *Отменено:*\n${sign}${formatAmount(last.amount)} — ${last.category} (${last.comment})\n💰 Баланс: ${formatAmount(balances['Основной'])}`,
+        { parse_mode: 'Markdown' }
+    );
+});
+
+// Удаление по ID (/delete 123)
+bot.command('delete', async (ctx) => handleDelete(ctx));
+bot.hears(/^delete\s+(\d+)$/i, async (ctx) => handleDelete(ctx));
+
+// Удаление по клику из /latest (/del_123)
+bot.hears(/^\/del_(\d+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    await deleteById(ctx, id);
+});
+
+async function handleDelete(ctx) {
+    const text = ctx.message.text;
+    const parts = text.split(/\s+/); // Разбиваем "delete 123"
+    const id = parts[1];
+    
+    if (!id) return ctx.reply('Укажите ID. Пример: /delete 123');
+    await deleteById(ctx, id);
+}
+
+async function deleteById(ctx, id) {
+    const tx = await db.dbGet('SELECT id FROM transactions WHERE id = ? AND user_id = ?', [id, ctx.from.id]);
+    if (!tx) return ctx.reply('Запись не найдена.');
+
+    await db.dbRun('DELETE FROM transactions WHERE id = ?', [id]);
+    ctx.reply(`🗑 Запись #${id} удалена.`);
+}
+
+
+// ==========================================
+// 2. ВХОД В РЕЖИМЫ (Доход/Расход/Перевод)
 // ==========================================
 
 bot.hears(['📉 Расходы', 'Расход'], async (ctx) => {
@@ -36,8 +88,9 @@ bot.hears(['📉 Расходы', 'Расход'], async (ctx) => {
 
 bot.hears(['📈 Доходы', 'Доход'], async (ctx) => {
     ctx.session.state = { type: 'income', step: 'INCOME_CATEGORY' };
+    // Пресеты категорий
     const buttons = [['Репетиторство', 'Стипендия'], ['Зарплата', 'Подарок'], ['Другое'], ['❌ Отмена']];
-    await ctx.reply('💰 Категория дохода:', Markup.keyboard(buttons).resize());
+    await ctx.reply('💰 Выберите категорию дохода:', Markup.keyboard(buttons).resize());
 });
 
 bot.hears('Перевод', async (ctx) => {
@@ -46,84 +99,100 @@ bot.hears('Перевод', async (ctx) => {
     await ctx.reply('📤 С какого счета переводим?', kb);
 });
 
-// Команда редактирования: /edit 123
+// Редактирование (/edit 123)
 bot.hears(/^edit\s+(\d+)$/i, async (ctx) => {
     const txId = parseInt(ctx.match[1]);
     const t = await db.dbGet('SELECT * FROM transactions WHERE id = ? AND user_id = ?', [txId, ctx.from.id]);
     
     if (!t) return ctx.reply('Транзакция не найдена.');
     
-    // Определяем тип редактирования
     const editType = t.type === 'income' ? 'edit_income' : 'edit_expense';
     ctx.session.state = { type: editType, txId, step: 'EDIT_AMOUNT', oldAmount: t.amount };
     
-    await ctx.reply(`✏️ Редактирование #${txId} (${t.category})\nТекущая сумма: ${t.amount}\nВведите новую сумму (или 0 чтобы оставить):`, Markup.keyboard([['❌ Отмена']]).resize());
+    await ctx.reply(
+        `✏️ Редактирование #${txId} (${t.category})\nТекущая сумма: ${t.amount}\nВведите новую сумму (или 0 чтобы оставить):`, 
+        Markup.keyboard([['❌ Отмена']]).resize()
+    );
 });
 
+
 // ==========================================
-// 2. ГЛАВНЫЙ ОБРАБОТЧИК (STATE MACHINE)
+// 3. МАШИНА СОСТОЯНИЙ (ОБРАБОТКА ТЕКСТА)
 // ==========================================
 
 bot.on('text', async (ctx, next) => {
     const state = ctx.session.state || {};
     const text = ctx.message.text.trim();
 
-    // Глобальная отмена
+    // 1. Глобальная отмена
     if (text === '❌ Отмена' || text === '/cancel') {
         ctx.session.state = {};
         const menu = await getMainMenu(ctx.from.id);
         return ctx.reply('Отменено.', menu);
     }
 
-    if (!state.type) return next(); // Не наш стейт -> идем дальше
+    if (!state.type) return next(); // Если нет активного действия -> пропускаем
 
-    // --- ЛОГИКА РАСХОДОВ ---
+    // --- РАСХОДЫ ---
     if (state.type === 'expense') {
+        // Шаг 1: Сумма
         if (state.step === 'EXPENSE_AMOUNT') {
             const amount = parseAmount(text);
             if (!amount) return ctx.reply('Введите число.');
             state.amount = amount;
             state.step = 'EXPENSE_COMMENT';
-            await ctx.reply('💬 Комментарий (на что?):', Markup.keyboard([['Пропустить'], ['❌ Отмена']]).resize());
+            await ctx.reply('💬 На что? (Комментарий)', Markup.keyboard([['Пропустить'], ['❌ Отмена']]).resize());
             return;
         }
+        // Шаг 2: Комментарий + Авто-категория
         if (state.step === 'EXPENSE_COMMENT') {
             state.comment = text === 'Пропустить' ? '' : text;
-            // Авто-категория
+            
+            // Пробуем угадать категорию
             const predicted = await db.getCategoryByComment(text);
+            
             if (predicted) {
+                // Угадали -> сохраняем сразу
                 await saveTransaction(ctx, 'expense', state.amount, predicted, state.comment, true);
             } else {
+                // Не угадали -> спрашиваем
                 state.step = 'EXPENSE_CATEGORY';
                 const cats = await db.getUserCategories(ctx.from.id, 'expense');
+                
+                // Формируем кнопки по 2 в ряд
                 const buttons = [];
                 for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
                 buttons.push(['❌ Отмена']);
+                
                 await ctx.reply('📂 Выберите категорию:', Markup.keyboard(buttons).resize());
             }
             return;
         }
+        // Шаг 3: Категория (если не угадали)
         if (state.step === 'EXPENSE_CATEGORY') {
             await saveTransaction(ctx, 'expense', state.amount, text, state.comment, false);
-            if (state.comment) await db.learnKeyword(state.comment, text);
+            if (state.comment) await db.learnKeyword(state.comment, text); // Обучаем
             return;
         }
     }
 
-    // --- ЛОГИКА ДОХОДОВ ---
+    // --- ДОХОДЫ ---
     if (state.type === 'income') {
+        // Шаг 1: Категория
         if (state.step === 'INCOME_CATEGORY') {
             state.category = text;
-            // Пресеты
+            // Проверка пресетов (фиксированные цены)
             if (text === 'Репетиторство') return saveTransaction(ctx, 'income', config.LESSON_PRICE || 0, text, 'Урок');
             if (text === 'Стипендия') {
                 const schol = config.SCHOLARSHIP || 0;
                 if (schol > 0) return saveTransaction(ctx, 'income', schol, text, 'Стипендия');
             }
+            // Если не пресет -> спрашиваем сумму
             state.step = 'INCOME_AMOUNT';
-            await ctx.reply('💰 Сумма дохода:', Markup.keyboard([['❌ Отмена']]).resize());
+            await ctx.reply('💰 Введите сумму дохода:', Markup.keyboard([['❌ Отмена']]).resize());
             return;
         }
+        // Шаг 2: Сумма
         if (state.step === 'INCOME_AMOUNT') {
             const amount = parseAmount(text);
             if (!amount) return ctx.reply('Введите число.');
@@ -132,7 +201,7 @@ bot.on('text', async (ctx, next) => {
         }
     }
 
-    // --- ЛОГИКА ПЕРЕВОДОВ (ВОССТАНОВЛЕНО) ---
+    // --- ПЕРЕВОДЫ ---
     if (state.type === 'transfer') {
         if (state.step === 'TRANSFER_SOURCE') {
             state.sourceAccount = text;
@@ -163,13 +232,14 @@ bot.on('text', async (ctx, next) => {
         }
     }
 
-    // --- ЛОГИКА РЕДАКТИРОВАНИЯ (ВОССТАНОВЛЕНО) ---
-    if (state.type.startsWith('edit_')) {
+    // --- РЕДАКТИРОВАНИЕ ---
+    if (state.type && state.type.startsWith('edit_')) {
         if (state.step === 'EDIT_AMOUNT') {
             const amount = parseAmount(text);
             if (amount === null && text !== '0') return ctx.reply('Число или 0.');
+            
             if (amount !== null && amount !== 0) state.amount = amount;
-            else state.amount = state.oldAmount; // Оставляем старую
+            else state.amount = state.oldAmount; // Оставляем как было
             
             state.step = 'EDIT_COMMENT';
             await ctx.reply('Новый комментарий (или "Пропустить"):', Markup.keyboard([['Пропустить'], ['❌ Отмена']]).resize());
@@ -179,9 +249,10 @@ bot.on('text', async (ctx, next) => {
             state.comment = text === 'Пропустить' ? '' : text;
             state.step = 'EDIT_CATEGORY';
             
-            // Категории в зависимости от типа
             const isExp = state.type === 'edit_expense';
             const cats = await db.getUserCategories(ctx.from.id, isExp ? 'expense' : 'income');
+            
+            // Кнопки категорий
             const buttons = [];
             for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
             
@@ -204,22 +275,6 @@ bot.on('text', async (ctx, next) => {
         }
     }
 
-    // --- РУЧНАЯ КОРРЕКЦИЯ ПРОЦЕНТОВ (ВОССТАНОВЛЕНО) ---
-    if (state.step === 'AWAITING_INTEREST_CORRECTION') {
-        const amount = parseAmount(text);
-        if (!amount) return ctx.reply('Введите число.');
-        
-        await db.addTransaction({
-            userId: ctx.from.id, type: 'income', amount: amount, category: 'Проценты', tag: 'Депозит',
-            comment: 'Ручная капитализация', sourceAccount: null, targetAccount: state.targetAccount
-        });
-        
-        const menu = await getMainMenu(ctx.from.id);
-        await ctx.reply(`✅ Начислено ${formatAmount(amount)} на "${state.targetAccount}".`, menu);
-        ctx.session.state = {};
-        return;
-    }
-
     return next();
 });
 
@@ -228,7 +283,7 @@ async function saveTransaction(ctx, type, amount, category, comment, isAuto = fa
     await db.addTransaction({
         userId: ctx.from.id, type, amount, category,
         tag: type === 'income' ? 'Доход' : 'Разное',
-        comment,
+        comment: comment,
         sourceAccount: type === 'expense' ? 'Основной' : null,
         targetAccount: type === 'income' ? 'Основной' : null
     });
@@ -236,34 +291,19 @@ async function saveTransaction(ctx, type, amount, category, comment, isAuto = fa
     const { balances } = await db.getBalances(ctx.from.id);
     const sign = type === 'income' ? '+' : '-';
     const menu = await getMainMenu(ctx.from.id);
-    const autoBadge = isAuto ? ' 🤖' : '';
+    const badge = isAuto ? ' 🤖' : '';
 
     await ctx.reply(
-        `✅ *${type === 'income' ? 'Доход' : 'Расход'} записан:*\n${sign}${formatAmount(amount)} — ${category}${autoBadge}\n_(${comment || 'без коммент.'})_\n💰 Баланс: ${formatAmount(balances['Основной'])}`, 
+        `✅ *${type === 'income' ? 'Доход' : 'Расход'} записан:*\n` + 
+        `${sign}${formatAmount(amount)} — ${category}${badge}\n` +
+        `${comment ? `_(${comment})_` : ''}\n` + 
+        `💰 Баланс: ${formatAmount(balances['Основной'])}`, 
         { parse_mode: 'Markdown', ...menu }
     );
     ctx.session.state = {};
 }
 
-// --- CALLBACKS ДЛЯ ПРОЦЕНТОВ (ВКЛАДЫ) ---
-bot.action(/^interest_confirm_(.+)_(.+)$/, async (ctx) => {
-    const accName = ctx.match[1];
-    const amount = parseFloat(ctx.match[2]);
-    await db.addTransaction({
-        userId: ctx.from.id, type: 'income', amount, category: 'Проценты', tag: 'Депозит',
-        comment: 'Ежемесячная капитализация', sourceAccount: null, targetAccount: accName
-    });
-    await ctx.editMessageText(`✅ Начислено ${formatAmount(amount)} на "${accName}".`);
-});
-
-bot.action(/^interest_edit_(.+)$/, async (ctx) => {
-    const accName = ctx.match[1];
-    ctx.session.state = { step: 'AWAITING_INTEREST_CORRECTION', targetAccount: accName };
-    await ctx.reply(`Введите реальную сумму процентов для "${accName}":`, Markup.keyboard([['❌ Отмена']]).resize());
-    await ctx.answerCbQuery();
-});
-
-// --- ПРОСМОТР СЧЕТОВ ---
+// --- СЧЕТА ---
 bot.hears('Счета', async (ctx) => {
     const { balances, accountsList } = await db.getBalances(ctx.from.id);
     let msg = `💳 *Ваши счета:*`;
@@ -272,7 +312,6 @@ bot.hears('Счета', async (ctx) => {
         if (acc.is_deposit) msg += `\n🏦 _${acc.bank_name} (${acc.rate}%)_`;
     }
     const buttons = [[Markup.button.callback('➕ Новый депозит', 'btn_add_deposit')]];
-    // Можно добавить кнопку удаления, если нужно
     ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(buttons));
 });
 
