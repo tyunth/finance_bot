@@ -1,6 +1,7 @@
 const { Telegraf, session, Markup } = require('telegraf');
 const config = require('./config');
 const db = require('./db');
+const { getMainMenu } = require('./utils/menu');
 
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -8,46 +9,22 @@ bot.use(session());
 
 // --- 1. MIDDLEWARE (Фейс-контроль) ---
 bot.use(async (ctx, next) => {
-    // Пропускаем системные апдейты
     if (!ctx.from) return next();
-    
-    // Инициализация сессии
     if (!ctx.session) ctx.session = {}; 
     if (!ctx.state) ctx.state = {};
     
     try {
         let user = await db.getUser(ctx.from.id);
-
-        // Авто-регистрация Админа (первый запуск)
         if (!user && ctx.from.id.toString() === config.ADMIN_ID.toString()) {
-            console.log('👑 Админ найден. Создаю запись...');
             await db.createUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
             await db.approveUser(ctx.from.id);
             await db.dbRun('UPDATE users SET role="admin" WHERE telegram_id = ?', [ctx.from.id]);
             user = await db.getUser(ctx.from.id);
         }
-
-        // Если пользователя нет -> Заявка
-        if (!user) {
-            await db.createUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
-            await ctx.telegram.sendMessage(config.ADMIN_ID, 
-                `👤 **Новая заявка!**\nИмя: ${ctx.from.first_name} (ID: \`${ctx.from.id}\`)`,
-                { parse_mode: 'Markdown' }
-            );
-            return ctx.reply('🔒 Доступ закрыт. Заявка отправлена администратору.');
-        }
-
-        // Если не одобрен
-        if (!user.is_approved) return ctx.reply('⏳ Ожидайте подтверждения.');
-
-        // Всё ок -> сохраняем юзера в контекст
+        if (!user) return ctx.reply('Нет доступа.');
         ctx.state.user = user;
         return next();
-
-    } catch (e) {
-        console.error('Middleware Error:', e);
-        return next();
-    }
+    } catch (e) { console.error(e); return next(); }
 });
 
 // --- 2. ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
@@ -98,29 +75,10 @@ bot.start(async (ctx) => {
     ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
     
-    // Получаем список модулей юзера (['finance', 'students'] или ['all'])
-    const modules = await db.getUserModules(ctx.from.id);
+    // Генерируем меню через утилиту
+    const menu = await getMainMenu(ctx.from.id);
     
-    // 1. Базовые кнопки (Финансы есть у всех)
-    const buttons = [['📉 Расходы', '📈 Доходы']];
-    
-    // 2. Ученики и Календарь
-    if (modules.includes('all') || modules.includes('students')) {
-        buttons.push(['🎓 Ученики', '📅 Расписание']); 
-    }
-    
-    // 3. Спорт
-    if (modules.includes('all') || modules.includes('sport')) {
-        buttons.push(['💪 Спорт']); 
-    }
-    
-    // 4. Общие кнопки
-    buttons.push(['📊 Отчет', 'Счета']);
-    buttons.push(['Помощь']); // Добавил помощь в конец, чтобы была под рукой
-    
-    await ctx.reply(`Привет, ${ctx.from.first_name}! Меню обновлено под твои модули.`, 
-        Markup.keyboard(buttons).resize()
-    );
+    await ctx.reply(`Привет, ${ctx.from.first_name}! Бот готов.`, menu);
 });
 
 // Запуск кронов
