@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path'); // <-- Не забудь этот импорт!
 const config = require('./config');
 
 const app = express();
@@ -9,7 +10,9 @@ const PORT = 4000;
 // --- 1. CONFIG & MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname)); // Раздача статики (index.html, css)
+
+// ВАЖНО: Указываем серверу, что сайт лежит в папке 'public'
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Авторизация (Middleware)
 app.use((req, res, next) => {
@@ -17,7 +20,7 @@ app.use((req, res, next) => {
     if (headerId) { req.userId = parseInt(headerId); return next(); }
     if (req.query.userId) { req.userId = parseInt(req.query.userId); return next(); }
     
-    req.userId = config.ADMIN_ID; // Fallback для тестов
+    req.userId = config.ADMIN_ID; // Fallback
     next();
 });
 
@@ -46,4 +49,5 @@ app.use('/', require('./modules/system/system.routes.js'));
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Modular Server running at http://${HOST}:${PORT}/`);
     console.log(`📦 Modules loaded: Finance, Students, Shopping, Utilities, Todos, System`);
+    console.log(`📂 Serving static files from ./public`);
 });
