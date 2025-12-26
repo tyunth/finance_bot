@@ -55,8 +55,8 @@ bot.use(async (ctx, next) => {
 
 bot.use(require('./modules/finance/finance.bot'));   // 💰 Финансы
 bot.use(require('./modules/students/students.bot')); // 🎓 Ученики (Создадим следующим шагом)
-// bot.use(require('./modules/sport/sport.bot'));    // 💪 Спорт (Пока закомментируй, если нет файла)
-
+bot.use(require('./modules/shopping/shopping.bot')); // 🛒 Покупки
+bot.use(require('./modules/todos/todos.bot'));       // 📝 Дела
 // --- 3. ГЛАВНОЕ МЕНЮ (/start) ---
 bot.start(async (ctx) => {
     ctx.session.state = {}; // Сброс состояния
