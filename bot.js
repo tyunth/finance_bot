@@ -1,7 +1,7 @@
 const { Telegraf, session, Markup } = require('telegraf');
 const config = require('./config');
 const db = require('./db');
-const { getMainMenu } = require('./utilities/menu.js');
+const { getMainMenu } = require('./modules/utilities/menu.js');
 
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
