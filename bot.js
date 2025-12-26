@@ -1165,8 +1165,10 @@ bot.on('photo', async (ctx) => {
         preview += `🧮 Сумма товаров: **${data.meta.total_calculated}** ${statusIcon}\n\n`;
         
         preview += `**Найденные позиции (${data.items.length}):**\n`;
+        
         data.items.forEach((item, i) => {
-            preview += `${i+1}. ${item.name} — ${item.sum}\n   └ _${item.category}_\n`;
+            const safeName = escapeMd(item.name);
+            preview += `${i+1}. ${safeName} — ${item.sum}\n   └ _${item.category}_\n`;
         });
 
         preview += `\n_Записать эти данные в базу?_`;
@@ -1467,6 +1469,12 @@ function chunkArray(array, chunkSize) {
         res.push(array.slice(i, i + chunkSize));
     }
     return res;
+}
+
+function escapeMd(text) {
+    if (!text) return '';
+    // Экранируем *, _, [, `
+    return text.toString().replace(/([_*\[`])/g, '\\$1');
 }
 
 setInterval(() => {
