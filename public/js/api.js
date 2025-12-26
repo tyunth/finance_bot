@@ -1,6 +1,4 @@
-// public/js/api.js
-
-// 1. Определение User ID
+// Определение User ID
 const TG = window.Telegram?.WebApp;
 let CURRENT_USER_ID = null;
 
@@ -13,26 +11,14 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     if (paramId) CURRENT_USER_ID = parseInt(paramId);
 }
 
-// 2. Базовая функция запроса
-const BASE_URL = ''; // Если сервер там же, где и сайт. Если нет - укажи полный URL
+const BASE_URL = ''; // Относительный путь
 
 async function request(endpoint, method = 'GET', body = null) {
-    const headers = {
-        'Content-Type': 'application/json' // <--- ВОТ ЭТО ИСПРАВЛЯЕТ ОШИБКУ СЕРВЕРА
-    };
+    const headers = { 'Content-Type': 'application/json' };
+    if (CURRENT_USER_ID) headers['X-User-Id'] = CURRENT_USER_ID;
 
-    if (CURRENT_USER_ID) {
-        headers['X-User-Id'] = CURRENT_USER_ID;
-    }
-
-    const config = {
-        method,
-        headers
-    };
-
-    if (body) {
-        config.body = JSON.stringify(body);
-    }
+    const config = { method, headers };
+    if (body) config.body = JSON.stringify(body);
 
     try {
         const res = await fetch(`${BASE_URL}${endpoint}`, config);
@@ -44,16 +30,9 @@ async function request(endpoint, method = 'GET', body = null) {
     }
 }
 
-// 3. Экспорт методов API по модулям
-
 export const API = {
-    // Пользователь
-    user: {
-        getMe: () => request('/users/me'),
-        getConfig: () => request('/config')
-    },
+    getUserId: () => CURRENT_USER_ID,
     
-    // Финансы
     finance: {
         getTransactions: () => request('/transactions'),
         getBalances: () => request('/balances'),
@@ -61,50 +40,34 @@ export const API = {
         addTransaction: (data) => request('/transactions/add', 'POST', data),
         editTransaction: (data) => request('/transactions/edit', 'POST', data)
     },
-
-    // Ученики
     students: {
         getAll: () => request('/students'),
         getStats: (id) => request(`/students/stats?id=${id}`),
-        action: (data) => request('/students/action', 'POST', data), // add, edit, delete
+        action: (data) => request('/students/action', 'POST', data),
         getDebts: () => request('/debts'),
         payDebt: (id) => request('/debts/pay', 'POST', { id })
     },
-
-    // Покупки
     shopping: {
         getAll: () => request('/shopping'),
-        action: (data) => request('/shopping/action', 'POST', data) // add, status, reorder...
+        action: (data) => request('/shopping/action', 'POST', data)
     },
-
-    // Задачи (Todo)
     todos: {
         getAll: () => request('/todos'),
-        // add, toggle, delete, update_period
-        action: (data) => request('/todos/action', 'POST', data) 
+        action: (data) => request('/todos/action', 'POST', data)
     },
-
-    // Коммуналка
     utilities: {
         getAll: () => request('/utilities'),
         action: (data) => request('/utilities/action', 'POST', data)
     },
-
-    // Корзина
     trash: {
         getAll: () => request('/trash'),
         restore: (type, id) => request('/trash/restore', 'POST', { type, id })
     },
-    
-    // KPI и Прочее
-    stats: {
-        getKPI: (month) => request(`/stats/kpi?month=${month}`)
-    },
-    
-    admin: {
+    system: {
+        getConfig: () => request('/config'),
+        getKPI: (month) => request(`/stats/kpi?month=${month}`),
         getUsers: () => request('/admin/users'),
-        updateModules: (telegramId, modules) => request('/admin/users/modules', 'POST', { telegramId, modules })
+        updateModules: (telegramId, modules) => request('/admin/users/modules', 'POST', { telegramId, modules }),
+        getMe: () => request('/users/me')
     }
 };
-
-export const getUserId = () => CURRENT_USER_ID;
