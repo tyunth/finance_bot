@@ -99,6 +99,17 @@ function initializeTables() {
             weight REAL,
             created_at TEXT
         )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS english_words (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            user_id INTEGER, 
+            word TEXT, 
+            translation TEXT, 
+            definition TEXT, 
+            example TEXT,
+            level TEXT DEFAULT 'B1-B2',
+            date TEXT
+        )`);
         // Миграция для модулей (Permissions)
         db.run("ALTER TABLE users ADD COLUMN modules TEXT DEFAULT 'finance'", () => {});
 
@@ -661,6 +672,14 @@ async function getUserModules(telegramId) {
 }
 
 
+async function addEnglishWord(userId, data) {
+    const today = new Date().toISOString().split('T')[0];
+    return dbRun(
+        'INSERT INTO english_words (user_id, word, translation, definition, example, date) VALUES (?, ?, ?, ?, ?, ?)',
+        [userId, data.word, data.translation, data.definition, data.example, today]
+    );
+}
+
 
 // --- EXPORTS ---
 module.exports = {
@@ -688,5 +707,6 @@ module.exports = {
     getUser, createUser, approveUser,
     addHealthRecord,
     getAllUsers, updateUserModules, getUserModules,
+    addEnglishWord,
     DB_PATH
 };
