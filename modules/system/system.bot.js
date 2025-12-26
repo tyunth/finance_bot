@@ -44,5 +44,9 @@ async function sendUserExcel(ctx, userId) {
         ctx.editMessageText('Ошибка экспорта: ' + e.message);
     }
 }
+bot.command('morning', async (ctx) => {
+    ctx.reply('☕ Готовлю утреннюю сводку...');
+    await sendMorningBriefing(ctx, ctx.from.id); // ctx работает как bot (есть telegram)
+});
 
 module.exports = bot;
