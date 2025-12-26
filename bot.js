@@ -1586,25 +1586,34 @@ async function sendMorningBriefing(chatId) {
                 return { text: t.text, priority: t.period || 'urgent', days_active: days };
             });
         } catch (e) { console.error('Ошибка БД (Дела):', e.message); }
-        // 4. СПОРТ (НОВОЕ)
+        // 4. СПОРТ
         try {
-            // Получаем сводку за вчера (-1) и план на сегодня (0)
             dataContext.sport.yesterday = await sport.getDailySummary(chatId, -1);
-            dataContext.sport.today = await sport.getDailySummary(chatId, 0);
+            // Теперь нам нужны просто названия блоков на сегодня
+            const todaySummary = await sport.getDailySummary(chatId, 0);
+            dataContext.sport.todayBlocks = todaySummary ? todaySummary.blocks : [];
         } catch (e) { console.error('Ошибка спорта:', e.message); }
 
-        // --- ГЕНЕРАЦИЯ И ОТПРАВКА ---
-        console.log('🤖 Отправляем данные в Gemini...');
-        
-        // ВАЖНО: Мы обновили ai.js в прошлом шаге принимать 4 аргумента.
-        // Если ты не обновлял ai.js, скажи мне, я перепишу вызов под старый формат.
-        // Но сейчас предполагаем, что ai.js новый.
+        // 5. АНГЛИЙСКИЙ (НОВОЕ)
+        let englishWord = null;
+        try {
+            englishWord = await ai.generateEnglishWord();
+            if (englishWord) {
+                // Сохраняем в базу историю
+                await db.addEnglishWord(chatId, englishWord);
+            }
+        } catch (e) { console.error('Ошибка English:', e.message); }
+
+
+        // --- ГЕНЕРАЦИЯ ---
+        // Передаем новые аргументы в AI
         const aiText = await ai.generateMorningBriefing(
             dataContext.weather, 
             dataContext.calendar, 
-            dataContext.todos,
+            dataContext.todos, // Если используешь todoList
             dataContext.sport.yesterday, 
-            dataContext.sport.today
+            dataContext.sport.todayBlocks,
+            englishWord // <-- Передаем слово
         );
         
         if (aiText) {
