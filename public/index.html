@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансы</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <style>
+        .active-tab { background-color: #eff6ff; color: #2563eb; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen font-sans">
+
+    <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <header class="flex flex-col xl:flex-row items-center gap-8 mb-10">
+            <div class="flex items-center gap-4">
+                <button id="btn-reload" class="p-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 shadow-sm transition">🏠</button>
+                <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Мои Финансы</h1>
+            </div>
+            
+            <nav id="nav-tabs" class="flex flex-wrap justify-center gap-2 p-1.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                <button data-tab="analytics" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition active-tab">Аналитика</button>
+                <button data-tab="transactions" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition">История</button>
+                <button data-tab="students" id="nav-btn-students" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Ученики</button>
+                <button data-tab="shopping" id="nav-btn-shopping" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Покупки</button>
+                <button data-tab="utilities" id="nav-btn-utilities" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Быт</button>
+                <button data-tab="todos" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition xl:hidden">Дела</button> <button data-tab="admin" id="nav-btn-admin" class="js-tab-btn hidden px-6 py-2.5 rounded-xl text-base font-bold text-red-500 hover:bg-red-50 transition">⚙️ Админ</button>
+            </nav>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
+            
+            <main class="xl:col-span-3 space-y-8 w-full">
+                <div id="loading" class="text-center py-10 text-blue-600 font-medium animate-pulse">Загрузка данных...</div>
+
+                <div id="filter-panel" class="hidden bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6">
+                    <div class="flex flex-wrap gap-2 items-center justify-between">
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 border border-gray-200 h-[42px]">
+                                <input type="date" id="filter-date-start" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
+                                <span>-</span>
+                                <input type="date" id="filter-date-end" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
+                            </div>
+                            <select id="filter-category" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 outline-none">
+                                <option value="ALL">Все категории</option>
+                            </select>
+                            <button id="btn-apply-filter" class="h-[42px] w-[42px] bg-gray-800 text-white rounded-xl hover:bg-gray-700 flex items-center justify-center font-bold">➜</button>
+                            <button id="btn-reset-filter" class="h-[42px] px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl font-bold text-xs">Сброс</button>
+                        </div>
+                        <div class="flex gap-2">
+                             <button id="btn-open-trash" class="h-[42px] px-4 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold">🗑 Корзина</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-analytics" class="tab-content space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-green-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Доход</p><h3 id="stat-income" class="text-2xl font-extrabold text-gray-900">0</h3></div>
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Расход</p><h3 id="stat-expense" class="text-2xl font-extrabold text-gray-900">0</h3></div>
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-blue-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Итого</p><h3 id="stat-balance" class="text-2xl font-extrabold text-gray-900">0</h3></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                         <h3 class="text-lg font-bold text-gray-900 mb-4">Счета</h3>
+                         <div id="deposit-list" class="flex flex-col gap-2"></div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                         <div class="bg-white p-6 rounded-3xl border border-gray-100"><canvas id="chartCategories" height="250"></canvas></div>
+                         <div class="bg-white p-6 rounded-3xl border border-gray-100"><canvas id="chartIncome" height="250"></canvas></div>
+                    </div>
+                </div>
+
+                <div id="tab-transactions" class="tab-content hidden">
+                    <div class="flex justify-between mb-4">
+                        <input type="text" id="tx-search" placeholder="Поиск..." class="border border-gray-200 rounded-xl p-3 text-sm w-full md:w-96">
+                        <button id="btn-open-add-tx" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold ml-4">+ Добавить</button>
+                    </div>
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50"><tr id="table-header"></tr></thead>
+                            <tbody id="table-body" class="bg-white divide-y divide-gray-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="tab-students" class="tab-content hidden space-y-6">
+                    <div id="debts-panel" class="hidden bg-red-50 p-4 rounded-xl border border-red-100">
+                        <h3 class="font-bold text-red-800 mb-2">Долги</h3>
+                        <div id="debts-list" class="grid gap-2 sm:grid-cols-2"></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">Ученики</h2>
+                        <button id="btn-add-student" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold">+ Добавить</button>
+                    </div>
+                    <div id="students-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+
+                <div id="tab-shopping" class="tab-content hidden space-y-6">
+                    <div class="bg-blue-50 p-6 rounded-3xl border border-blue-100">
+                        <form id="form-shopping" class="flex gap-4">
+                            <input type="text" name="title" class="flex-1 rounded-xl p-3 outline-none" placeholder="Купить..." required>
+                            <select name="type" class="rounded-xl p-3 outline-none">
+                                <option value="buy">Повседневное</option>
+                                <option value="market">Маркетплейс</option>
+                                <option value="wish">Вишлист</option>
+                            </select>
+                            <input type="number" name="price" class="w-24 rounded-xl p-3 outline-none hidden" placeholder="Цена">
+                            <button type="submit" class="bg-blue-600 text-white px-6 rounded-xl font-bold">+</button>
+                        </form>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-4 rounded-3xl border border-gray-100"><h3 class="font-bold mb-4">🛒 Повседневное</h3><div id="list-buy" class="space-y-2"></div></div>
+                        <div class="bg-indigo-50 p-4 rounded-3xl border border-indigo-100"><h3 class="font-bold mb-4 text-indigo-900">📦 Маркетплейс</h3><div id="list-market" class="space-y-2"></div></div>
+                        <div class="bg-purple-50 p-4 rounded-3xl border border-purple-100"><h3 class="font-bold mb-4 text-purple-900">🎁 Вишлист</h3><div id="list-wish" class="space-y-2"></div></div>
+                    </div>
+                </div>
+                
+                <div id="tab-utilities" class="tab-content hidden"><div class="text-center py-10">Раздел Быт (Заполни из старого HTML если нужно)</div></div>
+                <div id="tab-admin" class="tab-content hidden"><div id="admin-users-list" class="space-y-2"></div></div>
+
+            </main>
+
+            <aside class="xl:col-span-1 hidden xl:block sticky top-6">
+                <div class="bg-white rounded-3xl shadow-lg border border-gray-100 h-[calc(100vh-5rem)] flex flex-col">
+                    <div class="p-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800">Дела</h3>
+                        <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2 py-1 rounded-lg">0</span>
+                    </div>
+                    <div class="p-4 border-b">
+                        <form id="form-todo" class="flex gap-2">
+                            <input type="text" name="text" placeholder="Задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none">
+                            <select name="period" class="bg-gray-100 text-xs rounded-xl outline-none"><option value="urgent">🔥</option><option value="medium">⚡</option><option value="later">💤</option></select>
+                            <button type="submit" class="bg-gray-800 text-white px-3 rounded-xl font-bold">+</button>
+                        </form>
+                    </div>
+                    <div id="todo-list" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <div id="modal-tx" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-lg">
+            <h2 class="text-2xl font-bold mb-6">Запись</h2>
+            <form id="form-tx" class="space-y-4">
+                <input type="hidden" name="id">
+                <div class="grid grid-cols-2 gap-4">
+                    <select name="type" class="border rounded-xl p-3 bg-gray-50 w-full"><option value="expense">Расход</option><option value="income">Доход</option></select>
+                    <input type="date" name="date" class="border rounded-xl p-3 bg-gray-50 w-full" required>
+                </div>
+                <input type="number" step="0.01" name="amount" placeholder="Сумма" class="border rounded-xl p-3 w-full text-lg font-bold" required>
+                <select name="category" class="border rounded-xl p-3 w-full" required></select>
+                <input type="text" name="tag" placeholder="Тег" class="border rounded-xl p-3 w-full">
+                <textarea name="comment" placeholder="Комментарий" class="border rounded-xl p-3 w-full"></textarea>
+                <div class="flex justify-end gap-4 pt-4">
+                    <button type="button" class="btn-close-modal px-6 py-2 bg-gray-100 rounded-xl font-bold">Отмена</button>
+                    <button type="submit" class="px-8 py-2 bg-blue-600 text-white rounded-xl font-bold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="modal-student" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50"><div class="bg-white p-8 rounded-2xl">Форма ученика (нужно заполнить)<button class="btn-close-modal">Закрыть</button></div></div>
+
+    <div id="modal-trash" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <h2 class="font-bold mb-4">Корзина</h2>
+            <div id="trash-list" class="flex-1 overflow-y-auto"></div>
+            <button class="btn-close-modal mt-4 text-blue-600 font-bold">Закрыть</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
