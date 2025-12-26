@@ -63,24 +63,62 @@ bot.use(require('./modules/system/system.bot'));       // ⚙️ Админка
 bot.use(require('./modules/calendar/calendar.bot')); // <-- Календарь
 bot.use(require('./modules/sport/sport.bot'));       // <-- Спорт
 
+// --- ПОЛНОЕ МЕНЮ ПОМОЩИ ---
+const HELP_MSG = `
+🤖 **Доступные команды:**
+
+📅 *Календарь & Уроки*
+/sync - Проверить календарь сейчас
+/students - Список учеников
+/debts - Долги по оплате
+
+💰 *Финансы*
+/day - Расходы за сегодня (или /day 25.12)
+/list - Список покупок
+/wishlist - Вишлист
+/show - Показать текст последнего чека
+/export - Скачать базу данных
+
+📝 *Задачи*
+/todo [текст] - Быстро добавить задачу
+/trash - Корзина удаленного
+
+🏃 *Спорт*
+/sport - План тренировок
+
+⚙️ *Прочее*
+/start - Главное меню
+/morning - Тест утренней сводки
+`;
+
+bot.hears(['Помощь', '/help'], (ctx) => ctx.replyWithMarkdown(HELP_MSG));
+
 // --- 3. ГЛАВНОЕ МЕНЮ (/start) ---
 bot.start(async (ctx) => {
     ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
+    
+    // Получаем список модулей юзера (['finance', 'students'] или ['all'])
     const modules = await db.getUserModules(ctx.from.id);
     
+    // 1. Базовые кнопки (Финансы есть у всех)
     const buttons = [['📉 Расходы', '📈 Доходы']];
     
+    // 2. Ученики и Календарь
     if (modules.includes('all') || modules.includes('students')) {
-        buttons.push(['🎓 Ученики', '📅 Расписание']); // Кнопки для календаря
+        buttons.push(['🎓 Ученики', '📅 Расписание']); 
     }
+    
+    // 3. Спорт
     if (modules.includes('all') || modules.includes('sport')) {
-        buttons.push(['💪 Спорт']); // Кнопка спорта
+        buttons.push(['💪 Спорт']); 
     }
     
+    // 4. Общие кнопки
     buttons.push(['📊 Отчет', 'Счета']);
+    buttons.push(['Помощь']); // Добавил помощь в конец, чтобы была под рукой
     
-    await ctx.reply(`Привет, ${ctx.from.first_name}! Полный функционал восстановлен.`, 
+    await ctx.reply(`Привет, ${ctx.from.first_name}! Меню обновлено под твои модули.`, 
         Markup.keyboard(buttons).resize()
     );
 });
