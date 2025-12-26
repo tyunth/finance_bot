@@ -177,7 +177,7 @@ async function runCalendarCheck(ctx = null) {
             const { studentName, subject } = gcal.parseLessonInfo(summary);
             const amount = config.LESSON_PRICE;
 
-            await bot.telegram.sendMessage(adminId, 
+            await bot.telegram.sendMessage(userId, 
                 `Урок завершен: ${summary}\nСтудент: ${studentName}\nПредмет: ${subject}\n\nЧто делаем?`,
                 {
                     parse_mode: 'Markdown',
