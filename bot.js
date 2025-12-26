@@ -1484,8 +1484,9 @@ async function sendMorningBriefing(chatId) {
         } catch (e) { console.error('Ошибка календаря:', e.message); }
 
         // 3. Дела
-        try {
-            const allTodos = await db.getTodos();
+            try {
+            const allTodos = await db.getTodos(chatId); 
+            
             const active = allTodos.filter(t => !t.is_done);
             const nowTime = new Date();
             dataContext.todos = active.map(t => {
@@ -1496,8 +1497,7 @@ async function sendMorningBriefing(chatId) {
                 }
                 return { text: t.text, priority: t.period || 'urgent', days_active: days };
             });
-        } catch (e) { console.error('Ошибка БД:', e.message); }
-
+        } catch (e) { console.error('Ошибка БД (Дела):', e.message); }
         // 4. СПОРТ (НОВОЕ)
         try {
             // Получаем сводку за вчера (-1) и план на сегодня (0)
