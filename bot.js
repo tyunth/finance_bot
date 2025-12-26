@@ -139,7 +139,7 @@ bot.action('admin_ignore', (ctx) => {
 
 async function runCalendarCheck(ctx = null) {
     const userId = config.ADMIN_ID || (ctx ? ctx.from.id : null);
-    if (!adminId) {
+    if (!userId) {
         console.log('Admin ID не задан.');
         return;
     }
