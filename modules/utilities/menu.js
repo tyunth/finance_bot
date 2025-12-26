@@ -1,5 +1,5 @@
 const { Markup } = require('telegraf');
-const db = require('../db');
+const db = require('../../db');
 
 async function getMainMenu(userId) {
     const modules = await db.getUserModules(userId);
