@@ -7,11 +7,11 @@ const bot = new Composer();
 // Хелпер для форматирования
 const formatAmount = (val) => new Intl.NumberFormat('ru-RU').format(val) + ' ' + config.CURRENCY;
 
-// --- 1. ИСТОРИЯ (/latest) ---
+// --- ИСТОРИЯ (/latest) ---
 bot.command(['latest', 'history'], async (ctx) => {
     const limit = 10;
     const rows = await db.dbAll(
-        `SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT ?`, 
+        `SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT ?`, 
         [ctx.from.id, limit]
     );
 
@@ -19,44 +19,57 @@ bot.command(['latest', 'history'], async (ctx) => {
 
     let msg = `📜 *Последние ${limit} операций:*\n`;
     rows.forEach(r => {
-        const icon = r.type === 'income' ? '🟢' : '🔴';
-        const date = r.date.split('T')[0];
-        msg += `\n${icon} *${formatAmount(r.amount)}* — ${r.category}`;
+        let icon = '⚪️';
+        if (r.type === 'income') icon = '🟢';
+        if (r.type === 'expense') icon = '🔴';
+        if (r.type === 'transfer') icon = '🔄';
+
+        const date = r.date.split('T')[0]; // YYYY-MM-DD
+        
+        if (r.type === 'transfer') {
+            msg += `\n${icon} *${formatAmount(r.amount)}* (${r.source_account} -> ${r.target_account})`;
+        } else {
+            msg += `\n${icon} *${formatAmount(r.amount)}* — ${r.category}`;
+        }
+        
         if (r.comment) msg += ` _(${r.comment})_`;
-        msg += ` [${date}] /del_${r.id}`;
+        msg += ` /del_${r.id}`;
     });
 
     ctx.replyWithMarkdown(msg);
 });
 
-// --- 2. СТАТИСТИКА ЗА ПЕРИОД ---
+// --- СТАТИСТИКА ЗА ПЕРИОД ---
 async function sendStats(ctx, periodType) {
     const now = new Date();
     let start, end;
     let title;
 
     if (periodType === 'day') {
-        const date = ctx.message.text.split(' ')[1] || now.toISOString().split('T')[0];
-        start = date; end = date;
+        // Если юзер ввел /day 2023-12-01
+        const inputDate = ctx.message && ctx.message.text ? ctx.message.text.split(' ')[1] : null;
+        const date = inputDate || now.toISOString().split('T')[0];
+        start = date + 'T00:00:00'; 
+        end = date + 'T23:59:59';
         title = `📅 Отчет за ${date}`;
     } else if (periodType === 'week') {
         const day = now.getDay() || 7; 
-        if (day !== 1) now.setHours(-24 * (day - 1)); // Понедельник
-        start = now.toISOString().split('T')[0];
-        end = new Date().toISOString().split('T')[0];
-        title = `📅 Отчет за неделю (${start} - ${end})`;
+        const monday = new Date(now);
+        monday.setHours(-24 * (day - 1));
+        start = monday.toISOString().split('T')[0] + 'T00:00:00';
+        end = now.toISOString().split('T')[0] + 'T23:59:59';
+        title = `📅 Неделя (${start.split('T')[0]} - ${end.split('T')[0]})`;
     } else if (periodType === 'month') {
-        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]; // 1 число
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]; // Последнее число
-        title = `📅 Отчет за месяц (${new Date().toLocaleString('ru', { month: 'long' })})`;
+        start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0] + 'T00:00:00';
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0] + 'T23:59:59';
+        title = `📅 Месяц (${new Date().toLocaleString('ru', { month: 'long' })})`;
     }
 
-    // SQL запрос
+    // SQL запрос: Берем ВСЁ за этот период
     const rows = await db.dbAll(
-        `SELECT category, type, SUM(amount) as total 
+        `SELECT category, type, amount 
          FROM transactions 
-         WHERE user_id = ? AND date >= ? AND date <= ? 
-         GROUP BY category, type ORDER BY total DESC`,
+         WHERE user_id = ? AND date >= ? AND date <= ?`,
         [ctx.from.id, start, end]
     );
 
@@ -64,30 +77,41 @@ async function sendStats(ctx, periodType) {
 
     let income = 0;
     let expense = 0;
+    const catStats = {}; // Для группировки расходов
+
+    rows.forEach(r => {
+        // --- ВАЖНАЯ ФИЛЬТРАЦИЯ ---
+        if (r.type === 'transfer') return; // Переводы игнорим в статистике "трат" и "заработка"
+
+        if (r.type === 'income') {
+            // Игнорируем пополнения депозитов, если они записаны как income с категорией Депозит (старый стиль)
+            // Но мы всё равно суммируем РЕАЛЬНЫЕ доходы
+            if (r.category !== 'Депозит') { 
+                income += r.amount;
+            }
+        } 
+        else if (r.type === 'expense') {
+            expense += r.amount;
+            // Собираем стату по категориям
+            catStats[r.category] = (catStats[r.category] || 0) + r.amount;
+        }
+    });
+
     let msg = `*${title}*\n`;
+    
+    // Сортировка категорий по убыванию
+    const sortedCats = Object.entries(catStats).sort((a, b) => b[1] - a[1]);
 
-    // Группируем
-    const incomes = rows.filter(r => r.type === 'income');
-    const expenses = rows.filter(r => r.type === 'expense');
-
-    if (incomes.length) {
-        msg += '\n📈 *Доходы:*';
-        incomes.forEach(r => {
-            income += r.total;
-            msg += `\n• ${r.category}: ${Math.round(r.total)}`;
-        });
-    }
-
-    if (expenses.length) {
+    if (sortedCats.length > 0) {
         msg += '\n📉 *Расходы:*';
-        expenses.forEach(r => {
-            expense += r.total;
-            msg += `\n• ${r.category}: ${Math.round(r.total)}`;
+        sortedCats.forEach(([cat, amount]) => {
+            msg += `\n• ${cat}: ${formatAmount(amount)}`;
         });
     }
 
-    const balance = income - expense;
-    msg += `\n\n💰 *Сальдо:* ${formatAmount(balance)}`;
+    msg += `\n\n💵 *Доход:* ${formatAmount(income)}`;
+    msg += `\n💸 *Расход:* ${formatAmount(expense)}`;
+    msg += `\n💰 *Сальдо:* ${formatAmount(income - expense)}`;
 
     ctx.replyWithMarkdown(msg);
 }
@@ -95,13 +119,8 @@ async function sendStats(ctx, periodType) {
 bot.command('day', (ctx) => sendStats(ctx, 'day'));
 bot.command('week', (ctx) => sendStats(ctx, 'week'));
 bot.command('month', (ctx) => sendStats(ctx, 'month'));
-bot.hears(['📊 Отчет', 'Отчет', 'Отчеты'], (ctx) => sendStats(ctx, 'month'));
 
-// Удаление конкретной записи (по клику из /latest)
-bot.hears(/^\/del_(\d+)$/, async (ctx) => {
-    const id = ctx.match[1];
-    await db.dbRun('DELETE FROM transactions WHERE id = ? AND user_id = ?', [id, ctx.from.id]);
-    ctx.reply(`🗑 Запись #${id} удалена.`);
-});
+// Обработка кнопки "Отчет" из меню
+bot.hears(['📊 Отчет', 'Отчет', 'Отчеты'], (ctx) => sendStats(ctx, 'month'));
 
 module.exports = bot;
