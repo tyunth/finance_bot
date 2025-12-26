@@ -1,7 +1,7 @@
 // Определение User ID
 const TG = window.Telegram?.WebApp;
 let CURRENT_USER_ID = null;
-const BASE_URL = '/budzet';
+
 
 if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     CURRENT_USER_ID = TG.initDataUnsafe.user.id;
@@ -12,7 +12,7 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     if (paramId) CURRENT_USER_ID = parseInt(paramId);
 }
 
-const BASE_URL = ''; // Относительный путь
+const BASE_URL = '/budzet';
 
 async function request(endpoint, method = 'GET', body = null) {
     const headers = { 'Content-Type': 'application/json' };
