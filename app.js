@@ -1,3 +1,44 @@
+// --- 🔐 АВТОРИЗАЦИЯ (Вставь это в самый верх файла) ---
+
+// 1. Пытаемся достать ID пользователя
+const TG = window.Telegram?.WebApp;
+let CURRENT_USER_ID = null;
+
+if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
+    // Если открыли внутри Телеграма
+    CURRENT_USER_ID = TG.initDataUnsafe.user.id;
+    TG.expand(); // Разворачиваем на весь экран
+    // Настраиваем цвета под тему Телеграма (по желанию)
+    document.documentElement.style.setProperty('--tg-theme-bg-color', TG.backgroundColor);
+} else {
+    // Если открыли в браузере (для тестов): ?userId=123
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramId = urlParams.get('userId');
+    if (paramId) CURRENT_USER_ID = parseInt(paramId);
+}
+
+console.log('🔑 Current User ID:', CURRENT_USER_ID || 'Guest (Fallback to Admin)');
+
+// 2. ПЕРЕХВАТЧИК FETCH (Магия)
+// Мы подменяем стандартный fetch, чтобы он всегда добавлял наш ID
+const originalFetch = window.fetch;
+window.fetch = async (url, options = {}) => {
+    // Создаем объект заголовков, если его нет
+    const headers = options.headers || {};
+    
+    // Если ID определен — добавляем его в заголовок
+    if (CURRENT_USER_ID) {
+        if (headers instanceof Headers) {
+            headers.append('X-User-Id', CURRENT_USER_ID);
+        } else {
+            headers['X-User-Id'] = CURRENT_USER_ID;
+        }
+    }
+
+    // Возвращаем оригинальный запрос с обновленными заголовками
+    return originalFetch(url, { ...options, headers });
+};
+
 const API_BASE_URL = '/budzet'; 
 const API_URL_TX = API_BASE_URL + '/transactions';
 const API_URL_EDIT = API_BASE_URL + '/transactions/edit';
