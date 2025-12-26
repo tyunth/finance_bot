@@ -1,8 +1,8 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
-const exporter = require('../../export_service'); // Предполагается, что он есть, так как был в старом коде
-
+const exporter = require('../../export_service'); 
+const { sendMorningBriefing } = require('../../utilities/briefing');
 const bot = new Composer();
 
 // ... (оставляем старый код users/sql, если он нужен) ...
