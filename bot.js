@@ -12,6 +12,14 @@ const ocr = require('./ocr_service');
 const sport = require('./sport');
 const exporter = require('./export_service');
 
+
+// Проверка доступа к модулю
+async function hasAccess(userId, moduleName) {
+    const modules = await db.getUserModules(userId);
+    if (modules.includes('all')) return true;
+    return modules.includes(moduleName);
+}
+
 // ---------------- UTILS ----------------
 
 function formatAmount(amount) {
@@ -487,14 +495,38 @@ async function handleStandardTextFlow(ctx) {
 bot.start(async (ctx) => {
     ctx.session.state = {}; 
     await db.ensureMainAccount(ctx.from.id);
-    await new Promise(r => setTimeout(r, 100));
-    const { balances } = await db.getBalances(ctx.from.id);
-    let msg = `Привет! Бот в строю.\n\nБалансы:`;
-    for (const [name, bal] of Object.entries(balances)) {
-        if (name === 'Основной' || bal > 0) msg += `\n${name}: ${formatAmount(bal)}`;
+    
+    // Генерируем меню на основе прав
+    const userId = ctx.from.id;
+    const buttons = [];
+    
+    // Финансы (Есть почти у всех, но проверим)
+    if (await hasAccess(userId, 'finance')) {
+        buttons.push(['📉 Расходы', '📈 Доходы']);
+        buttons.push(['📊 Отчет', '💰 Бюджет']); // "Бюджет" можно переименовать в Счета
     }
-    ctx.reply(msg, kb.MAIN_KEYBOARD);
-    runCalendarCheck(); 
+    
+    // Спорт
+    if (await hasAccess(userId, 'sport')) {
+        buttons.push(['💪 Спорт']);
+    }
+    
+    // Ученики
+    if (await hasAccess(userId, 'students')) {
+        buttons.push(['🎓 Ученики', '📅 Расписание']); // Или просто кнопки команд
+    }
+
+    // Кино / Торренты (если будешь добавлять кнопки)
+    if (await hasAccess(userId, 'movies')) {
+         // buttons.push(['🎬 Кино']);
+    }
+
+    // Всегда добавляем кнопку помощи/меню
+    buttons.push(['Помощь', 'Счета']);
+
+    const keyboard = Markup.keyboard(buttons).resize();
+    
+    await ctx.reply(`Привет, ${ctx.from.first_name}! Меню обновлено.`, keyboard);
 });
 
 const HELP_MSG = `
@@ -516,7 +548,10 @@ const HELP_MSG = `
 `;
 
 bot.command('sport', (ctx) => sport.renderMainMenu(ctx));
-bot.hears('💪 Спорт', (ctx) => sport.renderMainMenu(ctx));
+bot.hears('💪 Спорт', async (ctx) => {
+    if (!await hasAccess(ctx.from.id, 'sport')) return ctx.reply('Модуль "Спорт" отключен.');
+    sport.renderMainMenu(ctx);
+});
 
 bot.hears('Помощь', (ctx) => ctx.reply(HELP_MSG, kb.MAIN_KEYBOARD));
 bot.command('sync', (ctx) => runCalendarCheck(ctx));
