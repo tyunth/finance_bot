@@ -1,81 +1,99 @@
-const { Telegraf, session } = require('telegraf');
+const { Telegraf, session, Markup } = require('telegraf');
 const config = require('./config');
 const db = require('./db');
-const cron = require('node-cron'); 
 
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.use(session());
 
-// --- MIDDLEWARE ---
-// Твой фейс-контроль (немного сократил для читаемости)
+// --- 1. MIDDLEWARE (Фейс-контроль) ---
 bot.use(async (ctx, next) => {
+    // Пропускаем системные апдейты
     if (!ctx.from) return next();
+    
+    // Инициализация сессии
     if (!ctx.session) ctx.session = {}; 
     if (!ctx.state) ctx.state = {};
     
     try {
         let user = await db.getUser(ctx.from.id);
-        
-        // Авто-регистрация админа
+
+        // Авто-регистрация Админа (первый запуск)
         if (!user && ctx.from.id.toString() === config.ADMIN_ID.toString()) {
+            console.log('👑 Админ найден. Создаю запись...');
             await db.createUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
             await db.approveUser(ctx.from.id);
             await db.dbRun('UPDATE users SET role="admin" WHERE telegram_id = ?', [ctx.from.id]);
             user = await db.getUser(ctx.from.id);
         }
 
-        // Если нет в базе
+        // Если пользователя нет -> Заявка
         if (!user) {
             await db.createUser(ctx.from.id, ctx.from.username, ctx.from.first_name);
-            await ctx.telegram.sendMessage(config.ADMIN_ID, `👤 Новая заявка: ${ctx.from.first_name} (ID: ${ctx.from.id})`);
-            return ctx.reply('🔒 Доступ закрыт. Заявка отправлена админу.');
+            await ctx.telegram.sendMessage(config.ADMIN_ID, 
+                `👤 **Новая заявка!**\nИмя: ${ctx.from.first_name} (ID: \`${ctx.from.id}\`)`,
+                { parse_mode: 'Markdown' }
+            );
+            return ctx.reply('🔒 Доступ закрыт. Заявка отправлена администратору.');
         }
 
-        if (!user.is_approved) return ctx.reply('⏳ Ждите подтверждения.');
+        // Если не одобрен
+        if (!user.is_approved) return ctx.reply('⏳ Ожидайте подтверждения.');
 
+        // Всё ок -> сохраняем юзера в контекст
         ctx.state.user = user;
         return next();
+
     } catch (e) {
         console.error('Middleware Error:', e);
         return next();
     }
 });
 
-// --- ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
-// Мы подключаем логику из папок модулей
-bot.use(require('./modules/finance/finance.bot'));   // Финансы
-bot.use(require('./modules/students/students.bot')); // Ученики
-// bot.use(require('./modules/sport/sport.bot'));    // Спорт (если есть)
+// --- 2. ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
+// Мы разбиваем бота на файлы. Каждый файл отвечает за свою часть.
 
-// --- ОБЩИЕ КОМАНДЫ ---
+bot.use(require('./modules/finance/finance.bot'));   // 💰 Финансы
+bot.use(require('./modules/students/students.bot')); // 🎓 Ученики (Создадим следующим шагом)
+// bot.use(require('./modules/sport/sport.bot'));    // 💪 Спорт (Пока закомментируй, если нет файла)
+
+// --- 3. ГЛАВНОЕ МЕНЮ (/start) ---
 bot.start(async (ctx) => {
-    ctx.session.state = {}; 
+    ctx.session.state = {}; // Сброс состояния
     await db.ensureMainAccount(ctx.from.id);
     
-    // Проверка модулей
+    // Генерируем меню на основе прав (Модулей)
     const modules = await db.getUserModules(ctx.from.id);
-    const buttons = [['📉 Расходы', '📈 Доходы']];
+    const buttons = [];
+
+    // Финансы (Есть у всех по дефолту)
+    buttons.push(['📉 Расходы', '📈 Доходы']);
     
+    // Ученики
     if (modules.includes('all') || modules.includes('students')) {
         buttons.push(['🎓 Ученики', '📅 Расписание']);
     }
-    
-    buttons.push(['Счета', 'Помощь']);
 
-    await ctx.reply(`Привет, ${ctx.from.first_name}! Бот обновлен и разбит на модули.`, {
-        reply_markup: { keyboard: buttons, resize_keyboard: true }
-    });
+    // Доп кнопки
+    buttons.push(['📊 Отчет', 'Счета']);
+    buttons.push(['Помощь']);
+
+    await ctx.reply(`Привет, ${ctx.from.first_name}! Бот перезапущен (Модульная версия v2).`, 
+        Markup.keyboard(buttons).resize()
+    );
 });
 
-bot.hears('Помощь', (ctx) => ctx.reply('/list - Покупки\n/students - Ученики\n/debts - Долги\n/day [дата] - Отчет'));
+// Help
+bot.hears('Помощь', (ctx) => ctx.reply(
+    `/list - Список покупок\n/students - Ученики\n/debts - Долги\n/day [дата] - Расходы за день\n/trash - Корзина`
+));
 
-// --- ЗАПУСК ---
-bot.launch().then(() => console.log('🤖 Bot started (Modular architecture)'));
+// --- 4. ЗАПУСК КРОНОВ ---
+require('./jobs/cron.manager')(bot);
+
+// --- 5. ЗАПУСК БОТА ---
+bot.launch().then(() => console.log('🚀 Telegram Bot started successfully'));
 
 // Graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-// (Кроны можно вынести в jobs/cron.manager.js, но пока можно оставить тут или подключить отдельно)
-require('./jobs/cron.manager')(bot); // Мы создадим этот файл позже
