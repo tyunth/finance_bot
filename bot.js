@@ -54,9 +54,12 @@ bot.use(async (ctx, next) => {
 // Мы разбиваем бота на файлы. Каждый файл отвечает за свою часть.
 
 bot.use(require('./modules/finance/finance.bot'));   // 💰 Финансы
-bot.use(require('./modules/students/students.bot')); // 🎓 Ученики (Создадим следующим шагом)
+bot.use(require('./modules/students/students.bot')); // 🎓 Ученики
 bot.use(require('./modules/shopping/shopping.bot')); // 🛒 Покупки
 bot.use(require('./modules/todos/todos.bot'));       // 📝 Дела
+bot.use(require('./modules/reports/reports.bot'));     // 📊 Отчеты
+bot.use(require('./modules/system/system.bot'));       // ⚙️ Админка
+
 // --- 3. ГЛАВНОЕ МЕНЮ (/start) ---
 bot.start(async (ctx) => {
     ctx.session.state = {}; // Сброс состояния
