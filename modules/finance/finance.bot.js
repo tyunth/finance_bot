@@ -1,27 +1,11 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
+const { getMainMenu } = require('../../utils/menu');
 
 const bot = new Composer();
 
-// --- ХЕЛПЕР: ГЛАВНОЕ МЕНЮ ---
-async function getMainMenu(ctx) {
-    const modules = await db.getUserModules(ctx.from.id);
-    const buttons = [['📉 Расходы', '📈 Доходы']];
-    
-    if (modules.includes('all') || modules.includes('students')) {
-        buttons.push(['🎓 Ученики', '📅 Расписание']);
-    }
-    if (modules.includes('all') || modules.includes('sport')) {
-        buttons.push(['💪 Спорт']);
-    }
-    buttons.push(['📊 Отчет', 'Счета']);
-    buttons.push(['Помощь']);
-
-    return Markup.keyboard(buttons).resize();
-}
-
-// --- ХЕЛПЕРЫ ---
+// Хелперы
 const formatAmount = (amount) => new Intl.NumberFormat('ru-RU').format(amount) + ' ' + config.CURRENCY;
 const parseAmount = (text) => {
     const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.');
@@ -30,14 +14,28 @@ const parseAmount = (text) => {
 };
 
 // --- 1. СТАРТ ВВОДА ---
-bot.hears(['📉 Расходы', 'Расход'], async (ctx) => {
-    ctx.session.state = { type: 'expense', step: 'AMOUNT' };
-    await ctx.reply('💸 Введите сумму:', Markup.keyboard([['❌ Отмена']]).resize());
+
+// 1. ЛОГИКА ДОХОДОВ (Категория -> Сумма)
+bot.hears(['📈 Доходы', 'Доход'], async (ctx) => {
+    ctx.session.state = { type: 'income', step: 'INCOME_CATEGORY' };
+    
+    // Предлагаем категории сразу
+    // Можно добавить их в config или брать из базы.
+    // Пока захардкодим основные + Другое, как ты просил.
+    const buttons = [
+        ['Репетиторство', 'Стипендия'],
+        ['Зарплата', 'Подарок'],
+        ['Другое'],
+        ['❌ Отмена']
+    ];
+    
+    await ctx.reply('💰 Выберите источник дохода:', Markup.keyboard(buttons).resize());
 });
 
-bot.hears(['📈 Доходы', 'Доход'], async (ctx) => {
-    ctx.session.state = { type: 'income', step: 'AMOUNT' };
-    await ctx.reply('💰 Введите сумму:', Markup.keyboard([['❌ Отмена']]).resize());
+// 2. ЛОГИКА РАСХОДОВ (Сумма -> Коммент -> Кат)
+bot.hears(['📉 Расходы', 'Расход'], async (ctx) => {
+    ctx.session.state = { type: 'expense', step: 'EXPENSE_AMOUNT' };
+    await ctx.reply('💸 Введите сумму расхода:', Markup.keyboard([['❌ Отмена']]).resize());
 });
 
 // --- 2. МАШИНА СОСТОЯНИЙ ---
@@ -45,100 +43,130 @@ bot.on('text', async (ctx, next) => {
     const state = ctx.session.state || {};
     const text = ctx.message.text.trim();
 
-    // Сброс
+    // Глобальная отмена
     if (text === '❌ Отмена' || text === '/cancel') {
         ctx.session.state = {};
-        const menu = await getMainMenu(ctx);
+        const menu = await getMainMenu(ctx.from.id);
         return ctx.reply('Отменено.', menu);
     }
 
-    // Пропускаем, если не наш процесс
-    if (!state.step || !['expense', 'income'].includes(state.type)) {
-        return next();
-    }
+    // Если стейта нет, это не к нам
+    if (!state.type) return next();
 
-    // === ШАГ 1: СУММА ===
-    if (state.step === 'AMOUNT') {
-        const amount = parseAmount(text);
-        if (!amount) return ctx.reply('🔢 Введите число (например: 150).');
+    // ---------------------------------------
+    // ОБРАБОТКА ДОХОДОВ
+    // ---------------------------------------
+    if (state.type === 'income') {
         
-        state.amount = amount;
-        state.step = 'COMMENT'; // Идем к комментарию
-        
-        await ctx.reply('💬 На что потрачено? (Комментарий)', Markup.keyboard([['❌ Отмена']]).resize());
-        return;
-    }
+        // ШАГ 1: Выбор категории
+        if (state.step === 'INCOME_CATEGORY') {
+            const category = text;
+            state.category = category;
 
-    // === ШАГ 2: КОММЕНТАРИЙ + АВТО-КАТЕГОРИЯ ===
-    if (state.step === 'COMMENT') {
-        state.comment = text;
-        
-        // 🔥 УМНАЯ ЛОГИКА: Ищем категорию по комментарию
-        // В db.js должна быть функция getCategoryByComment
-        const predictedCategory = await db.getCategoryByComment(text);
+            // ПРЕСЕТЫ СУММ
+            if (category === 'Репетиторство') {
+                // Берем цену урока из конфига
+                await saveTransaction(ctx, 'income', config.LESSON_PRICE, category, 'Урок');
+                return;
+            }
+            if (category === 'Стипендия') {
+                // Допустим, стипендия фиксированная. Если нет в конфиге - 41000 (пример) или спросить.
+                // Давай пока спросим или возьмем из конфига если есть.
+                const scholarship = config.SCHOLARSHIP || 0; 
+                if (scholarship > 0) {
+                    await saveTransaction(ctx, 'income', scholarship, category, 'Стипендия');
+                    return;
+                }
+                // Если суммы нет - идем спрашивать
+            }
 
-        if (predictedCategory) {
-            // ---> УРА, НАШЛИ! Сохраняем сразу
-            await saveTransaction(ctx, state, predictedCategory, true);
-        } else {
-            // ---> НЕ НАШЛИ. Спрашиваем категорию
-            state.step = 'CATEGORY';
+            // Если категория "Другое" или сумма не фиксирована
+            state.step = 'INCOME_AMOUNT';
+            await ctx.reply('💰 Введите сумму дохода:', Markup.keyboard([['❌ Отмена']]).resize());
+            return;
+        }
+
+        // ШАГ 2: Ввод суммы (если не пресет)
+        if (state.step === 'INCOME_AMOUNT') {
+            const amount = parseAmount(text);
+            if (!amount) return ctx.reply('Введите число.');
             
-            const cats = await db.getUserCategories(ctx.from.id, state.type);
-            const buttons = [];
-            for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
-            buttons.push(['❌ Отмена']);
-
-            await ctx.reply(
-                `📂 Категория для "${text}" не найдена. Выбери из списка или напиши свою:`, 
-                Markup.keyboard(buttons).resize()
-            );
+            await saveTransaction(ctx, 'income', amount, state.category || 'Другое', 'Доход');
+            return;
         }
-        return;
     }
 
-    // === ШАГ 3: КАТЕГОРИЯ (Только если не нашли авто) ===
-    if (state.step === 'CATEGORY') {
-        const category = text;
+    // ---------------------------------------
+    // ОБРАБОТКА РАСХОДОВ
+    // ---------------------------------------
+    if (state.type === 'expense') {
         
-        // Сохраняем и ОБУЧАЕМ бота
-        await saveTransaction(ctx, state, category, false);
-        
-        // Запоминаем связку "Комментарий -> Категория"
-        if (state.comment) {
-            await db.learnKeyword(state.comment, category);
+        // ШАГ 1: Сумма
+        if (state.step === 'EXPENSE_AMOUNT') {
+            const amount = parseAmount(text);
+            if (!amount) return ctx.reply('Введите число.');
+            state.amount = amount;
+            state.step = 'EXPENSE_COMMENT';
+            await ctx.reply('💬 На что? (Комментарий)', Markup.keyboard([['❌ Отмена']]).resize());
+            return;
         }
-        return;
+
+        // ШАГ 2: Комментарий + Авто-категория
+        if (state.step === 'EXPENSE_COMMENT') {
+            state.comment = text;
+            const predicted = await db.getCategoryByComment(text);
+            
+            if (predicted) {
+                // Нашли -> сохраняем
+                await saveTransaction(ctx, 'expense', state.amount, predicted, state.comment, true);
+            } else {
+                // Не нашли -> спрашиваем
+                state.step = 'EXPENSE_CATEGORY';
+                const cats = await db.getUserCategories(ctx.from.id, 'expense');
+                const buttons = [];
+                for (let i = 0; i < cats.length; i += 2) buttons.push(cats.slice(i, i + 2));
+                buttons.push(['❌ Отмена']);
+                await ctx.reply('📂 Выберите категорию:', Markup.keyboard(buttons).resize());
+            }
+            return;
+        }
+
+        // ШАГ 3: Ручной выбор категории
+        if (state.step === 'EXPENSE_CATEGORY') {
+            await saveTransaction(ctx, 'expense', state.amount, text, state.comment, false);
+            // Обучаем
+            await db.learnKeyword(state.comment, text);
+            return;
+        }
     }
 
     return next();
 });
 
 // --- ФУНКЦИЯ СОХРАНЕНИЯ ---
-async function saveTransaction(ctx, state, category, isAuto) {
+async function saveTransaction(ctx, type, amount, category, comment, isAuto = false) {
     await db.addTransaction({
         userId: ctx.from.id,
-        type: state.type,
-        amount: state.amount,
+        type: type,
+        amount: amount,
         category: category,
-        tag: state.type === 'income' ? 'Доход' : 'Разное',
-        comment: state.comment,
-        sourceAccount: state.type === 'expense' ? 'Основной' : null,
-        targetAccount: state.type === 'income' ? 'Основной' : null
+        tag: type === 'income' ? 'Доход' : 'Разное',
+        comment: comment,
+        sourceAccount: type === 'expense' ? 'Основной' : null,
+        targetAccount: type === 'income' ? 'Основной' : null
     });
 
     const { balances } = await db.getBalances(ctx.from.id);
-    const sign = state.type === 'income' ? '+' : '-';
-    const autoBadge = isAuto ? '🤖' : '';
+    const sign = type === 'income' ? '+' : '-';
+    const menu = await getMainMenu(ctx.from.id); // <-- ИСПОЛЬЗУЕМ ОБЩЕЕ МЕНЮ
 
-    const mainMenu = await getMainMenu(ctx);
-    
-    await ctx.reply(
-        `✅ *Записано:*\n${sign}${formatAmount(state.amount)} — ${state.comment}\n📂 Категория: ${category} ${autoBadge}\n💰 Баланс: ${formatAmount(balances['Основной'])}`, 
-        { parse_mode: 'Markdown', ...mainMenu }
-    );
-    
-    ctx.session.state = {}; // Сброс
+    const msg = `✅ *${type === 'income' ? 'Доход' : 'Расход'} записан:*\n` +
+                `${sign}${formatAmount(amount)} — ${category}\n` +
+                `${comment ? `_(${comment})_` : ''}\n` +
+                `💰 Баланс: ${formatAmount(balances['Основной'])}`;
+
+    await ctx.reply(msg, { parse_mode: 'Markdown', ...menu });
+    ctx.session.state = {};
 }
 
 // --- СЧЕТА ---
