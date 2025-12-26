@@ -2,16 +2,15 @@ const { Composer, Markup } = require('telegraf');
 const axios = require('axios');
 const ai = require('../../ai'); // Твой ai.js
 const db = require('../../db');
-const config = require('../../config');
 
 const bot = new Composer();
 
-// Обработка фото
+// Обработка фото (Чеки)
 bot.on('photo', async (ctx) => {
     try {
         const msg = await ctx.reply('👀 Смотрю на чек...');
         
-        // 1. Скачиваем
+        // 1. Скачиваем фото
         const photo = ctx.message.photo.pop();
         const fileLink = await ctx.telegram.getFileLink(photo.file_id);
         const response = await axios.get(fileLink.href, { responseType: 'arraybuffer' });
@@ -40,6 +39,8 @@ bot.on('photo', async (ctx) => {
             preview += `${i+1}. ${item.name} — ${item.sum}\n   └ _${item.category}_\n`;
         });
 
+        preview += `\n_Записать эти данные в базу?_`;
+
         // 6. Кнопки
         const buttons = Markup.inlineKeyboard([
             [Markup.button.callback('💾 Записать в БД', 'receipt_save_confirm')],
@@ -65,6 +66,7 @@ bot.action('receipt_save_confirm', async (ctx) => {
         delete ctx.session.temp_receipt;
         
         const finalBtns = Markup.inlineKeyboard([
+            [Markup.button.callback('📜 Показать детали', `receipt_show_${receiptId}`)],
             [Markup.button.callback('❌ Удалить чек', `receipt_del_${receiptId}`)]
         ]);
         await ctx.editMessageText(`✅ *Чек #${receiptId} сохранен!*`, { parse_mode: 'Markdown', ...finalBtns });
@@ -84,6 +86,21 @@ bot.action(/^receipt_del_(\d+)$/, async (ctx) => {
     await db.dbRun('DELETE FROM receipts WHERE id = ?', [id]);
     await db.dbRun('DELETE FROM transactions WHERE receipt_id = ?', [id]);
     ctx.editMessageText('🗑 Чек и транзакции удалены.');
+});
+
+// Callback: Показ деталей
+bot.action(/^receipt_show_(\d+)$/, async (ctx) => {
+    const id = ctx.match[1];
+    const items = await db.dbAll('SELECT * FROM transactions WHERE receipt_id = ?', [id]);
+    if (!items.length) return ctx.reply('Позиции не найдены.');
+    
+    let msg = `🧾 **Чек #${id}**\n`;
+    items.forEach((t, i) => {
+        msg += `${i+1}. ${t.comment} — ${t.amount}\n`;
+    });
+    
+    ctx.replyWithMarkdown(msg);
+    ctx.answerCbQuery();
 });
 
 module.exports = bot;
