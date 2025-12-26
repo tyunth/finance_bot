@@ -597,46 +597,7 @@ async function restoreItem(type, id) {
     }
 }
 
-// --- ВРЕМЕННАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ---
-function checkDatabaseStructure() {
-    console.log('🔎 Начинаю проверку таблиц на наличие user_id...');
-    
-    db.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'", [], async (err, tables) => {
-        if (err) return console.error('Ошибка чтения таблиц:', err);
 
-        const okTables = [];
-        const badTables = [];
-
-        for (const table of tables) {
-            const tableName = table.name;
-            await new Promise((resolve) => {
-                db.all(`PRAGMA table_info(${tableName})`, [], (e, columns) => {
-                    const hasUserId = columns.some(c => c.name === 'user_id');
-                    if (hasUserId) {
-                        okTables.push(tableName);
-                    } else {
-                        badTables.push(tableName);
-                    }
-                    resolve();
-                });
-            });
-        }
-
-        console.log('\n✅ С user_id (Готовы к мульти-юзерам):');
-        console.log(okTables.join(', '));
-
-        console.log('\n❌ БЕЗ user_id (Внимание):');
-        if (badTables.length === 0) {
-            console.log('Ни одной! Всё идеально. 😎');
-        } else {
-            badTables.forEach(t => console.log(`- ${t}`));
-        }
-        console.log('-------------------------------------');
-    });
-}
-
-// Запускаем проверку через 3 секунды после старта, чтобы база успела прогрузиться
-setTimeout(checkDatabaseStructure, 3000);
 
 // --- EXPORTS ---
 module.exports = {
