@@ -5,6 +5,7 @@ const config = require('../config');
 const ai = require('../ai');      
 const gcal = require('../calendar');
 const sport = require('../sport');
+const calendarService = require('../modules/calendar/calendar.service');
 
 module.exports = (bot) => {
     console.log('⏰ Cron Manager initialized');
@@ -24,8 +25,9 @@ module.exports = (bot) => {
     });
 
     // 3. Поллинг календаря (раз в час)
-    setInterval(async () => {
-        await runCalendarCheck(bot);
+        setInterval(async () => {
+        // Передаем bot, чтобы сервис мог отправлять сообщения
+        await calendarService.checkLessons(bot, config.ADMIN_ID);
     }, 60 * 60 * 1000);
 };
 
