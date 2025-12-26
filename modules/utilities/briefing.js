@@ -5,6 +5,13 @@ const sport = require('../../sport');
 
 async function sendMorningBriefing(bot, chatId) {
     try {
+        // --- 1. SOFT DELETE (АВТО-ЧИСТКА) ---
+        // Помечаем все выполненные задачи (is_done=1) как удаленные, чтобы очистить список
+        const now = new Date().toISOString();
+        await db.dbRun('UPDATE todos SET deleted_at = ? WHERE is_done = 1 AND deleted_at IS NULL', [now]);
+        console.log('✅ Выполненные задачи архивированы');
+
+        // --- 2. СБОР ДАННЫХ ---
         const dataContext = {
             weather: null,
             calendar: [],
