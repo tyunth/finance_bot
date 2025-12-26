@@ -91,6 +91,15 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, type TEXT, created_at TEXT
         )`);
 
+        db.run(`CREATE TABLE IF NOT EXISTS health_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            user_id INTEGER, 
+            date TEXT, 
+            steps INTEGER, 
+            weight REAL,
+            created_at TEXT
+        )`);
+
 
         // --- 3. МИГРАЦИЯ ДАННЫХ (Добавляем user_id везде, где его нет) ---
 
@@ -607,6 +616,24 @@ async function approveUser(telegramId) {
     return dbRun('UPDATE users SET is_approved = 1 WHERE telegram_id = ?', [telegramId]);
 }
 
+async function addHealthRecord(userId, steps, weight) {
+    const today = new Date().toISOString().split('T')[0]; // '2025-12-26'
+    
+    // Проверяем, есть ли уже запись за сегодня
+    const existing = await dbGet('SELECT id FROM health_stats WHERE user_id = ? AND date = ?', [userId, today]);
+    
+    if (existing) {
+        // Обновляем
+        return dbRun('UPDATE health_stats SET steps = ?, weight = ? WHERE id = ?', [steps, weight, existing.id]);
+    } else {
+        // Создаем новую
+        return dbRun(
+            'INSERT INTO health_stats (user_id, date, steps, weight, created_at) VALUES (?, ?, ?, ?, ?)',
+            [userId, today, steps, weight, new Date().toISOString()]
+        );
+    }
+}
+
 
 
 // --- EXPORTS ---
@@ -633,5 +660,6 @@ module.exports = {
     getUserCategories, addCategory,
     getArchivedItems, restoreItem,
     getUser, createUser, approveUser,
+    addHealthRecord,
     DB_PATH
 };
