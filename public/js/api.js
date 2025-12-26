@@ -1,6 +1,7 @@
 // Определение User ID
 const TG = window.Telegram?.WebApp;
 let CURRENT_USER_ID = null;
+const BASE_URL = '/budzet';
 
 if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     CURRENT_USER_ID = TG.initDataUnsafe.user.id;
