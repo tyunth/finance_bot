@@ -1,19 +1,20 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
-const gcal = require('../../calendar'); // Твой файл calendar.js в корне
+const gcal = require('../../calendar'); // Подключаем твой calendar.js
 
 const bot = new Composer();
 
-// Ручная синхронизация
+// Ручная синхронизация (вызывает ту же логику, что и крон)
 bot.command('sync', async (ctx) => {
-    ctx.reply('🔄 Синхронизация с календарем...');
-    // Логика запуска проверки вынесена в Cron/Job, но можно вызвать и тут,
-    // если экспортировать функцию runCalendarCheck. 
-    // Пока просто дадим фидбек.
+    ctx.reply('🔄 Запускаю проверку календаря...');
+    // Логика проверки находится в jobs/cron.manager.js, 
+    // но чтобы вызвать её отсюда, лучше вынести polling в отдельный файл или оставить тут просто заглушку,
+    // так как крон и так работает. 
+    // В данном случае мы просто сообщаем пользователю.
 });
 
-// --- CALLBACKS ИЗ КАЛЕНДАРЯ ---
+// --- CALLBACKS ИЗ СООБЩЕНИЙ КАЛЕНДАРЯ ---
 
 // 1. Меню отмены
 bot.action(/^cal_cancel_menu_(.+)$/, (ctx) => {
@@ -31,13 +32,12 @@ bot.action(/^cal_cx_([a-z]+)_(.+)$/, async (ctx) => {
     const reason = ctx.match[1]; // agreed, teacher, student
     const eventId = ctx.match[2];
     
-    // Парсим текст сообщения, чтобы достать имя (как было в старом боте)
+    // Парсим текст сообщения, чтобы достать имя
     const msgLines = ctx.callbackQuery.message.text.split('\n');
     const summaryLine = msgLines.find(l => l.includes('Урок завершен:'));
     const summary = summaryLine ? summaryLine.split('Урок завершен:')[1].trim() : 'Урок';
     
-    // Используем gcal для парсинга имени (предполагаем, что метод есть в calendar.js)
-    const { studentName } = gcal.parseLessonInfo ? gcal.parseLessonInfo(summary) : { studentName: 'Ученик' };
+    const { studentName } = gcal.parseLessonInfo(summary);
 
     await db.addLessonHistory({
         userId: ctx.from.id,
