@@ -375,6 +375,29 @@ const server = http.createServer(async (req, res) => {
         });
     }
 
+        // --- ИНФО О ТЕКУЩЕМ ПОЛЬЗОВАТЕЛЕ ---
+    else if (req.url === '/users/me' && req.method === 'GET') {
+        try {
+            // currentUserId мы получаем в начале server.js (через заголовок или URL)
+            const user = await db.getUser(currentUserId);
+            if (!user) {
+                res.writeHead(404); res.end(JSON.stringify({ error: 'User not found' }));
+                return;
+            }
+            
+            // Получаем модули через нашу функцию из db.js
+            const modules = await db.getUserModules(currentUserId);
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                id: user.telegram_id,
+                name: user.first_name,
+                role: user.role,
+                modules: modules // ['finance', 'sport']
+            }));
+        } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+    }
+
     else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
