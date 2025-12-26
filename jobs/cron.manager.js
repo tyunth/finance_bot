@@ -7,30 +7,29 @@ const gcal = require('../calendar');
 const sport = require('../sport');
 
 module.exports = (bot) => {
-    console.log('⏰ Cron Manager v2 initialized');
+    console.log('⏰ Cron Manager initialized');
 
-    // 1. Утренняя сводка (02:00 UTC или твое время)
+    // 1. Утренняя сводка (02:00 UTC)
     cron.schedule('0 2 * * *', async () => {
         await runDailyBackup(bot);
         await new Promise(r => setTimeout(r, 3000));
         await sendMorningBriefing(bot, config.ADMIN_ID);
     });
 
-    // 2. Вечерний спорт
+    // 2. Вечерний спорт (15:00 UTC)
     cron.schedule('0 15 * * *', async () => {
         bot.telegram.sendMessage(config.ADMIN_ID, '🔔 **Вечерний спорт-чек!**', 
             { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[{ text: '💪 Открыть', callback_data: 'sport_refresh' }]] } }
         ).catch(e => console.error(e));
     });
 
-    // 3. Поллинг календаря (каждый час)
+    // 3. Поллинг календаря (раз в час)
     setInterval(async () => {
         await runCalendarCheck(bot);
-        // await runMonthlyInterestCheck(bot); // Если нужно
     }, 60 * 60 * 1000);
 };
 
-// --- ФУНКЦИИ ЛОГИКИ ---
+// --- ФУНКЦИИ ---
 
 async function runDailyBackup(bot) {
     try {
@@ -43,8 +42,8 @@ async function runDailyBackup(bot) {
 
 async function runCalendarCheck(bot) {
     try {
-        // Передаем логгер-функцию
-        const events = await gcal.getRecentLessons((msg) => console.log('GCal Log:', msg));
+        // Передаем колбэк для логов
+        const events = await gcal.getRecentLessons((msg) => console.log('GCal:', msg));
         if (!events.length) return;
 
         const students = await db.getStudents(config.ADMIN_ID);
@@ -71,7 +70,7 @@ async function runCalendarCheck(bot) {
                     ]}
                 }
             );
-            // Помечаем как pending, чтобы не спамить
+            // Помечаем как pending
             await db.markEventProcessed(event.id, event.summary, 'pending');
         }
     } catch (e) { console.error('Calendar Poll Error:', e.message); }
@@ -79,7 +78,6 @@ async function runCalendarCheck(bot) {
 
 async function sendMorningBriefing(bot, chatId) {
     try {
-        // Сбор данных как в старом боте
         const dataContext = {
             weather: null,
             calendar: [],
@@ -105,17 +103,18 @@ async function sendMorningBriefing(bot, chatId) {
         const word = await ai.generateEnglishWord();
         if (word) await db.addEnglishWord(chatId, word);
 
-        // Генерация текста
+        // Генерация
         const text = await ai.generateMorningBriefing(
             dataContext.weather, 
-            [], // calendar (можно подключить gcal.getEventsForDate)
-            [], // todos
+            [], // calendar list (можно подключить gcal.getEventsForDate если нужно)
+            [], // todos list
             dataContext.sport.yesterday,
             dataContext.sport.todayBlocks,
             word
         );
 
         if (text) {
+            // Фикс маркдауна, как ты просил
             const safeText = text.replace(/\*\*/g, '*').replace(/__/g, '_');
             await bot.telegram.sendMessage(chatId, safeText, { parse_mode: 'Markdown' });
         }
