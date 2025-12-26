@@ -95,6 +95,7 @@ async function sendStats(ctx, periodType) {
 bot.command('day', (ctx) => sendStats(ctx, 'day'));
 bot.command('week', (ctx) => sendStats(ctx, 'week'));
 bot.command('month', (ctx) => sendStats(ctx, 'month'));
+bot.hears(['📊 Отчет', 'Отчет', 'Отчеты'], (ctx) => sendStats(ctx, 'month'));
 
 // Удаление конкретной записи (по клику из /latest)
 bot.hears(/^\/del_(\d+)$/, async (ctx) => {
