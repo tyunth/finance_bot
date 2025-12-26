@@ -435,8 +435,12 @@ async function handleInterestCorrection(ctx) {
 // 9. Добавление покупки
 async function handleShoppingCreation(ctx) {
     const text = ctx.message.text.trim();
+    // 👇 ВОТ ЭТОЙ СТРОКИ НЕ ХВАТАЛО 👇
+    const userId = ctx.from.id; 
+    
     const type = ctx.session.state.shoppingType || 'buy'; // 'buy' или 'wish'
     
+    // Теперь userId определен и его можно передавать
     await db.addShoppingItem(userId, { title: text, type: type, price_estimate: 0 });
     
     ctx.session.state = {}; // Сброс состояния
