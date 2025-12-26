@@ -54,10 +54,84 @@ let lastNotifiedMonth = null;
 let lastBackupDate = null;
 
 bot.use(session());
-bot.use((ctx, next) => {
-    if (!ctx.session) ctx.session = {};
-    if (!ctx.session.state) ctx.session.state = {};
-    return next();
+// --- MIDDLEWARE: ФЕЙС-КОНТРОЛЬ ---
+bot.use(async (ctx, next) => {
+    // Пропускаем системные обновления без отправителя
+    if (!ctx.from) return next();
+
+    const userId = ctx.from.id;
+    
+    try {
+        // 1. Ищем пользователя в базе
+        let user = await db.getUser(userId);
+
+        // 2. АВТО-РЕГИСТРАЦИЯ АДМИНА (Чтобы ты сам себя не заблокировал)
+        if (!user && userId.toString() === config.ADMIN_ID.toString()) {
+            console.log('👑 Обнаружен Админ. Создаю запись...');
+            await db.createUser(userId, ctx.from.username, ctx.from.first_name);
+            await db.approveUser(userId);
+            await db.dbRun('UPDATE users SET role="admin" WHERE telegram_id = ?', [userId]);
+            user = await db.getUser(userId);
+        }
+
+        // 3. Если пользователя вообще нет -> Создаем заявку
+        if (!user) {
+            await db.createUser(userId, ctx.from.username, ctx.from.first_name);
+            
+            // Уведомляем Админа
+            await ctx.telegram.sendMessage(
+                config.ADMIN_ID, 
+                `👤 **Новая заявка!**\n\nИмя: ${ctx.from.first_name}\nID: \`${userId}\`\nUsername: @${ctx.from.username || 'нет'}`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('✅ Принять', `admin_approve_${userId}`)],
+                        [Markup.button.callback('🚫 Игнорировать', `admin_ignore`)]
+                    ])
+                }
+            );
+
+            return ctx.reply('🔒 Доступ закрыт.\nВаша заявка отправлена администратору. Ожидайте подтверждения.');
+        }
+
+        // 4. Если пользователь есть, но не одобрен
+        if (!user.is_approved) {
+            return ctx.reply('⏳ Ваша заявка всё еще на рассмотрении.');
+        }
+
+        // 5. Если всё ок — пропускаем дальше
+        // Сохраняем инфу о юзере в контекст, чтобы потом удобно брать
+        ctx.state.user = user; 
+        
+        return next();
+
+    } catch (e) {
+        console.error('Middleware Error:', e);
+        return next(); // В случае ошибки базы лучше пропустить, чем положить бота
+    }
+});
+
+// --- ОБРАБОТКА КНОПКИ "ПРИНЯТЬ" (Для Админа) ---
+bot.action(/^admin_approve_(\d+)$/, async (ctx) => {
+    // Проверка, что нажал именно Админ (на всякий случай)
+    if (ctx.from.id.toString() !== config.ADMIN_ID.toString()) return;
+
+    const targetId = ctx.match[1];
+    await db.approveUser(targetId);
+    
+    await ctx.answerCbQuery('Пользователь одобрен!');
+    await ctx.editMessageText(`✅ Пользователь ${targetId} принят в семью.`);
+    
+    // Уведомляем новичка
+    try {
+        await ctx.telegram.sendMessage(targetId, '🎉 Поздравляю! Доступ открыт.\nНажмите /start для начала работы.');
+    } catch (e) {
+        console.log('Не смог написать юзеру (может заблочил бота):', e.message);
+    }
+});
+
+bot.action('admin_ignore', (ctx) => {
+    ctx.deleteMessage();
 });
 
 // ---------------- CALENDAR POLLING ----------------
