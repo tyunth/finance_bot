@@ -54,49 +54,41 @@ bot.use(async (ctx, next) => {
 // Мы разбиваем бота на файлы. Каждый файл отвечает за свою часть.
 
 bot.use(require('./modules/finance/finance.bot'));   // 💰 Финансы
+bot.use(require('./modules/finance/receipts.bot')); // Чеки
 bot.use(require('./modules/students/students.bot')); // 🎓 Ученики
 bot.use(require('./modules/shopping/shopping.bot')); // 🛒 Покупки
 bot.use(require('./modules/todos/todos.bot'));       // 📝 Дела
 bot.use(require('./modules/reports/reports.bot'));     // 📊 Отчеты
 bot.use(require('./modules/system/system.bot'));       // ⚙️ Админка
+bot.use(require('./modules/calendar/calendar.bot')); // <-- Календарь
+bot.use(require('./modules/sport/sport.bot'));       // <-- Спорт
 
 // --- 3. ГЛАВНОЕ МЕНЮ (/start) ---
 bot.start(async (ctx) => {
-    ctx.session.state = {}; // Сброс состояния
+    ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
-    
-    // Генерируем меню на основе прав (Модулей)
     const modules = await db.getUserModules(ctx.from.id);
-    const buttons = [];
-
-    // Финансы (Есть у всех по дефолту)
-    buttons.push(['📉 Расходы', '📈 Доходы']);
     
-    // Ученики
+    const buttons = [['📉 Расходы', '📈 Доходы']];
+    
     if (modules.includes('all') || modules.includes('students')) {
-        buttons.push(['🎓 Ученики', '📅 Расписание']);
+        buttons.push(['🎓 Ученики', '📅 Расписание']); // Кнопки для календаря
     }
-
-    // Доп кнопки
+    if (modules.includes('all') || modules.includes('sport')) {
+        buttons.push(['💪 Спорт']); // Кнопка спорта
+    }
+    
     buttons.push(['📊 Отчет', 'Счета']);
-    buttons.push(['Помощь']);
-
-    await ctx.reply(`Привет, ${ctx.from.first_name}! Бот перезапущен (Модульная версия v2).`, 
+    
+    await ctx.reply(`Привет, ${ctx.from.first_name}! Полный функционал восстановлен.`, 
         Markup.keyboard(buttons).resize()
     );
 });
 
-// Help
-bot.hears('Помощь', (ctx) => ctx.reply(
-    `/list - Список покупок\n/students - Ученики\n/debts - Долги\n/day [дата] - Расходы за день\n/trash - Корзина`
-));
-
-// --- 4. ЗАПУСК КРОНОВ ---
+// Запуск кронов
 require('./jobs/cron.manager')(bot);
 
-// --- 5. ЗАПУСК БОТА ---
-bot.launch().then(() => console.log('🚀 Telegram Bot started successfully'));
+bot.launch().then(() => console.log('🚀 Bot V2 Full Power started'));
 
-// Graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
