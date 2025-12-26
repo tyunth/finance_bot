@@ -6,7 +6,7 @@ const ai = require('../ai');
 const gcal = require('../calendar');
 const sport = require('../sport');
 const calendarService = require('../modules/calendar/calendar.service');
-const { sendMorningBriefing } = require('../utilities/briefing');
+const { sendMorningBriefing } = require('../modules/utilities/briefing.js');
 
 module.exports = (bot) => {
     console.log('⏰ Cron Manager initialized');
