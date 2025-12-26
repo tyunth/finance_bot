@@ -1,7 +1,7 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
-const { getMainMenu } = require('../../utils/menu');
+const { getMainMenu } = require('../utilities/menu.js');
 
 const bot = new Composer();
 
