@@ -85,6 +85,7 @@ function switchTab(tabName) {
     if (tabName === 'students') loadStudents();
     if (tabName === 'shopping') loadShoppingList();
     if (tabName === 'utilities') loadUtilities();
+    if (tabName === 'admin') loadAdminUsers();
 }
 
 // Функция инициализации календаря
@@ -171,7 +172,7 @@ async function init() {
 
         if (startEl) startEl.value = fmt(startOfMonth);
         if (endEl) endEl.value = fmt(now);
-
+        
         // Применяем фильтр сразу, чтобы графики отрисовались
         applyFilters();
         loadDebts(); 
@@ -179,6 +180,7 @@ async function init() {
         loadTodos();
         initSnowToggle();
         initCalendar();
+        checkAdminAccess();
         switchTab('analytics'); 
     }
 }
@@ -1773,6 +1775,103 @@ function updateSnowState(enabled) {
         // Единый стиль, меняем только цвет рамки и фона
         btn.className = `w-[130px] h-[42px] px-3 rounded-xl text-xs font-bold transition flex items-center justify-center border ${enabled ? 'bg-blue-50 border-blue-200 text-gray-700' : 'bg-white border-gray-200 text-gray-400'}`;
     }
+}
+
+// --- ADMIN PANEL LOGIC ---
+
+async function checkAdminAccess() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/config`);
+        const conf = await res.json();
+        
+        // Сравниваем текущего юзера с админом из конфига
+        // CURRENT_USER_ID у нас глобальный из app.js
+        if (CURRENT_USER_ID && conf.adminId && CURRENT_USER_ID.toString() === conf.adminId.toString()) {
+            const btn = document.getElementById('btn-admin');
+            if (btn) btn.classList.remove('hidden');
+        }
+    } catch (e) { console.error(e); }
+}
+
+async function loadAdminUsers() {
+    try {
+        const res = await fetch('/admin/users'); // Здесь путь без API_BASE_URL, так как он в корне
+        if (res.status === 403) return alert('Нет доступа');
+        
+        const users = await res.json();
+        renderAdminUsers(users);
+    } catch (e) { console.error(e); }
+}
+
+function renderAdminUsers(users) {
+    const tbody = document.getElementById('admin-users-list');
+    if (!tbody) return;
+
+    tbody.innerHTML = users.map(u => {
+        const mods = u.modules ? u.modules.split(',') : [];
+        const isAll = mods.includes('all') || u.role === 'admin';
+        const check = (mod) => isAll || mods.includes(mod) ? 'checked' : '';
+        const disabled = u.role === 'admin' ? 'disabled' : '';
+
+        // Helper для чекбокса
+        const cb = (mod) => `
+            <input type="checkbox" 
+                class="mod-check-${u.telegram_id} w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                data-mod="${mod}"
+                ${check(mod)} ${disabled} 
+                onchange="toggleModule(${u.telegram_id})"
+            >`;
+
+        return `
+            <tr class="hover:bg-gray-50 transition border-b border-gray-100 last:border-0">
+                <td class="py-4 px-4">
+                    <div class="font-bold text-gray-900">${u.first_name || 'Без имени'}</div>
+                    <div class="text-xs text-gray-400">@${u.username || '-'}</div>
+                </td>
+                <td class="text-center py-3">${cb('finance')}</td>
+                <td class="text-center py-3">${cb('sport')}</td>
+                <td class="text-center py-3">${cb('students')}</td>
+                <td class="text-center py-3">${cb('movies')}</td>
+                <td class="text-center py-3">${cb('shopping')}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function toggleModule(userId, moduleName) {
+    // 1. Собираем состояние всех чекбоксов для этого юзера
+    // Это немного хак, но проще чем хранить стейт в JS
+    // Ищем все чекбоксы в строке этого юзера? Сложно.
+    // Проще считать текущие модули с сервера? Нет, долго.
+    
+    // Давай так: мы просто "знаем" какие модули есть
+    const allModules = ['finance', 'sport', 'students', 'movies', 'shopping'];
+    const newModules = [];
+
+    // Проходим по строке юзера (можно найти input по onclick атрибуту, но это грязно)
+    // Перепишем renderAdminUsers чуть лучше, чтобы давать ID строкам
+    
+    // ВРЕМЕННОЕ РЕШЕНИЕ: Просто отправляем один запрос на изменение.
+    // Но API ждет массив. Значит надо собрать массив.
+    
+    // --- ПРАВИЛЬНЫЙ СПОСОБ ---
+    // Находим все чекбоксы, относящиеся к этому юзеру
+    // Для этого при рендере дадим им класс `mod-check-${userId}`
+    
+    // (см. обновленный renderAdminUsers ниже, я добавлю класс)
+    const checkboxes = document.querySelectorAll(`.mod-check-${userId}`);
+    checkboxes.forEach(cb => {
+        if (cb.checked) newModules.push(cb.dataset.mod);
+    });
+
+    try {
+        await fetch('/admin/users/modules', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ telegramId: userId, modules: newModules })
+        });
+        // Можно показать тост "Сохранено"
+    } catch(e) { alert('Ошибка сохранения'); }
 }
 
 
