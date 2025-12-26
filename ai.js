@@ -126,9 +126,6 @@ async function parseSportPlan(text) {
 async function generateMorningBriefing(weather, calendar, todo, sportYesterday, sportTodayBlocks, englishWord) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    // Добавляем явную проверку на наличие данных перед отправкой в промпт
-    const hasPlan = sportTodayPlan && sportTodayPlan.blocks && sportTodayPlan.blocks.length > 0;
     const prompt = `
     DATA:
     [WEATHER]: ${JSON.stringify(weather)}
