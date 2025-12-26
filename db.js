@@ -281,15 +281,15 @@ async function wasInterestPaidThisMonth(userId, accountName) {
 }
 
 // --- УЧЕНИКИ ---
-async function getStudents() {
-    return dbAll('SELECT * FROM students ORDER BY name ASC');
+async function getStudents(userId) {
+    return dbAll('SELECT * FROM students WHERE user_id = ? ORDER BY name ASC', [userId]);
 }
-async function addStudent(data) {
+async function addStudent(userId, data) { // <--- Добавили userId
     const { name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
     return dbRun(
-        `INSERT INTO students (name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0]
+        `INSERT INTO students (user_id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week || 0]
     );
 }
 async function updateStudent(data) {
@@ -303,57 +303,51 @@ async function updateStudent(data) {
 async function deleteStudent(id) {
     return dbRun('DELETE FROM students WHERE id = ?', [id]);
 }
-async function getStudentStats(studentName) {
+async function getStudentStats(userId, studentName) { // <--- Добавили userId
     return dbAll(
-        `SELECT * FROM transactions WHERE type = 'income' AND tag = ? ORDER BY date DESC`, 
-        [`Ученик: ${studentName}`]
+        `SELECT * FROM transactions WHERE user_id = ? AND type = 'income' AND tag = ? ORDER BY date DESC`, 
+        [userId, `Ученик: ${studentName}`]
     );
 }
 
 // --- СПИСОК ПОКУПОК ---
 
-async function getShoppingList() {
+async function getShoppingList(userId) { // <--- Добавили userId
     return new Promise((resolve, reject) => {
-        // ИЗМЕНЕНИЕ В SQL:
-        // Пишем "SELECT *, item_name AS title ...", чтобы получить и старые поля, и новое title
-        db.all("SELECT *, item_name AS title FROM shopping_list WHERE deleted_at IS NULL ORDER BY sort_order ASC, id DESC", [], (err, rows) => {
-            if (err) reject(err);
-            else {
-                // Оставляем твою логику маппинга, она правильная и нужна для фронтенда
-                const fixedRows = rows.map(r => ({
-                    ...r,
-                    // Гарантируем, что title есть (хотя SQL выше это уже сделал)
-                    title: r.title || r.item_name, 
-                    
-                    // Поля совместимости (не трогаем)
-                    is_bought: r.is_bought, 
-                    is_done: r.is_bought,           
-                    checked: !!r.is_bought,       
-                    status: r.is_bought ? 'bought' : 'active' 
-                }));
-                resolve(fixedRows);
+        // Фильтруем по user_id
+        db.all(
+            "SELECT *, item_name AS title FROM shopping_list WHERE user_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, id DESC", 
+            [userId], 
+            (err, rows) => {
+                if (err) reject(err);
+                else {
+                    const fixedRows = rows.map(r => ({
+                        ...r,
+                        title: r.title || r.item_name, 
+                        is_bought: r.is_bought, 
+                        is_done: r.is_bought,           
+                        checked: !!r.is_bought,       
+                        status: r.is_bought ? 'bought' : 'active' 
+                    }));
+                    resolve(fixedRows);
+                }
             }
-        });
+        );
     });
 }
 
 // Функция принимает объект, так как сервер шлет объект data
-async function addShoppingItem(data) {
-    // Принимаем title или text (для совместимости), или по старинке item_name
+async function addShoppingItem(userId, data) { // <--- Добавили userId первым аргументом
     const title = data.title || data.text || data.item_name; 
     const type = data.type || 'buy';
     const price = data.price_estimate || 0;
 
-    if (!title) {
-        console.error('❌ addShoppingItem: Нет названия (title)!', data);
-        return;
-    }
+    if (!title) return;
 
     const now = new Date().toISOString();
-    // В базу пишем в колонку item_name, но берем из переменной title
     return dbRun(
-        'INSERT INTO shopping_list (item_name, is_bought, type, price_estimate, created_at) VALUES (?, 0, ?, ?, ?)', 
-        [title, type, price, now]
+        'INSERT INTO shopping_list (user_id, item_name, is_bought, type, price_estimate, created_at) VALUES (?, ?, 0, ?, ?, ?)', 
+        [userId, title, type, price, now]
     );
 }
 
@@ -394,14 +388,14 @@ async function reorderShoppingList(ids) {
 }
 
 // --- КОММУНАЛКА ---
-async function getUtilityReadings() {
-    return dbAll("SELECT * FROM utility_readings ORDER BY date DESC");
+async function getUtilityReadings(userId) {
+    return dbAll("SELECT * FROM utility_readings WHERE user_id = ? ORDER BY date DESC", [userId]);
 }
-async function addUtilityReading(data) {
+async function addUtilityReading(userId, data) { // <--- Добавили userId
     const { date, service, reading, amount, comment } = data;
     return dbRun(
-        `INSERT INTO utility_readings (date, service, reading, amount, comment) VALUES (?, ?, ?, ?, ?)`,
-        [date, service, reading || 0, amount, comment]
+        `INSERT INTO utility_readings (user_id, date, service, reading, amount, comment) VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, date, service, reading || 0, amount, comment]
     );
 }
 async function deleteUtilityReading(id) {
@@ -409,11 +403,11 @@ async function deleteUtilityReading(id) {
 }
 
 // --- ПРОЧЕЕ ---
-async function getLessonCount(monthStr) {
+async function getLessonCount(userId, monthStr) {
     const result = await dbGet(
         `SELECT COUNT(*) as count FROM transactions 
-         WHERE type = 'income' AND category = 'Репетиторство' AND date LIKE ?`, 
-        [`${monthStr}%`]
+         WHERE user_id = ? AND type = 'income' AND category = 'Репетиторство' AND date LIKE ?`, 
+        [userId, `${monthStr}%`]
     );
     return result ? result.count : 0;
 }
@@ -436,21 +430,21 @@ async function payDebt(debtId) {
 }
 
 // --- СПИСОК ДЕЛ (TO-DO) ---
-async function getTodos() {
+async function getTodos(userId) { // <--- Добавили userId
     return new Promise((resolve, reject) => {
-        db.all("SELECT * FROM todos WHERE deleted_at IS NULL", [], (err, rows) => {
+        db.all("SELECT * FROM todos WHERE user_id = ? AND deleted_at IS NULL", [userId], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
     });
 }
 
-async function addTodo(text, period) {
+async function addTodo(userId, text, period) { // <--- Добавили userId
     const p = period || 'urgent';
     const now = new Date().toISOString();
     return dbRun(
-        'INSERT INTO todos (text, is_done, period, created_at) VALUES (?, 0, ?, ?)', 
-        [text, p, now]
+        'INSERT INTO todos (user_id, text, is_done, period, created_at) VALUES (?, ?, 0, ?, ?)', 
+        [userId, text, p, now]
     );
 }
 
@@ -566,19 +560,16 @@ async function addCategory(userId, name, type = 'expense') {
 }
 
 // Получить последние удаленные элементы (Дела + Покупки)
-async function getArchivedItems(limit = 15) {
+async function getArchivedItems(userId, limit = 15) { // <--- userId
     return new Promise((resolve, reject) => {
-        // Объединяем две таблицы. 
-        // В todos поле называется text, в shopping_list — item_name.
-        // Приводим всё к общему знаменателю "title".
         const sql = `
-            SELECT id, text AS title, 'todo' AS type, deleted_at FROM todos WHERE deleted_at IS NOT NULL
+            SELECT id, text AS title, 'todo' AS type, deleted_at FROM todos WHERE user_id = ? AND deleted_at IS NOT NULL
             UNION ALL
-            SELECT id, item_name AS title, 'shop' AS type, deleted_at FROM shopping_list WHERE deleted_at IS NOT NULL
+            SELECT id, item_name AS title, 'shop' AS type, deleted_at FROM shopping_list WHERE user_id = ? AND deleted_at IS NOT NULL
             ORDER BY deleted_at DESC LIMIT ?
         `;
-        
-        db.all(sql, [limit], (err, rows) => {
+        // Передаем userId дважды (для первого SELECT и для второго)
+        db.all(sql, [userId, userId, limit], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
