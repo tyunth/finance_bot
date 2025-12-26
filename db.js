@@ -597,6 +597,25 @@ async function restoreItem(type, id) {
     }
 }
 
+// --- УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ---
+
+async function getUser(telegramId) {
+    return dbGet('SELECT * FROM users WHERE telegram_id = ?', [telegramId]);
+}
+
+async function createUser(telegramId, username, firstName) {
+    const now = new Date().toISOString();
+    return dbRun(
+        'INSERT INTO users (telegram_id, username, first_name, created_at, is_approved) VALUES (?, ?, ?, ?, 0)', 
+        [telegramId, username || '', firstName || 'Unknown', now]
+    );
+}
+
+async function approveUser(telegramId) {
+    // Ставим is_approved = 1
+    return dbRun('UPDATE users SET is_approved = 1 WHERE telegram_id = ?', [telegramId]);
+}
+
 
 
 // --- EXPORTS ---
@@ -622,5 +641,6 @@ module.exports = {
     createReceipt,
     getUserCategories, addCategory,
     getArchivedItems, restoreItem,
+    getUser, createUser, approveUser,
     DB_PATH
 };
