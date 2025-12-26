@@ -11,8 +11,12 @@ export function formatPeriod(p) {
     return 'Не к спеху';
 }
 
-// Хелпер для получения даты YYYY-MM-DD без сдвига часовых поясов
+// Получаем дату YYYY-MM-DD без сдвига поясов
 export function formatDateISO(dateObj) {
     const offset = dateObj.getTimezoneOffset() * 60000;
     return new Date(dateObj.getTime() - offset).toISOString().split('T')[0];
 }
+
+// Безопасное создание HTML (чтобы не писать длинные строки в app.js)
+// В данном примере мы оставим строковые шаблоны для простоты чтения, 
+// но вынесем форматирование сюда, если потребуется.
