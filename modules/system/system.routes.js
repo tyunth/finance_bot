@@ -37,25 +37,44 @@ router.post('/api/health', safeHandler(async (req, res) => {
 }));
 
 // 4. Админка и Юзеры
-router.get('/admin/users', safeHandler(async (req, res) => {
-    if (req.userId.toString() !== config.ADMIN_ID.toString()) return res.status(403).json({ error: 'Access Denied' });
-    const users = await db.getAllUsers();
-    res.json(users);
-}));
+// --- ПОЛЬЗОВАТЕЛИ ---
 
-router.post('/admin/users/modules', safeHandler(async (req, res) => {
-    if (req.userId.toString() !== config.ADMIN_ID.toString()) return res.status(403).json({ error: 'Access Denied' });
-    const { telegramId, modules } = req.body;
-    await db.updateUserModules(telegramId, modules);
-    res.json({ status: 'ok' });
-}));
+// Получить всех пользователей
+router.get('/admin/users', async (req, res) => {
+    try {
+        if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
+        const users = await db.getAllUsers(); // Убедись, что getAllUsers есть в db.js
+        res.json(users);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+});
 
-router.get('/users/me', safeHandler(async (req, res) => {
-    const user = await db.getUser(req.userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const modules = await db.getUserModules(req.userId);
-    res.json({ id: user.telegram_id, name: user.first_name, role: user.role, modules: modules });
-}));
+// 🔥 ИСПРАВЛЕНИЕ: Роут для обновления модулей
+router.post('/admin/users/modules', async (req, res) => {
+    try {
+        if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
+        
+        const { telegramId, modules } = req.body;
+        
+        // Вызываем новую функцию из db.js
+        await db.updateUserModules(telegramId, modules);
+        
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e); // Увидим ошибку в консоли сервера, если что
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Получить текущего юзера (для initData)
+router.get('/users/me', async (req, res) => {
+    try {
+        const user = await db.getUser(req.userId);
+        res.json(user || { role: 'guest', modules: '' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // GET /settings - получить все
 router.get('/settings', async (req, res) => {
@@ -65,12 +84,10 @@ router.get('/settings', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /settings - сохранить одну
 router.post('/settings', async (req, res) => {
     try {
+        if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
         const { key, value } = req.body;
-        if(req.userId !== 133245761) return res.status(403).json({error: 'Access denied'}); // Защита
-        
         await db.setSetting(key, value);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
