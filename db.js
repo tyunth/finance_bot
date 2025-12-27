@@ -664,9 +664,17 @@ async function getAllUsers() {
     return dbAll('SELECT id, telegram_id, first_name, username, role, modules FROM users ORDER BY id ASC');
 }
 
-async function updateUserModules(telegramId, modulesArray) {
-    const modulesStr = modulesArray.join(',');
-    return dbRun('UPDATE users SET modules = ? WHERE telegram_id = ?', [modulesStr, telegramId]);
+function updateUserModules(telegramId, modules) {
+    return new Promise((resolve, reject) => {
+        db.run(
+            'UPDATE users SET modules = ? WHERE telegram_id = ?', 
+            [modules, telegramId], 
+            (err) => {
+                if (err) reject(err);
+                else resolve(true);
+            }
+        );
+    });
 }
 
 async function getUserModules(telegramId) {
