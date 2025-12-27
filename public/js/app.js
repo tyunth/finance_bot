@@ -821,22 +821,45 @@ function initSnowToggle() {
     }, 200);
 }
 
+// --- ОБНОВЛЕННАЯ АДМИНКА ---
 async function loadAdmin() {
     try {
-        const users = await API.system.getUsers();
-        
-        document.getElementById('admin-users-list').innerHTML = `
+        const [users, settings] = await Promise.all([
+            API.system.getUsers(),
+            API.system.getSettings ? API.system.getSettings() : fetch('/budzet/settings').then(r=>r.json()) // Фоллбэк если не обновил api.js
+        ]);
+
+        const container = document.getElementById('admin-users-list');
+        container.innerHTML = '';
+
+        // 1. Блок Настроек
+        const settingsHtml = `
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
+                <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Глобальные настройки</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-500 mb-1">Цена урока (KZT)</label>
+                        <div class="flex gap-2">
+                            <input type="number" id="conf-lesson-price" value="${settings.lesson_price || 4000}" class="border border-gray-200 rounded-xl p-3 w-full font-bold">
+                            <button onclick="saveConf('lesson_price')" class="bg-blue-600 text-white px-4 rounded-xl font-bold">OK</button>
+                        </div>
+                    </div>
+                    </div>
+            </div>
+        `;
+
+        // 2. Блок Пользователей (тот что мы делали в прошлый раз)
+        const usersHtml = `
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">Управление пользователями</h2>
+                <h2 class="text-xl font-bold">Пользователи</h2>
                 <button onclick="loadAdmin()" class="text-blue-600 hover:text-blue-800 text-sm font-bold">↻ Обновить</button>
             </div>
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <table class="w-full text-left text-sm text-gray-600">
                     <thead class="bg-gray-50 border-b border-gray-100">
                         <tr>
-                            <th class="py-3 px-4 font-bold text-gray-500">ID / Имя</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Пользователь</th>
                             <th class="py-3 px-4 font-bold text-gray-500">Telegram ID</th>
-                            <th class="py-3 px-4 font-bold text-gray-500">Роль</th>
                             <th class="py-3 px-4 font-bold text-gray-500">Модули</th>
                         </tr>
                     </thead>
@@ -846,8 +869,26 @@ async function loadAdmin() {
                 </table>
             </div>
         `;
+
+        container.innerHTML = settingsHtml + usersHtml;
+
     } catch(e) { console.error(e); }
 }
+
+// Функция сохранения настройки
+window.saveConf = async (key) => {
+    const val = document.getElementById(`conf-${key.replace('_','-')}`).value;
+    try {
+        // Если обновил api.js используй API.system.saveSetting(key, val)
+        // Иначе:
+        await fetch('/budzet/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-User-Id': API.getUserId()},
+            body: JSON.stringify({ key, value: val })
+        });
+        alert('Сохранено!');
+    } catch(e) { alert('Ошибка'); }
+};
 
 function renderUserRow(u) {
     // Превращаем строку модулей "finance,sport" в массив для проверки
