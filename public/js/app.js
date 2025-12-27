@@ -536,7 +536,7 @@ async function deleteStudent() {
 
 async function deleteTransaction(id) {
     try {
-        const res = await fetch('/transactions/delete', { 
+        const res = await fetch('/budzet/transactions/delete', { 
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-User-Id': API.getUserId()},
             body: JSON.stringify({ id })
