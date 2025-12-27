@@ -41,26 +41,41 @@
                 <div id="loading" class="text-center py-10 text-blue-600 font-medium animate-pulse">Загрузка данных...</div>
 
                 <div id="filter-panel" class="hidden bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6">
-                    <div class="flex flex-wrap gap-4 items-center justify-between">
-                        <div class="flex flex-wrap gap-2 items-center">
-                            <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 border border-gray-200 h-[42px]">
-                                <input type="date" id="filter-date-start" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
-                                <span>-</span>
-                                <input type="date" id="filter-date-end" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
-                            </div>
-                            <select id="filter-category" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 outline-none">
-                                <option value="ALL">Все категории</option>
-                            </select>
-                            <input type="text" id="filter-tag" placeholder="Тег..." class="h-[42px] w-24 bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 outline-none">
-                            
-                            <button id="btn-apply-filter" class="h-[42px] w-[42px] bg-gray-800 text-white rounded-xl hover:bg-gray-700 flex items-center justify-center font-bold">➜</button>
-                            <button id="btn-reset-filter" class="h-[42px] px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl font-bold text-xs">Сброс</button>
+                <div class="flex flex-wrap gap-4 items-center justify-between">
+                    <div class="flex flex-wrap gap-2 items-center w-full lg:w-auto">
+            
+                        <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 border border-gray-200 h-[42px]">
+                            <input type="date" id="filter-date-start" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
+                            <span>-</span>
+                            <input type="date" id="filter-date-end" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
                         </div>
-                        <div class="flex gap-2">
-                             <button id="btn-open-trash" class="h-[42px] px-4 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold">🗑 Корзина</button>
-                             <button id="snow-toggle-btn" class="h-[42px] w-[130px] bg-white border border-gray-200 text-gray-400 rounded-xl text-xs font-bold">❄️ Снег</button>
-                        </div>
+
+                        <select id="filter-type" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 outline-none cursor-pointer">
+                            <option value="ALL">Все типы</option>
+                            <option value="expense">Расход</option>
+                            <option value="income">Доход</option>
+                            <option value="transfer">Перевод</option>
+                        </select>
+
+                        <select id="filter-category" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 outline-none max-w-[150px]">
+                            <option value="ALL">Все категории</option>
+                        </select>
+            
+                        <select id="filter-tag" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 outline-none min-w-[100px]">
+                            <option value="">Все теги</option>
+                        </select>
+
+                        <input type="text" id="filter-search" placeholder="Поиск..." class="h-[42px] w-32 focus:w-48 transition-all bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 outline-none">
+
+                        <button id="btn-apply-filter" class="h-[42px] w-[42px] bg-gray-800 text-white rounded-xl hover:bg-gray-700 flex items-center justify-center font-bold shadow-md">➜</button>
+                        <button id="btn-reset-filter" class="h-[42px] px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl font-bold text-xs hover:bg-red-100">Сброс</button>
                     </div>
+
+                    <div class="flex gap-2">
+                         <button id="btn-open-trash" class="h-[42px] px-4 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold">🗑 Корзина</button>
+                         <button id="snow-toggle-btn" class="h-[42px] w-[130px] bg-white border border-gray-200 text-gray-400 rounded-xl text-xs font-bold">❄️ Снег</button>
+                    </div>
+                </div>
                 </div>
 
                 <div id="tab-analytics" class="tab-content space-y-6 hidden">
@@ -150,17 +165,9 @@
                     
                 </div>
 
-               <div id="tab-transactions" class="tab-content hidden">
-                    <div class="flex flex-col md:flex-row justify-between mb-4 gap-2">
-                    <div class="flex gap-2 w-full md:w-auto flex-1">
-                        <input type="text" id="tx-search" placeholder="Поиск (сумма, коммент)..." class="border border-gray-200 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-blue-500">
-            
-                        <select id="tx-tag-filter" class="border border-gray-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[140px]">
-                            <option value="">Все теги</option>
-                        </select>
-                    </div>
-        
-                    <button id="btn-open-add-tx" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition whitespace-nowrap">+ Добавить</button>
+            <div id="tab-transactions" class="tab-content hidden">
+                <div class="flex justify-end mb-4">
+                    <button id="btn-open-add-tx" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200">+ Добавить запись</button>
                 </div>
     
                 <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
@@ -177,8 +184,8 @@
                         </thead>
                         <tbody id="table-body" class="bg-white divide-y divide-gray-100"></tbody>
                     </table>
-                    </div>
                 </div>
+            </div>
 
                 <div id="tab-students" class="tab-content hidden space-y-6">
                     <div id="debts-panel" class="hidden bg-red-50 p-4 rounded-xl border border-red-100">
