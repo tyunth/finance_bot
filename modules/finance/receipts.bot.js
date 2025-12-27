@@ -1,6 +1,6 @@
 const { Composer, Markup } = require('telegraf');
 const axios = require('axios');
-const ai = require('../../ai'); // Твой ai.js
+const ai = require('./finance.ai'); // Локальный AI финансов
 const db = require('../../db');
 
 const bot = new Composer();
