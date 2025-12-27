@@ -5,6 +5,7 @@ let STATE = { categories: [], transactions: [], accounts: [], charts: {} };
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
 let CURRENT_TODO_FILTER = 'urgent';
 let CURRENT_FILTERED_DATA = []; // 🔥 НОВАЯ ПЕРЕМЕННАЯ (хранит результат глобального фильтра)
+const ALL_MODULES = ['finance', 'students', 'shopping', 'utilities', 'todos', 'sport', 'calendar'];
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 App Started');
@@ -823,22 +824,117 @@ function initSnowToggle() {
 async function loadAdmin() {
     try {
         const users = await API.system.getUsers();
+        
         document.getElementById('admin-users-list').innerHTML = `
-            <h2 class="text-xl font-bold mb-4">Пользователи</h2>
-            <table class="w-full text-left text-sm text-gray-600">
-                <thead><tr class="border-b"><th class="py-2">User</th><th class="py-2">Modules</th></tr></thead>
-                <tbody>${users.map(u => `
-                    <tr class="border-b">
-                        <td class="py-2 font-bold">${u.first_name} <span class="text-gray-400 font-normal">(${u.role})</span></td>
-                        <td class="py-2">
-                            ${u.role === 'admin' ? '<span class="text-green-600 font-bold">ALL (Admin)</span>' : (u.modules || 'finance')}
-                        </td>
-                    </tr>
-                `).join('')}</tbody>
-            </table>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Управление пользователями</h2>
+                <button onclick="loadAdmin()" class="text-blue-600 hover:text-blue-800 text-sm font-bold">↻ Обновить</button>
+            </div>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <table class="w-full text-left text-sm text-gray-600">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="py-3 px-4 font-bold text-gray-500">ID / Имя</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Telegram ID</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Роль</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Модули</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${users.map(u => renderUserRow(u)).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
     } catch(e) { console.error(e); }
 }
+
+function renderUserRow(u) {
+    // Превращаем строку модулей "finance,sport" в массив для проверки
+    // Если у пользователя role='admin', он обычно имеет доступ ко всему, но галочки покажем для наглядности
+    const userMods = (u.modules || '').split(',');
+
+    // Генерируем чекбоксы
+    const checkboxes = ALL_MODULES.map(mod => {
+        const isChecked = userMods.includes(mod) || userMods.includes('all');
+        const isDisabled = u.role === 'admin'; // Админу нельзя отключить модули (или можно, решай сам)
+        
+        return `
+            <label class="inline-flex items-center mr-3 mb-1 cursor-pointer">
+                <input type="checkbox" 
+                       class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
+                       ${isChecked ? 'checked' : ''} 
+                       ${isDisabled ? 'disabled' : ''}
+                       onchange="toggleUserModule(${u.telegram_id}, '${mod}', this.checked)">
+                <span class="ml-1.5 text-xs text-gray-700 capitalize">${mod}</span>
+            </label>
+        `;
+    }).join('');
+
+    return `
+        <tr class="hover:bg-gray-50 transition">
+            <td class="py-3 px-4">
+                <div class="font-bold text-gray-900">${u.first_name || 'Без имени'}</div>
+                <div class="text-xs text-gray-400">ID: ${u.id}</div>
+            </td>
+            <td class="py-3 px-4 font-mono text-xs text-blue-600 bg-blue-50 rounded-lg px-2 py-1 w-fit">
+                ${u.telegram_id}
+            </td>
+            <td class="py-3 px-4">
+                <span class="px-2 py-1 rounded text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                    ${u.role}
+                </span>
+            </td>
+            <td class="py-3 px-4">
+                <div class="flex flex-wrap max-w-md">
+                    ${u.role === 'admin' 
+                        ? '<span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">Все модули (Admin)</span>' 
+                        : checkboxes
+                    }
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+// Глобальная функция для переключения (чтобы работала из HTML)
+window.toggleUserModule = async (tgId, moduleName, isChecked) => {
+    try {
+        // 1. Получаем текущий список пользователей, чтобы найти старые модули
+        // (Это не оч эффективно, лучше бы передавать текущий список в аргументы, но так проще)
+        const users = await API.system.getUsers();
+        const user = users.find(u => u.telegram_id === tgId);
+        
+        if (!user) return alert('Пользователь не найден');
+
+        let currentModules = (user.modules || '').split(',').filter(m => m && m.trim() !== '');
+
+        if (isChecked) {
+            // Добавляем, если нет
+            if (!currentModules.includes(moduleName)) currentModules.push(moduleName);
+        } else {
+            // Удаляем
+            currentModules = currentModules.filter(m => m !== moduleName);
+        }
+
+        // Собираем обратно в строку
+        const newModulesStr = currentModules.join(',');
+
+        // 2. Отправляем на сервер
+        await API.system.updateModules(tgId, newModulesStr);
+        
+        // Не перезагружаем всю таблицу, чтобы не мигало, но в идеале надо бы
+        // console.log(`Updated user ${tgId}: ${newModulesStr}`);
+        
+    } catch (e) {
+        console.error('Ошибка обновления модулей:', e);
+        alert('Ошибка при сохранении. Проверь консоль.');
+        // Если ошибка — верни галочку назад (тут упрощенно перезагружаем)
+        loadAdmin();
+    }
+};
+
+window.loadAdmin = loadAdmin; // Экспорт в глобальную область
 
 // --- COMMON HELPERS ---
 function closeAllModals() {
