@@ -57,4 +57,23 @@ router.get('/users/me', safeHandler(async (req, res) => {
     res.json({ id: user.telegram_id, name: user.first_name, role: user.role, modules: modules });
 }));
 
+// GET /settings - получить все
+router.get('/settings', async (req, res) => {
+    try {
+        const settings = await db.getAllSettings();
+        res.json(settings);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /settings - сохранить одну
+router.post('/settings', async (req, res) => {
+    try {
+        const { key, value } = req.body;
+        if(req.userId !== 133245761) return res.status(403).json({error: 'Access denied'}); // Защита
+        
+        await db.setSetting(key, value);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
