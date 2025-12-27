@@ -50,6 +50,8 @@
                             <select id="filter-category" class="h-[42px] bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-4 outline-none">
                                 <option value="ALL">Все категории</option>
                             </select>
+                            <input type="text" id="filter-tag" placeholder="Тег..." class="h-[42px] w-24 bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl px-3 outline-none">
+                            
                             <button id="btn-apply-filter" class="h-[42px] w-[42px] bg-gray-800 text-white rounded-xl hover:bg-gray-700 flex items-center justify-center font-bold">➜</button>
                             <button id="btn-reset-filter" class="h-[42px] px-3 bg-red-50 text-red-500 border border-red-100 rounded-xl font-bold text-xs">Сброс</button>
                         </div>
@@ -129,7 +131,16 @@
                     </div>
                     <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50"><tr id="table-header"></tr></thead>
+                            <thead class="bg-gray-50">
+                                <tr id="table-header">
+                                    <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Дата</th>
+                                    <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Категория</th>
+                                    <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Тег</th>
+                                    <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Коммент</th>
+                                    <th class="p-3 text-right text-xs font-bold text-gray-500 uppercase">Сумма</th>
+                                    <th class="p-3 text-right text-xs font-bold text-gray-500 uppercase">Действие</th>
+                                </tr>
+                            </thead>
                             <tbody id="table-body" class="bg-white divide-y divide-gray-100"></tbody>
                         </table>
                     </div>
@@ -241,9 +252,9 @@
                         <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2 py-1 rounded-lg">0</span>
                     </div>
                     <div class="p-4 border-b bg-gray-100/50 flex gap-1">
-                        <button onclick="setTodoFilter('urgent')" id="tf-urgent" class="flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">Срочно</button>
-                        <button onclick="setTodoFilter('medium')" id="tf-medium" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Средне</button>
-                        <button onclick="setTodoFilter('later')" id="tf-later" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Позже</button>
+                        <button id="tf-urgent" class="flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">Срочно</button>
+                        <button id="tf-medium" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Средне</button>
+                        <button id="tf-later" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Позже</button>
                     </div>
                     <div class="p-4 border-b">
                         <form id="form-todo" class="flex gap-2">
