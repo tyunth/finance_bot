@@ -110,6 +110,17 @@ function initializeTables() {
             level TEXT DEFAULT 'B1-B2',
             date TEXT
         )`);
+
+        // Таблица настроек (Ключ - Значение)
+        db.run(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+        )`);
+    
+        // Заполним дефолтной ценой урока, если нет
+        db.get("SELECT key FROM settings WHERE key = 'lesson_price'", (err, row) => {
+            if (!row) db.run("INSERT INTO settings (key, value) VALUES ('lesson_price', '4000')");
+        });
         // Миграция для модулей (Permissions)
         db.run("ALTER TABLE users ADD COLUMN modules TEXT DEFAULT 'finance'", () => {});
 
@@ -681,6 +692,41 @@ async function addEnglishWord(userId, data) {
 }
 
 
+// Получить настройку (или дефолт)
+function getSetting(key, defaultValue = null) {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
+            if (err) reject(err);
+            else resolve(row ? row.value : defaultValue);
+        });
+    });
+}
+
+// Сохранить настройку
+function setSetting(key, value) {
+    return new Promise((resolve, reject) => {
+        // UPSERT (SQLite syntax: INSERT OR REPLACE)
+        db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, String(value)], (err) => {
+            if (err) reject(err);
+            else resolve(true);
+        });
+    });
+}
+
+// Получить все настройки разом
+function getAllSettings() {
+    return new Promise((resolve, reject) => {
+        db.all('SELECT * FROM settings', [], (err, rows) => {
+            if (err) reject(err);
+            else {
+                const out = {};
+                rows.forEach(r => out[r.key] = r.value);
+                resolve(out);
+            }
+        });
+    });
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -708,5 +754,6 @@ module.exports = {
     addHealthRecord,
     getAllUsers, updateUserModules, getUserModules,
     addEnglishWord,
+    getSetting, setSetting, getAllSettings,
     DB_PATH
 };
