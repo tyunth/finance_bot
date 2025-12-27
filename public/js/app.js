@@ -168,24 +168,30 @@ function applyFilters() {
     end.setHours(23, 59, 59);
     
     const cat = document.getElementById('filter-category').value;
+    const tag = document.getElementById('filter-tag').value; 
     
-    // 🔥 ФИКС: ЧИТАЕМ ТЕГ ИЗ INPUT
-    const tagInput = document.getElementById('filter-tag')?.value.trim().toLowerCase();
-    
+    // 1. Строгий фильтр (для всего, кроме динамики)
     const filtered = STATE.transactions.filter(t => {
         const d = new Date(t.date);
         const matchesDate = d >= start && d <= end;
         const matchesCat = cat === 'ALL' || t.category === cat;
-        
-        // 🔥 ФИКС: ПРОВЕРКА ТЕГА
-        const matchesTag = !tagInput || (t.tag && t.tag.toLowerCase().includes(tagInput));
-        
+        const matchesTag = !tag || (t.tag && t.tag === tag);
         return matchesDate && matchesCat && matchesTag;
     });
     
-    renderAnalytics(filtered);
-    renderTable(filtered);
-    renderDepositStats(filtered);
+    // 2. Мягкий фильтр (Игнорируем даты, берем всё время) - Для графика динамики
+    const historyData = STATE.transactions.filter(t => {
+        const matchesCat = cat === 'ALL' || t.category === cat;
+        const matchesTag = !tag || (t.tag && t.tag === tag);
+        return matchesCat && matchesTag;
+    });
+    
+    renderAnalytics(filtered); // Карточки и бублики
+    renderTable(filtered);     // Таблица
+    renderDepositStats(filtered); // Накопления
+
+    // 🔥 Рисуем график динамики отдельно
+    renderMonthlyHistory(historyData); 
 }
 
 window.renderAnalyticsFromState = () => {
@@ -197,11 +203,8 @@ function renderAnalytics(data) {
     
     const expMap = {}; 
     const incMap = {}; 
-    // Массив для дней недели (0=Пн, 6=Вс - сдвинем индексы для удобства)
     const dayOfWeekMap = new Array(7).fill(0); 
 
-    // 1. Считываем, как группировать (по Категории или по Тегу)
-    // (Элементы select мы добавили в HTML на прошлом шаге)
     const groupByExp = document.getElementById('chart-group-expense')?.value || 'category';
     const groupByInc = document.getElementById('chart-group-income')?.value || 'category';
 
@@ -210,33 +213,24 @@ function renderAnalytics(data) {
         const amount = t.amount;
         const d = new Date(t.date);
 
-        // --- ДОХОДЫ ---
         if (t.type === 'income') {
             if(t.category !== 'Депозит') {
                 inc += amount;
-                // Выбираем ключ группировки
-                const key = groupByInc === 'tag' ? (t.tag || 'Без тега') : t.category;
+                const key = groupByInc === 'tag' ? (t.tag || 'Нет тега') : t.category;
                 incMap[key] = (incMap[key] || 0) + amount;
             }
         }
-        // --- РАСХОДЫ ---
         if (t.type === 'expense') {
             exp += amount;
-            
-            // Выбираем ключ группировки
-            const key = groupByExp === 'tag' ? (t.tag || 'Без тега') : t.category;
+            const key = groupByExp === 'tag' ? (t.tag || 'Нет тега') : t.category;
             expMap[key] = (expMap[key] || 0) + amount;
             
-            // Суммируем по дням недели для графика активности
-            // JS getDay(): 0=Вс, 1=Пн. Мы хотим 0=Пн, 6=Вс.
             let dayIdx = d.getDay(); 
-            dayIdx = (dayIdx === 0) ? 6 : dayIdx - 1; // Сдвигаем: Вс(0)->6, Пн(1)->0
-            
+            dayIdx = (dayIdx === 0) ? 6 : dayIdx - 1;
             dayOfWeekMap[dayIdx] += amount;
         }
     });
 
-    // 2. Обновляем цифры в карточках
     document.getElementById('stat-income').textContent = formatCurrency(inc);
     document.getElementById('stat-expense').textContent = formatCurrency(exp);
     const bal = inc - exp;
@@ -244,16 +238,47 @@ function renderAnalytics(data) {
     balEl.textContent = formatCurrency(bal);
     balEl.className = `text-2xl font-extrabold ${bal >= 0 ? 'text-gray-900' : 'text-red-500'}`;
 
-    // 3. Рисуем основные графики (Бублики)
     renderDoughnut('chartCategories', expMap, 'cat');
     renderDoughnut('chartIncome', incMap, 'inc');
     
-    // 4. График динамики (по месяцам) - оставляем как было или упрощаем
-    // (Для краткости здесь не дублирую код monthMap, если он нужен - скажи, добавлю)
+    // 🔥 УБРАЛИ ОТСЮДА renderBarChart / monthMap
     
-    // 5. 🔥 НОВЫЕ ФИШКИ
-    renderDayOfWeekChart(dayOfWeekMap); // График по дням
-    renderTopExpenses(data);            // Топ крупных покупок
+    renderDayOfWeekChart(dayOfWeekMap);
+    renderTopExpenses(data);
+}
+
+// --- НОВАЯ ФУНКЦИЯ ДЛЯ ГРАФИКА МЕСЯЦЕВ ---
+function renderMonthlyHistory(data) {
+    const monthMap = {};
+
+    data.forEach(t => {
+        if (t.type === 'transfer') return;
+        const d = new Date(t.date);
+        // Ключ YYYY-MM
+        const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        
+        if (!monthMap[mKey]) monthMap[mKey] = { inc: 0, exp: 0 };
+
+        if (t.type === 'income' && t.category !== 'Депозит') {
+            monthMap[mKey].inc += t.amount;
+        }
+        if (t.type === 'expense') {
+            monthMap[mKey].exp += t.amount;
+        }
+    });
+
+    // Сортируем месяцы (строковая сортировка ISO даты работает корректно)
+    let sortedMonths = Object.keys(monthMap).sort();
+
+    // Опционально: Берем только последние 12 месяцев с активностью, чтобы график не сжимался
+    if (sortedMonths.length > 12) {
+        sortedMonths = sortedMonths.slice(-12);
+    }
+
+    renderBarChart('chartMonthly', sortedMonths, 
+        sortedMonths.map(m => monthMap[m].inc), 
+        sortedMonths.map(m => monthMap[m].exp)
+    );
 }
 
 // --- ХЕЛПЕР: График по дням недели (Сумма) ---
