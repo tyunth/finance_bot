@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../../db'); // Поднимаемся на 2 уровня вверх к db.js
+const db = require('../../db'); 
+const exportService = require('./export.service');
 
 // Вспомогательная функция для безопасности (чтобы не писать try-catch везде)
 const safeHandler = (fn) => async (req, res, next) => {
@@ -75,6 +76,19 @@ router.post('/transactions/delete', async (req, res) => {
     } catch (e) {
         console.error(e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+// Роут для скачивания
+router.get('/transactions/export', async (req, res) => {
+    try {
+        const csv = await exportService.generateCsv();
+        res.header('Content-Type', 'text/csv');
+        res.attachment('finance_export.csv'); // Указываем имя файла
+        res.send(csv);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send('Export error');
     }
 });
 
