@@ -82,9 +82,12 @@ router.post('/transactions/delete', async (req, res) => {
 // Роут для скачивания
 router.get('/transactions/export', async (req, res) => {
     try {
-        const csv = await exportService.generateCsv();
+        // 🔥 Передаем req.userId в сервис
+        // req.userId берется из middleware в server.js (из заголовка или query-параметра)
+        const csv = await exportService.generateCsv(req.userId);
+        
         res.header('Content-Type', 'text/csv');
-        res.attachment('finance_export.csv'); // Указываем имя файла
+        res.attachment(`finance_export_${req.userId}.csv`);
         res.send(csv);
     } catch (e) {
         console.error(e);
