@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
     initSnowToggle(); // Запускаем снег
     await initData();
+    switchTab('analytics');
 });
 
 function setupEventListeners() {
@@ -92,6 +93,7 @@ async function initData() {
         const me = await API.system.getMe();
         applyModules(me.modules, me.role);
 
+        // 1. Грузим основные данные
         const [cats, txs, bal] = await Promise.all([
             API.finance.getCategories(),
             API.finance.getTransactions(),
@@ -104,37 +106,47 @@ async function initData() {
 
         renderBalances(bal.balances);
         fillCategorySelects();
-        
-        // Даты фильтра (Текущий месяц)
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
-        document.getElementById('filter-date-end').value = formatDateISO(now);
+        fillTagSelects();
 
-        // 🔥 ПОКАЗЫВАЕМ ПАНЕЛЬ ФИЛЬТРОВ (СНЕГ ТУТ)
+        // 2. Устанавливаем фильтры дат (если они пустые)
+        if (!document.getElementById('filter-date-start').value) {
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
+            document.getElementById('filter-date-end').value = formatDateISO(now);
+        }
+
+        // 3. Показываем интерфейс
         document.getElementById('filter-panel').classList.remove('hidden');
+        document.getElementById('loading').classList.add('hidden');
 
-        applyFilters(); 
+        // 4. Отрисовка
+        renderAnalyticsFromState(); // Графики
         
+        // 5. Грузим остальные модули
         loadTodos();
         loadShopping();
         loadDebts();
         loadStudents();
         loadUtilities();
-        if (me.role === 'admin') loadAdmin();
+        if(me.role === 'admin') loadAdmin();
         initCalendar();
 
-        document.getElementById('loading').classList.add('hidden');
+        // 🔥 ИСПРАВЛЕНИЕ 1: Загрузка KPI (Уроков за месяц)
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        try {
+            const kpiData = await API.system.getKPI(monthKey);
+            document.getElementById('stat-lessons-count').textContent = kpiData.count || 0;
+        } catch (e) { console.error('KPI Error:', e); }
 
-        // 🔥 ФИКС: СРАЗУ ОТКРЫВАЕМ АНАЛИТИКУ
-        switchTab('analytics'); 
+        // 🔥 ВАЖНО: Мы УБРАЛИ отсюда switchTab('analytics'), чтобы не перекидывало при обновлении
 
     } catch (e) {
         console.error(e);
         document.getElementById('loading').textContent = 'Ошибка загрузки данных';
     }
 }
-
 // --- TABS & UI ---
 function switchTab(tab) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
