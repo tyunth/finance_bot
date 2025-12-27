@@ -1,18 +1,15 @@
 const db = require('../../db');
 const config = require('../../config');
-const gcal = require('../../calendar'); // Твой файл calendar.js в корне
+const gcal = require('./calendar.driver'); // 🔥 Подключаем локальный драйвер
 
 async function checkLessons(bot, userId) {
     if (!userId) userId = config.ADMIN_ID;
-    
-    // Логгер (отправляет в консоль, можно расширить)
     const log = (msg) => console.log(`[Calendar] ${msg}`);
 
     try {
         const events = await gcal.getRecentLessons(log);
         if (!events || events.length === 0) return { count: 0, message: 'Событий нет' };
 
-        // 1. Получаем список учеников для фильтрации
         const students = await db.getStudents(userId);
         const studentNames = students.map(s => s.name);
         const keywords = [...studentNames, 'Тест', 'Пробный', 'Урок', 'Занятие'];
@@ -20,20 +17,16 @@ async function checkLessons(bot, userId) {
         let foundCount = 0;
 
         for (const event of events) {
-            // Проверка на дубли
             const processed = await db.isEventProcessed(event.id);
             if (processed) continue;
 
             const summary = event.summary;
-            
-            // Фильтр по ключевым словам (как в старом боте)
             const isRelevant = keywords.some(key => summary.toLowerCase().includes(key.toLowerCase()));
             if (!isRelevant) continue;
 
             const { studentName, subject } = gcal.parseLessonInfo(summary);
             const amount = config.LESSON_PRICE;
 
-            // Отправляем сообщение
             await bot.telegram.sendMessage(userId, 
                 `🔔 *Урок завершен:*\n${summary}\n👤 ${studentName}\n📚 ${subject}`,
                 {
@@ -46,7 +39,6 @@ async function checkLessons(bot, userId) {
                 }
             );
             
-            // Помечаем как обработанное (pending), чтобы не спамить
             await db.markEventProcessed(event.id, summary, 'pending');
             foundCount++;
         }
@@ -59,4 +51,58 @@ async function checkLessons(bot, userId) {
     }
 }
 
-module.exports = { checkLessons };
+// --- НОВЫЕ МЕТОДЫ (Переехали из бота) ---
+
+async function processPayment(userId, eventId, summary) {
+    const { studentName, subject } = gcal.parseLessonInfo(summary);
+    let lessonType = 'regular';
+    if (summary.toLowerCase().includes('пробный')) lessonType = 'trial';
+    
+    await db.addTransaction({
+        userId, 
+        type: 'income', 
+        amount: config.LESSON_PRICE, 
+        category: 'Репетиторство',
+        tag: `Ученик: ${studentName}`, 
+        comment: `${subject} (${summary})`, 
+        sourceAccount: null, 
+        targetAccount: 'Основной',
+        lesson_type: lessonType
+    });
+    
+    await db.markEventProcessed(eventId, summary, 'paid');
+    return studentName;
+}
+
+async function processDebt(userId, eventId, summary) {
+    const { studentName, subject } = gcal.parseLessonInfo(summary);
+    await db.addDebt(userId, studentName, subject, config.LESSON_PRICE, eventId);
+    await db.markEventProcessed(eventId, summary, 'debt');
+    return studentName;
+}
+
+async function processCancellation(userId, eventId, summary, reason) {
+    const { studentName } = gcal.parseLessonInfo(summary);
+
+    await db.addLessonHistory({
+        userId,
+        studentId: null, 
+        studentName: studentName,
+        date: new Date().toISOString(),
+        status: `cancelled_${reason}`,
+        reason: reason,
+        lostIncome: config.LESSON_PRICE
+    });
+
+    await db.markEventProcessed(eventId, summary, 'cancelled');
+    try { await gcal.deleteEvent(eventId); } catch(e) {}
+    
+    return studentName;
+}
+
+module.exports = { 
+    checkLessons,
+    processPayment,
+    processDebt,
+    processCancellation
+};
