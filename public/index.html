@@ -108,21 +108,46 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80">
-                            <h3 class="font-bold mb-4">Расходы</h3>
-                            <div class="h-60"><canvas id="chartCategories"></canvas></div>
-                         </div>
-                         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80">
-                            <h3 class="font-bold mb-4">Доходы</h3>
-                            <div class="h-60"><canvas id="chartIncome"></canvas></div>
-                         </div>
-                    </div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold">Расходы</h3>
+                <select id="chart-group-expense" onchange="window.renderAnalyticsFromState()" class="text-xs border rounded p-1 bg-gray-50 outline-none">
+                    <option value="category">Категории</option>
+                    <option value="tag">Теги</option>
+                </select>
+            </div>
+            <div class="h-60"><canvas id="chartCategories"></canvas></div>
+         </div>
+         
+         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold">Доходы</h3>
+                <select id="chart-group-income" onchange="window.renderAnalyticsFromState()" class="text-xs border rounded p-1 bg-gray-50 outline-none">
+                    <option value="category">Категории</option>
+                    <option value="tag">Теги</option>
+                </select>
+            </div>
+            <div class="h-60"><canvas id="chartIncome"></canvas></div>
+         </div>
+    </div>
+    
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-80">
+        <h3 class="font-bold mb-4">Динамика по месяцам</h3>
+        <div class="h-60"><canvas id="chartMonthly"></canvas></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white p-6 rounded-3xl border border-gray-100 h-80">
+            <h3 class="font-bold mb-4">Активность (Сумма покупок по дням)</h3>
+            <div class="h-60"><canvas id="chartDays"></canvas></div>
+        </div>
+        <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80 flex flex-col">
+            <h3 class="font-bold mb-4">Топ Трат</h3>
+            <div class="overflow-y-auto flex-1 pr-2 space-y-2 text-sm" id="top-expenses-list"></div>
+        </div>
+    </div>
                     
-                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-80">
-                        <h3 class="font-bold mb-4">Динамика по месяцам</h3>
-                        <div class="h-60"><canvas id="chartMonthly"></canvas></div>
-                    </div>
                 </div>
 
                 <div id="tab-transactions" class="tab-content hidden">
@@ -139,7 +164,7 @@
                                     <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Тег</th>
                                     <th class="p-3 text-left text-xs font-bold text-gray-500 uppercase">Коммент</th>
                                     <th class="p-3 text-right text-xs font-bold text-gray-500 uppercase">Сумма</th>
-                                    <th class="p-3 text-right text-xs font-bold text-gray-500 uppercase">Действие</th>
+                                    <th class="p-3 text-right text-xs font-bold text-gray-500 uppercase">Действ.</th>
                                 </tr>
                             </thead>
                             <tbody id="table-body" class="bg-white divide-y divide-gray-100"></tbody>
