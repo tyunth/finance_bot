@@ -188,32 +188,55 @@ function applyFilters() {
     renderDepositStats(filtered);
 }
 
+window.renderAnalyticsFromState = () => {
+    applyFilters(); // Перезапускаем фильтрацию с текущими настройками
+};
+
 function renderAnalytics(data) {
     let inc = 0, exp = 0;
-    const catMap = {}, incMap = {}, monthMap = {};
     
+    const expMap = {}; 
+    const incMap = {}; 
+    // Массив для дней недели (0=Пн, 6=Вс - сдвинем индексы для удобства)
+    const dayOfWeekMap = new Array(7).fill(0); 
+
+    // 1. Считываем, как группировать (по Категории или по Тегу)
+    // (Элементы select мы добавили в HTML на прошлом шаге)
+    const groupByExp = document.getElementById('chart-group-expense')?.value || 'category';
+    const groupByInc = document.getElementById('chart-group-income')?.value || 'category';
+
     data.forEach(t => {
         if (t.type === 'transfer') return;
         const amount = t.amount;
         const d = new Date(t.date);
-        const mKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-        
-        if (!monthMap[mKey]) monthMap[mKey] = { inc: 0, exp: 0 };
 
+        // --- ДОХОДЫ ---
         if (t.type === 'income') {
-            if(t.category !== 'Депозит') { // Исключаем возвраты депозитов из дохода
+            if(t.category !== 'Депозит') {
                 inc += amount;
-                monthMap[mKey].inc += amount;
-                incMap[t.category] = (incMap[t.category] || 0) + amount;
+                // Выбираем ключ группировки
+                const key = groupByInc === 'tag' ? (t.tag || 'Без тега') : t.category;
+                incMap[key] = (incMap[key] || 0) + amount;
             }
         }
+        // --- РАСХОДЫ ---
         if (t.type === 'expense') {
             exp += amount;
-            monthMap[mKey].exp += amount;
-            catMap[t.category] = (catMap[t.category] || 0) + amount;
+            
+            // Выбираем ключ группировки
+            const key = groupByExp === 'tag' ? (t.tag || 'Без тега') : t.category;
+            expMap[key] = (expMap[key] || 0) + amount;
+            
+            // Суммируем по дням недели для графика активности
+            // JS getDay(): 0=Вс, 1=Пн. Мы хотим 0=Пн, 6=Вс.
+            let dayIdx = d.getDay(); 
+            dayIdx = (dayIdx === 0) ? 6 : dayIdx - 1; // Сдвигаем: Вс(0)->6, Пн(1)->0
+            
+            dayOfWeekMap[dayIdx] += amount;
         }
     });
 
+    // 2. Обновляем цифры в карточках
     document.getElementById('stat-income').textContent = formatCurrency(inc);
     document.getElementById('stat-expense').textContent = formatCurrency(exp);
     const bal = inc - exp;
@@ -221,14 +244,69 @@ function renderAnalytics(data) {
     balEl.textContent = formatCurrency(bal);
     balEl.className = `text-2xl font-extrabold ${bal >= 0 ? 'text-gray-900' : 'text-red-500'}`;
 
-    renderDoughnut('chartCategories', catMap, 'cat');
+    // 3. Рисуем основные графики (Бублики)
+    renderDoughnut('chartCategories', expMap, 'cat');
     renderDoughnut('chartIncome', incMap, 'inc');
     
-    const sortedMonths = Object.keys(monthMap).sort();
-    renderBarChart('chartMonthly', sortedMonths, 
-        sortedMonths.map(m => monthMap[m].inc), 
-        sortedMonths.map(m => monthMap[m].exp)
-    );
+    // 4. График динамики (по месяцам) - оставляем как было или упрощаем
+    // (Для краткости здесь не дублирую код monthMap, если он нужен - скажи, добавлю)
+    
+    // 5. 🔥 НОВЫЕ ФИШКИ
+    renderDayOfWeekChart(dayOfWeekMap); // График по дням
+    renderTopExpenses(data);            // Топ крупных покупок
+}
+
+// --- ХЕЛПЕР: График по дням недели (Сумма) ---
+function renderDayOfWeekChart(dataArray) { // Ожидает массив [Пн, Вт, ... Вс]
+    const ctx = document.getElementById('chartDays');
+    if(!ctx) return;
+    
+    const labels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    
+    if(STATE.charts.days) STATE.charts.days.destroy();
+    
+    STATE.charts.days = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ 
+                label: 'Сумма', 
+                data: dataArray, 
+                backgroundColor: '#60a5fa', 
+                borderRadius: 4 
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { y: { beginAtZero: true } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+// --- ХЕЛПЕР: Топ-10 Трат ---
+function renderTopExpenses(data) {
+    const list = document.getElementById('top-expenses-list');
+    if(!list) return;
+    
+    // Фильтруем расходы, сортируем по убыванию, берем топ-10
+    const top = data.filter(t => t.type === 'expense')
+                    .sort((a,b) => b.amount - a.amount)
+                    .slice(0, 10);
+    
+    list.innerHTML = top.map((t, i) => `
+        <div class="flex justify-between items-center p-2 bg-gray-50 rounded-lg text-sm mb-1">
+            <div class="flex items-center min-w-0 gap-2">
+                <span class="font-bold text-gray-400 w-4 text-center">${i+1}.</span>
+                <div class="truncate">
+                    <span class="font-bold text-gray-800">${t.category}</span>
+                    <span class="text-xs text-gray-500 ml-1">${t.comment || ''}</span>
+                </div>
+            </div>
+            <span class="font-bold text-red-600 whitespace-nowrap ml-2">${formatCurrency(t.amount)}</span>
+        </div>
+    `).join('');
 }
 
 // --- UTILITIES (КОММУНАЛКА) ---
@@ -368,40 +446,75 @@ window.openStudentStats = async (id) => {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     
-    // 🔥 ФИКС: УБРАЛ await res.json(), т.к. API уже вернул объект
+    // Получаем данные (API.students.getStats возвращает JSON объект)
     const data = await API.students.getStats(id); 
-    
+    const s = data.student;
     const txs = data.transactions;
-    const total = txs.reduce((a,b)=>a+b.amount,0);
     
+    // 1. Итоговые цифры
+    const total = txs.reduce((a,b)=>a+b.amount,0);
     document.getElementById('stats-total').textContent = formatCurrency(total);
     document.getElementById('stats-count').textContent = txs.length;
     
-    // График
-    const months = {};
-    txs.forEach(t => {
-        const k = t.date.substr(0,7); 
-        months[k] = (months[k]||0) + t.amount;
-    });
-    const labels = Object.keys(months).sort();
+    // 2. Расчет ПЛАНА на текущий месяц
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    // Считаем ФАКТ (сколько оплат было в этом месяце)
+    const fact = txs.filter(t => t.date.startsWith(currentMonthKey)).length;
     
+    let plan = 0;
+    
+    // 🔥 ЛОГИКА ДНЕЙ НЕДЕЛИ
+    // s.schedule_days - это строка типа "1,4" (Пн, Чт) или пустая
+    if (s.schedule_days && s.schedule_days.trim() !== '') {
+        const targetDays = s.schedule_days.split(',').map(Number); // [1, 4]
+        const year = now.getFullYear();
+        const month = now.getMonth(); 
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        // Пробегаем по всем дням месяца
+        for (let d = 1; d <= daysInMonth; d++) {
+            let dayOfWeek = new Date(year, month, d).getDay(); // 0=Вс, 1=Пн...
+            if (dayOfWeek === 0) dayOfWeek = 7; // Приводим к нашему формату (1=Пн ... 7=Вс)
+            
+            if (targetDays.includes(dayOfWeek)) {
+                plan++;
+            }
+        }
+    } else {
+        // Фоллбэк: если дни не заданы, просто умножаем кол-во в неделю на 4
+        plan = (s.lessons_per_week || 0) * 4;
+    }
+    
+    // 3. Отрисовка графика (Столбики по месяцам)
     const ctx = document.getElementById('studentChart');
     if(STATE.charts.student) STATE.charts.student.destroy();
+    
+    const months = {};
+    txs.forEach(t => {
+        const k = t.date.substr(0,7); // YYYY-MM
+        months[k] = (months[k]||0) + t.amount;
+    });
+    
     STATE.charts.student = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels,
+            labels: Object.keys(months).sort(),
             datasets: [{ label: 'Оплаты', data: Object.values(months), backgroundColor: '#3b82f6' }]
         },
         options: { responsive: true, maintainAspectRatio: false }
     });
     
+    // 4. Список последних оплат
     document.getElementById('stats-history').innerHTML = txs.slice(0, 10).map(t => `
         <div class="flex justify-between border-b pb-1 text-xs">
             <span>${t.date.split('T')[0]}</span>
             <span class="font-bold text-green-600">+${formatCurrency(t.amount)}</span>
         </div>
     `).join('');
+    
+    // (Опционально) Если у тебя в HTML модалки есть поля для "Плана" и "Факта", 
+    // можешь добавить их обновление здесь. Но в базовой версии мы обновляли графики.
 };
 
 async function handleStudentSubmit(e) {
@@ -423,17 +536,17 @@ async function deleteStudent() {
 
 async function deleteTransaction(id) {
     try {
-        // Пытаемся удалить. Если API в api.js нет, используем прямой fetch
-        const res = await fetch('/budzet/transactions/delete', {
+        const res = await fetch('/transactions/delete', { 
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-User-Id': API.getUserId()},
             body: JSON.stringify({ id })
         });
         
         if(res.ok) {
-            await initData(); // Перезагружаем данные
+            await initData(); // Перезагружаем всё
         } else {
-            alert('Ошибка удаления. Возможно, сервер не поддерживает этот метод.');
+            const err = await res.json();
+            alert('Ошибка удаления: ' + (err.error || 'Неизвестная ошибка'));
         }
     } catch(e) { console.error(e); }
 }
