@@ -27,6 +27,7 @@ router.get('/students/stats', async (req, res) => {
 // Действия (Add/Edit/Delete)
 router.post('/students/action', async (req, res) => {
     try {
+        // Добавил schedule_days в деструктуризацию
         const { action, id, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days } = req.body;
         
         if (action === 'add') {
