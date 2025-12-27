@@ -24,9 +24,7 @@ function setupEventListeners() {
     document.getElementById('tx-search')?.addEventListener('input', filterTransactionsList);
     document.getElementById('tx-tag-filter')?.addEventListener('change', filterTransactionsList);
     
-    // Фильтры
-    document.getElementById('btn-apply-filter')?.addEventListener('click', applyFilters);
-    document.getElementById('btn-reset-filter')?.addEventListener('click', resetFilters);
+    document.getElementById('filter-search')?.addEventListener('change', applyFilters);
 
     // Модалка Транзакции
     document.getElementById('btn-open-add-tx')?.addEventListener('click', () => openTxModal());
@@ -179,39 +177,60 @@ function applyModules(modules, role) {
 
 // --- FINANCE ANALYTICS ---
 function applyFilters() {
+    // 1. Считываем значения
     const start = new Date(document.getElementById('filter-date-start').value);
     const end = new Date(document.getElementById('filter-date-end').value);
     end.setHours(23, 59, 59);
     
-    const cat = document.getElementById('filter-category').value;
-    const tag = document.getElementById('filter-tag').value; 
+    const type = document.getElementById('filter-type').value;       // Тип
+    const cat = document.getElementById('filter-category').value;    // Категория
+    const tag = document.getElementById('filter-tag').value;         // Тег
+    const search = document.getElementById('filter-search').value.toLowerCase().trim(); // Поиск
     
-    // 1. Глобальная фильтрация (Дата + Категория + Глобальный Тег)
+    // 2. Фильтруем данные (Строгий фильтр по всем полям)
     const filtered = STATE.transactions.filter(t => {
         const d = new Date(t.date);
+        
+        // Проверка даты
         const matchesDate = d >= start && d <= end;
+        
+        // Проверка Типа (income/expense/transfer/ALL)
+        const matchesType = type === 'ALL' || t.type === type;
+
+        // Проверка Категории
         const matchesCat = cat === 'ALL' || t.category === cat;
+        
+        // Проверка Тега
         const matchesTag = !tag || (t.tag && t.tag === tag);
-        return matchesDate && matchesCat && matchesTag;
+
+        // Проверка Поиска (по сумме, комменту или категории)
+        const matchesSearch = !search || 
+            (t.comment && t.comment.toLowerCase().includes(search)) ||
+            (t.category && t.category.toLowerCase().includes(search)) ||
+            (t.amount.toString().includes(search));
+        
+        return matchesDate && matchesType && matchesCat && matchesTag && matchesSearch;
     });
     
-    // Сохраняем для локального поиска
-    CURRENT_FILTERED_DATA = filtered;
+    // 3. Обновляем ВСЁ
+    renderAnalytics(filtered);     // Графики и цифры
+    renderTable(filtered);         // Таблица истории
+    renderDepositStats(filtered);  // Блок накоплений
 
-    // Обновляем графики
-    renderAnalytics(filtered);
-    renderDepositStats(filtered);
-    
-    // Мягкий фильтр для динамики (игнорируем даты)
+    // 4. Для графика "Динамика по месяцам" (Soft Filter)
+    // Ему нужны данные за всё время, но с учетом фильтров Типа/Категории/Поиска
     const historyData = STATE.transactions.filter(t => {
+        const matchesType = type === 'ALL' || t.type === type;
         const matchesCat = cat === 'ALL' || t.category === cat;
         const matchesTag = !tag || (t.tag && t.tag === tag);
-        return matchesCat && matchesTag;
+        const matchesSearch = !search || 
+            (t.comment && t.comment.toLowerCase().includes(search)) ||
+            (t.category && t.category.toLowerCase().includes(search)) ||
+            (t.amount.toString().includes(search));
+            
+        return matchesType && matchesCat && matchesTag && matchesSearch;
     });
     renderMonthlyHistory(historyData);
-
-    // 🔥 Рисуем таблицу через функцию поиска
-    filterTransactionsList();
 }
 
 // 🔥 НОВАЯ ФУНКЦИЯ: Локальный поиск в таблице
@@ -966,5 +985,8 @@ async function initCalendar() {
 
 function resetFilters() {
     document.getElementById('filter-category').value = 'ALL';
+    document.getElementById('filter-type').value = 'ALL';     // Сброс типа
+    document.getElementById('filter-tag').value = '';         // Сброс тега
+    document.getElementById('filter-search').value = '';      // Сброс поиска
     applyFilters();
 }
