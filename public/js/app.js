@@ -4,6 +4,7 @@ import { formatCurrency, formatDateISO } from './utils.js';
 let STATE = { categories: [], transactions: [], accounts: [], charts: {} };
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
 let CURRENT_TODO_FILTER = 'urgent';
+let CURRENT_FILTERED_DATA = []; // 🔥 НОВАЯ ПЕРЕМЕННАЯ (хранит результат глобального фильтра)
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 App Started');
@@ -20,6 +21,9 @@ function setupEventListeners() {
     });
     document.getElementById('btn-reload')?.addEventListener('click', () => location.reload());
 
+    document.getElementById('tx-search')?.addEventListener('input', filterTransactionsList);
+    document.getElementById('tx-tag-filter')?.addEventListener('change', filterTransactionsList);
+    
     // Фильтры
     document.getElementById('btn-apply-filter')?.addEventListener('click', applyFilters);
     document.getElementById('btn-reset-filter')?.addEventListener('click', resetFilters);
@@ -182,7 +186,7 @@ function applyFilters() {
     const cat = document.getElementById('filter-category').value;
     const tag = document.getElementById('filter-tag').value; 
     
-    // 1. Строгий фильтр (для всего, кроме динамики)
+    // 1. Глобальная фильтрация (Дата + Категория + Глобальный Тег)
     const filtered = STATE.transactions.filter(t => {
         const d = new Date(t.date);
         const matchesDate = d >= start && d <= end;
@@ -191,19 +195,44 @@ function applyFilters() {
         return matchesDate && matchesCat && matchesTag;
     });
     
-    // 2. Мягкий фильтр (Игнорируем даты, берем всё время) - Для графика динамики
+    // Сохраняем для локального поиска
+    CURRENT_FILTERED_DATA = filtered;
+
+    // Обновляем графики
+    renderAnalytics(filtered);
+    renderDepositStats(filtered);
+    
+    // Мягкий фильтр для динамики (игнорируем даты)
     const historyData = STATE.transactions.filter(t => {
         const matchesCat = cat === 'ALL' || t.category === cat;
         const matchesTag = !tag || (t.tag && t.tag === tag);
         return matchesCat && matchesTag;
     });
-    
-    renderAnalytics(filtered); // Карточки и бублики
-    renderTable(filtered);     // Таблица
-    renderDepositStats(filtered); // Накопления
+    renderMonthlyHistory(historyData);
 
-    // 🔥 Рисуем график динамики отдельно
-    renderMonthlyHistory(historyData); 
+    // 🔥 Рисуем таблицу через функцию поиска
+    filterTransactionsList();
+}
+
+// 🔥 НОВАЯ ФУНКЦИЯ: Локальный поиск в таблице
+function filterTransactionsList() {
+    const query = document.getElementById('tx-search').value.toLowerCase();
+    const tagFilter = document.getElementById('tx-tag-filter').value;
+
+    const finalData = CURRENT_FILTERED_DATA.filter(t => {
+        // Поиск по тексту (сумма, коммент, категория)
+        const textMatch = !query || 
+            (t.comment && t.comment.toLowerCase().includes(query)) ||
+            (t.category && t.category.toLowerCase().includes(query)) ||
+            t.amount.toString().includes(query);
+            
+        // Поиск по тегу из выпадашки
+        const tagMatch = !tagFilter || (t.tag === tagFilter);
+
+        return textMatch && tagMatch;
+    });
+
+    renderTable(finalData);
 }
 
 window.renderAnalyticsFromState = () => {
@@ -325,18 +354,19 @@ function renderDayOfWeekChart(dataArray) { // Ожидает массив [Пн,
 // --- ХЕЛПЕР ДЛЯ ТЕГОВ ---
 function fillTagSelects() {
     const tags = new Set();
-    // Собираем все уникальные теги из транзакций
     STATE.transactions.forEach(t => { 
         if(t.tag && t.tag.trim()) tags.add(t.tag.trim()); 
     });
     
     const opts = Array.from(tags).sort().map(t => `<option value="${t}">${t}</option>`).join('');
     
-    // Заполняем выпадающий список в фильтрах
+    // 1. Глобальный фильтр
     const filterEl = document.getElementById('filter-tag');
-    if(filterEl) {
-        filterEl.innerHTML = '<option value="">Все теги</option>' + opts;
-    }
+    if(filterEl) filterEl.innerHTML = '<option value="">Все теги</option>' + opts;
+
+    // 2. 🔥 Поиск в истории
+    const searchEl = document.getElementById('tx-tag-filter');
+    if(searchEl) searchEl.innerHTML = '<option value="">Все теги</option>' + opts;
 }
 
 // --- ХЕЛПЕР: Топ-10 Трат ---
