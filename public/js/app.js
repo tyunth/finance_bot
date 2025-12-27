@@ -30,31 +30,45 @@ function setupEventListeners() {
     // Дела
     document.getElementById('form-todo')?.addEventListener('submit', handleTodoSubmit);
     document.getElementById('todo-list')?.addEventListener('click', handleTodoClick);
-    
-    // Фильтры дел (Срочно/Средне/Позже)
     ['urgent', 'medium', 'later'].forEach(p => {
         document.getElementById(`tf-${p}`)?.addEventListener('click', () => setTodoFilter(p));
     });
 
-    // Покупки
+    // --- ФИКС ВИШЛИСТА (ПОКАЗ ЦЕНЫ) ---
     document.getElementById('form-shopping')?.addEventListener('submit', handleShoppingSubmit);
+    document.querySelector('select[name="type"]')?.addEventListener('change', (e) => {
+        const priceInput = document.getElementById('shop-price-input');
+        // Если Вишлист или Маркет - показываем цену
+        if(['wish', 'market'].includes(e.target.value)) {
+            priceInput.classList.remove('hidden');
+        } else {
+            priceInput.classList.add('hidden');
+        }
+    });
     ['list-buy', 'list-market', 'list-wish'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', handleShoppingClick);
     });
 
-    // Транзакции (Клик по таблице для редактирования)
+    // --- ФИКС УДАЛЕНИЯ ТРАНЗАКЦИЙ ---
     document.getElementById('table-body')?.addEventListener('click', (e) => {
-        const btn = e.target.closest('.js-edit-tx');
-        if (btn) {
-            const tx = STATE.transactions.find(t => t.id === parseInt(btn.dataset.id));
+        // Редактирование
+        const editBtn = e.target.closest('.js-edit-tx');
+        if (editBtn) {
+            const tx = STATE.transactions.find(t => t.id === parseInt(editBtn.dataset.id));
             if (tx) openTxModal(tx);
+        }
+        // Удаление
+        const delBtn = e.target.closest('.js-del-tx');
+        if (delBtn) {
+            if(confirm('Удалить эту запись?')) {
+                deleteTransaction(delBtn.dataset.id);
+            }
         }
     });
 
     // Коммуналка
     document.getElementById('utility-bulk-form')?.addEventListener('submit', handleUtilitySubmit);
     document.getElementById('utility-bulk-form')?.addEventListener('input', calculateUtilityTotal);
-    // Связка: Ввод гор. воды копируется в отопление
     const hotInput = document.getElementById('val-water-hot');
     if (hotInput) hotInput.addEventListener('input', (e) => { 
         const heatInput = document.getElementById('val-heat-hot');
@@ -65,11 +79,9 @@ function setupEventListeners() {
     document.getElementById('form-student')?.addEventListener('submit', handleStudentSubmit);
     document.getElementById('btn-delete-student')?.addEventListener('click', deleteStudent);
 
-    // Корзина
+    // Корзина и Модалки
     document.getElementById('btn-open-trash')?.addEventListener('click', openTrash);
     document.getElementById('trash-list')?.addEventListener('click', handleTrashClick);
-
-    // Закрытие модалок
     document.querySelectorAll('.btn-close-modal').forEach(btn => btn.addEventListener('click', closeAllModals));
     window.onclick = (e) => { if(e.target.id.startsWith('modal-')) closeAllModals(); };
 }
@@ -93,24 +105,30 @@ async function initData() {
         renderBalances(bal.balances);
         fillCategorySelects();
         
-        // Даты: Текущий месяц по умолчанию
+        // Даты фильтра (Текущий месяц)
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
         document.getElementById('filter-date-end').value = formatDateISO(now);
 
+        // 🔥 ПОКАЗЫВАЕМ ПАНЕЛЬ ФИЛЬТРОВ (СНЕГ ТУТ)
+        document.getElementById('filter-panel').classList.remove('hidden');
+
         applyFilters(); 
         
-        // Подгрузка остальных вкладок
         loadTodos();
         loadShopping();
         loadDebts();
         loadStudents();
         loadUtilities();
-        loadAdmin(); // Если админ
+        if (me.role === 'admin') loadAdmin();
         initCalendar();
 
         document.getElementById('loading').classList.add('hidden');
+
+        // 🔥 ФИКС: СРАЗУ ОТКРЫВАЕМ АНАЛИТИКУ
+        switchTab('analytics'); 
+
     } catch (e) {
         console.error(e);
         document.getElementById('loading').textContent = 'Ошибка загрузки данных';
@@ -148,11 +166,21 @@ function applyFilters() {
     const start = new Date(document.getElementById('filter-date-start').value);
     const end = new Date(document.getElementById('filter-date-end').value);
     end.setHours(23, 59, 59);
+    
     const cat = document.getElementById('filter-category').value;
+    
+    // 🔥 ФИКС: ЧИТАЕМ ТЕГ ИЗ INPUT
+    const tagInput = document.getElementById('filter-tag')?.value.trim().toLowerCase();
     
     const filtered = STATE.transactions.filter(t => {
         const d = new Date(t.date);
-        return d >= start && d <= end && (cat === 'ALL' || t.category === cat);
+        const matchesDate = d >= start && d <= end;
+        const matchesCat = cat === 'ALL' || t.category === cat;
+        
+        // 🔥 ФИКС: ПРОВЕРКА ТЕГА
+        const matchesTag = !tagInput || (t.tag && t.tag.toLowerCase().includes(tagInput));
+        
+        return matchesDate && matchesCat && matchesTag;
     });
     
     renderAnalytics(filtered);
@@ -339,8 +367,9 @@ window.openStudentStats = async (id) => {
     const modal = document.getElementById('modal-student-stats');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    const res = await API.students.getStats(id); // { student, transactions }
-    const data = await res.json();
+    
+    // 🔥 ФИКС: УБРАЛ await res.json(), т.к. API уже вернул объект
+    const data = await API.students.getStats(id); 
     
     const txs = data.transactions;
     const total = txs.reduce((a,b)=>a+b.amount,0);
@@ -348,10 +377,10 @@ window.openStudentStats = async (id) => {
     document.getElementById('stats-total').textContent = formatCurrency(total);
     document.getElementById('stats-count').textContent = txs.length;
     
-    // График платежей
+    // График
     const months = {};
     txs.forEach(t => {
-        const k = t.date.substr(0,7); // YYYY-MM
+        const k = t.date.substr(0,7); 
         months[k] = (months[k]||0) + t.amount;
     });
     const labels = Object.keys(months).sort();
@@ -367,7 +396,6 @@ window.openStudentStats = async (id) => {
         options: { responsive: true, maintainAspectRatio: false }
     });
     
-    // История
     document.getElementById('stats-history').innerHTML = txs.slice(0, 10).map(t => `
         <div class="flex justify-between border-b pb-1 text-xs">
             <span>${t.date.split('T')[0]}</span>
@@ -391,6 +419,23 @@ async function deleteStudent() {
         closeAllModals();
         loadStudents();
     }
+}
+
+async function deleteTransaction(id) {
+    try {
+        // Пытаемся удалить. Если API в api.js нет, используем прямой fetch
+        const res = await fetch('/budzet/transactions/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-User-Id': API.getUserId()},
+            body: JSON.stringify({ id })
+        });
+        
+        if(res.ok) {
+            await initData(); // Перезагружаем данные
+        } else {
+            alert('Ошибка удаления. Возможно, сервер не поддерживает этот метод.');
+        }
+    } catch(e) { console.error(e); }
 }
 
 // --- SHOPPING (ПОКУПКИ) ---
@@ -558,7 +603,9 @@ async function loadAdmin() {
                 <tbody>${users.map(u => `
                     <tr class="border-b">
                         <td class="py-2 font-bold">${u.first_name} <span class="text-gray-400 font-normal">(${u.role})</span></td>
-                        <td class="py-2">${u.modules || 'all'}</td>
+                        <td class="py-2">
+                            ${u.role === 'admin' ? '<span class="text-green-600 font-bold">ALL (Admin)</span>' : (u.modules || 'finance')}
+                        </td>
                     </tr>
                 `).join('')}</tbody>
             </table>
@@ -594,11 +641,17 @@ function renderTable(data) {
         <tr class="border-b hover:bg-gray-50">
             <td class="p-3 text-sm whitespace-nowrap">${new Date(t.date).toLocaleDateString()}</td>
             <td class="p-3 text-sm font-bold text-gray-800">${t.category}</td>
+            
+            <td class="p-3 text-xs text-blue-600 font-medium">${t.tag || '-'}</td>
+            
             <td class="p-3 text-xs text-gray-500 max-w-[150px] truncate">${t.comment || ''}</td>
             <td class="p-3 text-sm font-bold text-right ${t.type==='income'?'text-green-600':(t.type==='expense'?'text-red-600':'text-gray-600')}">
                 ${formatCurrency(t.amount)}
             </td>
-            <td class="p-3 text-right"><button class="js-edit-tx text-blue-600 font-bold px-2" data-id="${t.id}">✎</button></td>
+            <td class="p-3 text-right whitespace-nowrap">
+                <button class="js-edit-tx text-blue-600 font-bold px-2 hover:bg-blue-50 rounded" data-id="${t.id}">✎</button>
+                <button class="js-del-tx text-red-500 font-bold px-2 hover:bg-red-50 rounded" data-id="${t.id}">×</button>
+            </td>
         </tr>
     `).join('');
 }
