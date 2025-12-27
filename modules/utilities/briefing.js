@@ -26,12 +26,20 @@ async function sendMorningBriefing(bot, chatId) {
             dataContext.weather = { morning: h.temperature_2m[8], day: h.temperature_2m[14], is_snow: h.precipitation.slice(0, 24).reduce((a,b)=>a+b,0) > 0.5 };
         } catch(e) {}
 
-        // 2. Спорт
+        // Спорт (Берем из нового сервиса)
         try {
-            dataContext.sport.yesterday = await sport.getDailySummary(chatId, -1);
-            const today = await sport.getDailySummary(chatId, 0);
-            dataContext.sport.todayBlocks = today ? today.blocks : [];
-        } catch(e) {}
+            // Внимание: getDailySummary в новом сервисе возвращает { percent, blocks: [] }
+            // Мы передаем 0 (сегодня), чтобы узнать план на сегодня, 
+            // ИЛИ -1 (вчера), чтобы узнать результат вчера.
+            // В промпте AI обычно просит "Вчера" и "Сегодня".
+            
+            const yesterdaySummary = await sport.getDailySummary(chatId, -1);
+            const todaySummary = await sport.getDailySummary(chatId, 0);
+            
+            dataContext.sport.yesterday = yesterdaySummary;
+            dataContext.sport.todayBlocks = todaySummary ? todaySummary.blocks : [];
+            
+        } catch(e) { console.error('Ошибка спорта:', e.message); }
 
         // 3. English
         const word = await ai.generateEnglishWord();
