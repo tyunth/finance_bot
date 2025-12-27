@@ -25,7 +25,7 @@ async function checkLessons(bot, userId) {
             if (!isRelevant) continue;
 
             const { studentName, subject } = gcal.parseLessonInfo(summary);
-            const amount = config.LESSON_PRICE;
+            const amount = await db.getSetting('lesson_price', 4000);
 
             await bot.telegram.sendMessage(userId, 
                 `🔔 *Урок завершен:*\n${summary}\n👤 ${studentName}\n📚 ${subject}`,
