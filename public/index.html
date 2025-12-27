@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Финансы</title>
+    <title>Финансы 2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
-        .active-tab { background-color: #eff6ff; color: #2563eb; }
+        .active-tab { background-color: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen font-sans">
 
-    <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         
         <header class="flex flex-col xl:flex-row items-center gap-8 mb-10">
             <div class="flex items-center gap-4">
@@ -24,12 +24,13 @@
             </div>
             
             <nav id="nav-tabs" class="flex flex-wrap justify-center gap-2 p-1.5 bg-white border border-gray-200 rounded-2xl shadow-sm">
-                <button data-tab="analytics" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition active-tab">Аналитика</button>
-                <button data-tab="transactions" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition">История</button>
-                <button data-tab="students" id="nav-btn-students" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Ученики</button>
-                <button data-tab="shopping" id="nav-btn-shopping" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Покупки</button>
-                <button data-tab="utilities" id="nav-btn-utilities" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition hidden">Быт</button>
-                <button data-tab="todos" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition xl:hidden">Дела</button> <button data-tab="admin" id="nav-btn-admin" class="js-tab-btn hidden px-6 py-2.5 rounded-xl text-base font-bold text-red-500 hover:bg-red-50 transition">⚙️ Админ</button>
+                <button data-tab="analytics" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition active-tab border border-transparent">Аналитика</button>
+                <button data-tab="transactions" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition border border-transparent">История</button>
+                <button data-tab="students" id="nav-btn-students" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition border border-transparent hidden">Ученики</button>
+                <button data-tab="calendar" id="nav-btn-calendar" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition border border-transparent hidden">Календарь</button>
+                <button data-tab="shopping" id="nav-btn-shopping" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition border border-transparent hidden">Покупки</button>
+                <button data-tab="utilities" id="nav-btn-utilities" class="js-tab-btn px-6 py-2.5 rounded-xl text-base font-bold text-gray-500 hover:text-gray-700 transition border border-transparent hidden">Быт</button>
+                <button data-tab="admin" id="nav-btn-admin" class="js-tab-btn hidden px-6 py-2.5 rounded-xl text-base font-bold text-red-500 hover:bg-red-50 transition border border-transparent">⚙️ Админ</button>
             </nav>
         </header>
 
@@ -39,7 +40,7 @@
                 <div id="loading" class="text-center py-10 text-blue-600 font-medium animate-pulse">Загрузка данных...</div>
 
                 <div id="filter-panel" class="hidden bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6">
-                    <div class="flex flex-wrap gap-2 items-center justify-between">
+                    <div class="flex flex-wrap gap-4 items-center justify-between">
                         <div class="flex flex-wrap gap-2 items-center">
                             <div class="flex items-center gap-2 bg-gray-50 rounded-xl px-3 border border-gray-200 h-[42px]">
                                 <input type="date" id="filter-date-start" class="bg-transparent text-xs font-bold text-gray-600 outline-none">
@@ -54,30 +55,77 @@
                         </div>
                         <div class="flex gap-2">
                              <button id="btn-open-trash" class="h-[42px] px-4 bg-white border border-gray-200 text-gray-600 hover:text-blue-600 rounded-xl text-xs font-bold">🗑 Корзина</button>
+                             <button id="snow-toggle-btn" class="h-[42px] w-[130px] bg-white border border-gray-200 text-gray-400 rounded-xl text-xs font-bold">❄️ Снег</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="tab-analytics" class="tab-content space-y-6">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-green-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Доход</p><h3 id="stat-income" class="text-2xl font-extrabold text-gray-900">0</h3></div>
-                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Расход</p><h3 id="stat-expense" class="text-2xl font-extrabold text-gray-900">0</h3></div>
-                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-blue-500 shadow-sm"><p class="text-xs font-bold text-gray-400 uppercase">Итого</p><h3 id="stat-balance" class="text-2xl font-extrabold text-gray-900">0</h3></div>
+                <div id="tab-analytics" class="tab-content space-y-6 hidden">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-green-500 shadow-sm">
+                            <p class="text-xs font-bold text-gray-400 uppercase">Доход</p>
+                            <h3 id="stat-income" class="text-2xl font-extrabold text-gray-900">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-red-500 shadow-sm">
+                            <p class="text-xs font-bold text-gray-400 uppercase">Расход</p>
+                            <h3 id="stat-expense" class="text-2xl font-extrabold text-gray-900">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border-l-4 border-l-blue-500 shadow-sm">
+                            <p class="text-xs font-bold text-gray-400 uppercase">Итого</p>
+                            <h3 id="stat-balance" class="text-2xl font-extrabold text-gray-900">0</h3>
+                        </div>
+                        <div class="bg-indigo-50 p-5 rounded-2xl border-l-4 border-l-indigo-500 shadow-sm">
+                            <p class="text-xs font-bold text-indigo-500 uppercase">Уроков за месяц</p>
+                            <h3 id="stat-lessons-count" class="text-2xl font-extrabold text-indigo-900">0</h3>
+                        </div>
                     </div>
-                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                         <h3 class="text-lg font-bold text-gray-900 mb-4">Счета</h3>
-                         <div id="deposit-list" class="flex flex-col gap-2"></div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden">
+                            <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-6 -mt-6"></div>
+                            <h3 class="text-sm font-bold text-purple-600 uppercase tracking-wider mb-4 relative z-10">Счета и Депозиты</h3>
+                            <div id="deposit-list" class="flex flex-col gap-2 relative z-10"></div>
+                        </div>
+                        <div class="lg:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Накопления</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1"><span class="text-gray-600">Отложено</span><span class="font-bold text-green-600" id="stat-savings-in">+0</span></div>
+                                    <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-green-500 h-1.5 rounded-full" style="width: 0%" id="bar-savings-in"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-sm mb-1"><span class="text-gray-600">Снято</span><span class="font-bold text-red-500" id="stat-savings-out">-0</span></div>
+                                    <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-red-400 h-1.5 rounded-full" style="width: 0%" id="bar-savings-out"></div></div>
+                                </div>
+                                <div class="pt-2 border-t border-gray-50 flex justify-between items-center">
+                                    <span class="text-xs text-gray-400">Чистый прирост</span>
+                                    <span class="font-bold text-gray-800" id="stat-savings-net">0</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                         <div class="bg-white p-6 rounded-3xl border border-gray-100"><canvas id="chartCategories" height="250"></canvas></div>
-                         <div class="bg-white p-6 rounded-3xl border border-gray-100"><canvas id="chartIncome" height="250"></canvas></div>
+                         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80">
+                            <h3 class="font-bold mb-4">Расходы</h3>
+                            <div class="h-60"><canvas id="chartCategories"></canvas></div>
+                         </div>
+                         <div class="bg-white p-6 rounded-3xl border border-gray-100 h-80">
+                            <h3 class="font-bold mb-4">Доходы</h3>
+                            <div class="h-60"><canvas id="chartIncome"></canvas></div>
+                         </div>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 h-80">
+                        <h3 class="font-bold mb-4">Динамика по месяцам</h3>
+                        <div class="h-60"><canvas id="chartMonthly"></canvas></div>
                     </div>
                 </div>
 
                 <div id="tab-transactions" class="tab-content hidden">
                     <div class="flex justify-between mb-4">
-                        <input type="text" id="tx-search" placeholder="Поиск..." class="border border-gray-200 rounded-xl p-3 text-sm w-full md:w-96">
-                        <button id="btn-open-add-tx" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold ml-4">+ Добавить</button>
+                        <input type="text" id="tx-search" placeholder="Поиск..." class="border border-gray-200 rounded-xl p-3 text-sm w-full md:w-96 outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="btn-open-add-tx" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold ml-4 hover:bg-blue-700 transition">+ Добавить</button>
                     </div>
                     <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -89,37 +137,99 @@
 
                 <div id="tab-students" class="tab-content hidden space-y-6">
                     <div id="debts-panel" class="hidden bg-red-50 p-4 rounded-xl border border-red-100">
-                        <h3 class="font-bold text-red-800 mb-2">Долги</h3>
+                        <h3 class="font-bold text-red-800 mb-2">⚠️ Долги по оплате</h3>
                         <div id="debts-list" class="grid gap-2 sm:grid-cols-2"></div>
                     </div>
                     <div class="flex justify-between items-center">
-                        <h2 class="text-2xl font-bold">Ученики</h2>
-                        <button id="btn-add-student" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold">+ Добавить</button>
+                        <h2 class="text-2xl font-bold text-gray-900">Ученики</h2>
+                        <button onclick="openStudentModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition">+ Добавить</button>
                     </div>
                     <div id="students-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                 </div>
 
+                <div id="tab-calendar" class="tab-content hidden">
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-2 h-[800px]">
+                        <iframe id="calendar-frame" src="" style="border: 0" width="100%" height="100%" frameborder="0" scrolling="no"></iframe>
+                    </div>
+                </div>
+
                 <div id="tab-shopping" class="tab-content hidden space-y-6">
                     <div class="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                        <form id="form-shopping" class="flex gap-4">
-                            <input type="text" name="title" class="flex-1 rounded-xl p-3 outline-none" placeholder="Купить..." required>
-                            <select name="type" class="rounded-xl p-3 outline-none">
-                                <option value="buy">Повседневное</option>
-                                <option value="market">Маркетплейс</option>
-                                <option value="wish">Вишлист</option>
+                        <form id="form-shopping" class="flex flex-col md:flex-row gap-4">
+                            <input type="text" name="title" class="flex-1 rounded-xl p-3 outline-none border border-blue-200" placeholder="Что купить? (Хлеб...)" required>
+                            <select name="type" class="rounded-xl p-3 outline-none border border-blue-200 bg-white">
+                                <option value="buy">🛒 Повседневное</option>
+                                <option value="market">📦 Маркетплейс</option>
+                                <option value="wish">🎁 Вишлист</option>
                             </select>
-                            <input type="number" name="price" class="w-24 rounded-xl p-3 outline-none hidden" placeholder="Цена">
-                            <button type="submit" class="bg-blue-600 text-white px-6 rounded-xl font-bold">+</button>
+                            <input type="number" name="price" class="w-24 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-price-input" placeholder="Цена">
+                            <button type="submit" class="bg-blue-600 text-white px-8 rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-200 transition">+</button>
                         </form>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="bg-white p-4 rounded-3xl border border-gray-100"><h3 class="font-bold mb-4">🛒 Повседневное</h3><div id="list-buy" class="space-y-2"></div></div>
-                        <div class="bg-indigo-50 p-4 rounded-3xl border border-indigo-100"><h3 class="font-bold mb-4 text-indigo-900">📦 Маркетплейс</h3><div id="list-market" class="space-y-2"></div></div>
-                        <div class="bg-purple-50 p-4 rounded-3xl border border-purple-100"><h3 class="font-bold mb-4 text-purple-900">🎁 Вишлист</h3><div id="list-wish" class="space-y-2"></div></div>
+                        <div class="bg-white p-4 rounded-3xl border border-gray-100 h-full flex flex-col"><h3 class="font-bold mb-4 flex justify-between">🛒 Повседневное <span id="count-buy" class="text-xs bg-gray-100 px-2 py-1 rounded">0</span></h3><div id="list-buy" class="space-y-2 flex-1"></div></div>
+                        <div class="bg-indigo-50 p-4 rounded-3xl border border-indigo-100 h-full flex flex-col"><h3 class="font-bold mb-4 text-indigo-900 flex justify-between">📦 Маркетплейс <span id="count-market" class="text-xs bg-white text-indigo-600 px-2 py-1 rounded">0</span></h3><div id="list-market" class="space-y-2 flex-1"></div></div>
+                        <div class="bg-purple-50 p-4 rounded-3xl border border-purple-100 h-full flex flex-col"><h3 class="font-bold mb-4 text-purple-900 flex justify-between">🎁 Вишлист <span id="count-wish" class="text-xs bg-white text-purple-600 px-2 py-1 rounded">0</span></h3><div id="list-wish" class="space-y-2 flex-1"></div></div>
                     </div>
                 </div>
                 
-                <div id="tab-utilities" class="tab-content hidden"><div class="text-center py-10">Раздел Быт (Заполни из старого HTML если нужно)</div></div>
+                <div id="tab-utilities" class="tab-content hidden space-y-8">
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="font-bold text-gray-900 text-xl">Квитанция</h3>
+                                <input type="month" id="util-month" class="border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold bg-gray-50 outline-none">
+                            </div>
+                            <form id="utility-bulk-form" class="space-y-6">
+                                <div class="p-6 bg-blue-50 rounded-2xl border border-blue-100">
+                                    <h4 class="font-bold text-blue-800 mb-4">💧 Кызылжар су</h4>
+                                    <div class="grid grid-cols-2 gap-4 mb-4">
+                                        <input type="number" step="0.01" id="val-water-cold" class="w-full border border-blue-200 rounded-xl p-3 text-sm" placeholder="Хол (м³)">
+                                        <input type="number" step="0.01" id="val-water-hot" class="w-full border border-blue-200 rounded-xl p-3 text-sm" placeholder="Гор (м³)">
+                                    </div>
+                                    <input type="number" step="0.01" data-service="Кызылжар су" class="util-amount-input w-full border-2 border-blue-200 rounded-xl p-3 font-bold" placeholder="Сумма (T)">
+                                </div>
+                                <div class="p-6 bg-yellow-50 rounded-2xl border border-yellow-100">
+                                    <h4 class="font-bold text-yellow-800 mb-4">⚡ Свет</h4>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="val-light-read" class="w-full border border-yellow-200 rounded-xl p-3 text-sm" placeholder="Показания">
+                                        <input type="number" step="0.01" data-service="СК РЭК" class="util-amount-input w-full border-2 border-yellow-200 rounded-xl p-3 font-bold" placeholder="Сумма (T)">
+                                    </div>
+                                </div>
+                                <div class="p-6 bg-red-50 rounded-2xl border border-red-100">
+                                    <h4 class="font-bold text-red-800 mb-4">🔥 Тепло</h4>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <input type="number" id="val-heat-hot" class="w-full border border-red-100 bg-red-100/50 rounded-xl p-3 text-sm" disabled placeholder="Из воды">
+                                        <input type="number" step="0.01" data-service="ПТС" class="util-amount-input w-full border-2 border-red-200 rounded-xl p-3 font-bold" placeholder="Сумма (T)">
+                                    </div>
+                                </div>
+                                <div class="space-y-4 pt-6 border-t border-gray-100">
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">Горгаз</label><input type="number" step="0.01" data-service="Горгаз" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">Мусор</label><input type="number" step="0.01" data-service="Мусор" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">ОСИ (Упр)</label><input type="number" step="0.01" data-service="ОСИ Управление" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">ОСИ (Накоп)</label><input type="number" step="0.01" data-service="ОСИ Накопление" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">Интернет</label><input type="number" step="0.01" data-service="Казахтелеком" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                    <div class="grid grid-cols-3 gap-4 items-center"><label class="text-sm font-medium">Домофон</label><input type="number" step="0.01" data-service="Домофон" class="col-span-2 util-amount-input border border-gray-200 rounded-xl p-3 text-right font-medium"></div>
+                                </div>
+                                <div class="pt-8 border-t border-gray-100 flex justify-between items-center">
+                                    <div class="text-gray-500">Итого: <span id="total-util-sum" class="font-extrabold text-gray-900 text-2xl ml-2">0</span></div>
+                                    <button type="submit" class="bg-blue-600 text-white px-8 py-3.5 rounded-xl hover:bg-blue-700 font-bold transition">Сохранить</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="space-y-8">
+                            <div class="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                                <h3 class="font-bold text-gray-900 mb-6">История за год</h3>
+                                <div class="h-60"><canvas id="chartUtilities"></canvas></div>
+                            </div>
+                            <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden h-[500px] flex flex-col">
+                                <div class="bg-gray-50 px-8 py-5 border-b border-gray-100"><h3 class="font-bold text-gray-800 text-sm uppercase">Операции</h3></div>
+                                <div class="overflow-y-auto flex-1"><table class="w-full text-sm text-left text-gray-600"><tbody id="utility-list" class="divide-y divide-gray-100"></tbody></table></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="tab-admin" class="tab-content hidden"><div id="admin-users-list" class="space-y-2"></div></div>
 
             </main>
@@ -130,10 +240,15 @@
                         <h3 class="font-bold text-gray-800">Дела</h3>
                         <span id="todo-count" class="text-xs bg-gray-200 text-gray-600 font-bold px-2 py-1 rounded-lg">0</span>
                     </div>
+                    <div class="p-4 border-b bg-gray-100/50 flex gap-1">
+                        <button onclick="setTodoFilter('urgent')" id="tf-urgent" class="flex-1 py-1 text-xs font-bold rounded-lg bg-white shadow-sm text-blue-600">Срочно</button>
+                        <button onclick="setTodoFilter('medium')" id="tf-medium" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Средне</button>
+                        <button onclick="setTodoFilter('later')" id="tf-later" class="flex-1 py-1 text-xs font-bold text-gray-500 hover:bg-white transition">Позже</button>
+                    </div>
                     <div class="p-4 border-b">
                         <form id="form-todo" class="flex gap-2">
-                            <input type="text" name="text" placeholder="Задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none">
-                            <select name="period" class="bg-gray-100 text-xs rounded-xl outline-none"><option value="urgent">🔥</option><option value="medium">⚡</option><option value="later">💤</option></select>
+                            <input type="text" name="text" id="todo-input" placeholder="Задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none">
+                            <select id="todo-period-select" class="bg-gray-100 text-xs rounded-xl outline-none w-10"><option value="urgent">🔥</option><option value="medium">⚡</option><option value="later">💤</option></select>
                             <button type="submit" class="bg-gray-800 text-white px-3 rounded-xl font-bold">+</button>
                         </form>
                     </div>
@@ -164,15 +279,63 @@
         </div>
     </div>
     
-    <div id="modal-student" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50"><div class="bg-white p-8 rounded-2xl">Форма ученика (нужно заполнить)<button class="btn-close-modal">Закрыть</button></div></div>
-
-    <div id="modal-trash" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <h2 class="font-bold mb-4">Корзина</h2>
-            <div id="trash-list" class="flex-1 overflow-y-auto"></div>
-            <button class="btn-close-modal mt-4 text-blue-600 font-bold">Закрыть</button>
+    <div id="modal-student" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-6">Ученик</h2>
+            <form id="form-student" class="space-y-4">
+                <input type="hidden" name="id">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" name="name" placeholder="Имя" class="border rounded-xl p-3 w-full font-bold" required>
+                    <select name="subject" class="border rounded-xl p-3 bg-gray-50"><option value="Математика">Математика</option><option value="Го">Го</option></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" name="phone" placeholder="Телефон" class="border rounded-xl p-3 w-full">
+                    <input type="text" name="parents" placeholder="Родитель" class="border rounded-xl p-3 w-full">
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <input type="text" name="school" placeholder="Школа" class="border rounded-xl p-3 w-full">
+                    <input type="text" name="grade" placeholder="Класс" class="border rounded-xl p-3 w-full">
+                    <input type="number" name="lessons_per_week" placeholder="Ур/нед" class="border rounded-xl p-3 w-full">
+                </div>
+                <textarea name="address" placeholder="Адрес" class="border rounded-xl p-3 w-full"></textarea>
+                <textarea name="notes" placeholder="Заметки" class="border rounded-xl p-3 w-full"></textarea>
+                
+                <div class="flex justify-between items-center pt-4">
+                    <button type="button" id="btn-delete-student" class="text-red-500 font-bold hidden">Удалить</button>
+                    <div class="flex gap-4">
+                        <button type="button" class="btn-close-modal px-6 py-2 bg-gray-100 rounded-xl font-bold">Отмена</button>
+                        <button type="submit" class="px-8 py-2 bg-blue-600 text-white rounded-xl font-bold">Сохранить</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
+
+    <div id="modal-student-stats" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-lg">
+            <div class="flex justify-between mb-6">
+                <h2 id="stats-title" class="text-2xl font-bold">Статистика</h2>
+                <button class="btn-close-modal text-3xl text-gray-400">&times;</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-green-50 p-4 rounded-xl"><p class="text-xs text-green-600 font-bold uppercase">Всего</p><h3 id="stats-total" class="text-2xl font-bold">0</h3></div>
+                <div class="bg-blue-50 p-4 rounded-xl"><p class="text-xs text-blue-600 font-bold uppercase">Уроков</p><h3 id="stats-count" class="text-2xl font-bold">0</h3></div>
+            </div>
+            <div class="h-40 mb-6"><canvas id="studentChart"></canvas></div>
+            <h3 class="font-bold text-gray-400 text-xs uppercase mb-2">История</h3>
+            <div id="stats-history" class="space-y-2 h-40 overflow-y-auto text-sm text-gray-600"></div>
+        </div>
+    </div>
+
+    <div id="modal-trash" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
+            <h2 class="font-bold mb-4 text-xl">Корзина</h2>
+            <div id="trash-list" class="flex-1 overflow-y-auto space-y-2"></div>
+            <button class="btn-close-modal mt-4 w-full py-2 bg-gray-100 rounded-xl font-bold text-gray-600">Закрыть</button>
+        </div>
+    </div>
+
+    <div id="snow-container" class="fixed inset-0 pointer-events-none z-50 overflow-hidden" style="display: none;"></div>
 
     <script type="module" src="js/app.js"></script>
 </body>
