@@ -66,7 +66,7 @@ router.get('/balances', safeHandler(async (req, res) => {
 }));
 
 // --- УДАЛЕНИЕ ТРАНЗАКЦИИ ---
-router.post('/delete', async (req, res) => {
+router.post('/transactions/delete', async (req, res) => {
     try {
         const { id } = req.body;
         // Удаляем запись, принадлежащую текущему юзеру
