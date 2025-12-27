@@ -4,7 +4,7 @@ const db = require('../db');
 const config = require('../config');
 const ai = require('../ai');      
 const gcal = require('../calendar');
-const sport = require('../sport');
+const sport = require('../modules/sport/sport.service');
 const calendarService = require('../modules/calendar/calendar.service');
 const { sendMorningBriefing } = require('../modules/utilities/briefing.js');
 
