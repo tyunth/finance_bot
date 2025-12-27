@@ -104,6 +104,10 @@ function setupEventListeners() {
 // --- INIT DATA ---
 async function initData() {
     try {
+        const exportBtn = document.getElementById('btn-export-csv');
+        if (exportBtn) {
+            exportBtn.href = `/budzet/transactions/export?userId=${API.getUserId()}`;
+        }
         const me = await API.system.getMe();
         applyModules(me.modules, me.role);
 
@@ -821,21 +825,23 @@ function initSnowToggle() {
     }, 200);
 }
 
-// --- ОБНОВЛЕННАЯ АДМИНКА ---
+// --- АДМИНКА ---
+
 async function loadAdmin() {
     try {
+        // Загружаем юзеров и настройки параллельно
         const [users, settings] = await Promise.all([
             API.system.getUsers(),
-            API.system.getSettings ? API.system.getSettings() : fetch('/budzet/settings').then(r=>r.json()) // Фоллбэк если не обновил api.js
+            API.system.getSettings() // Теперь этот метод есть в api.js
         ]);
 
         const container = document.getElementById('admin-users-list');
         container.innerHTML = '';
 
-        // 1. Блок Настроек
+        // 1. Блок Настроек (Цена урока)
         const settingsHtml = `
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
-                <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Глобальные настройки</h2>
+                <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Настройки системы</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-bold text-gray-500 mb-1">Цена урока (KZT)</label>
@@ -844,11 +850,11 @@ async function loadAdmin() {
                             <button onclick="saveConf('lesson_price')" class="bg-blue-600 text-white px-4 rounded-xl font-bold">OK</button>
                         </div>
                     </div>
-                    </div>
+                </div>
             </div>
         `;
 
-        // 2. Блок Пользователей (тот что мы делали в прошлый раз)
+        // 2. Таблица пользователей
         const usersHtml = `
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">Пользователи</h2>
@@ -859,8 +865,8 @@ async function loadAdmin() {
                     <thead class="bg-gray-50 border-b border-gray-100">
                         <tr>
                             <th class="py-3 px-4 font-bold text-gray-500">Пользователь</th>
-                            <th class="py-3 px-4 font-bold text-gray-500">Telegram ID</th>
-                            <th class="py-3 px-4 font-bold text-gray-500">Модули</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Роль / ID</th>
+                            <th class="py-3 px-4 font-bold text-gray-500">Доступные модули</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -872,33 +878,25 @@ async function loadAdmin() {
 
         container.innerHTML = settingsHtml + usersHtml;
 
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error('Admin Load Error:', e); }
 }
 
 // Функция сохранения настройки
 window.saveConf = async (key) => {
     const val = document.getElementById(`conf-${key.replace('_','-')}`).value;
     try {
-        // Если обновил api.js используй API.system.saveSetting(key, val)
-        // Иначе:
-        await fetch('/budzet/settings', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-User-Id': API.getUserId()},
-            body: JSON.stringify({ key, value: val })
-        });
-        alert('Сохранено!');
-    } catch(e) { alert('Ошибка'); }
+        await API.system.saveSetting(key, val);
+        alert('Настройка сохранена!');
+    } catch(e) { alert('Ошибка сохранения'); }
 };
 
 function renderUserRow(u) {
-    // Превращаем строку модулей "finance,sport" в массив для проверки
-    // Если у пользователя role='admin', он обычно имеет доступ ко всему, но галочки покажем для наглядности
     const userMods = (u.modules || '').split(',');
 
-    // Генерируем чекбоксы
+    // Генерируем галочки
     const checkboxes = ALL_MODULES.map(mod => {
         const isChecked = userMods.includes(mod) || userMods.includes('all');
-        const isDisabled = u.role === 'admin'; // Админу нельзя отключить модули (или можно, решай сам)
+        const isDisabled = u.role === 'admin'; 
         
         return `
             <label class="inline-flex items-center mr-3 mb-1 cursor-pointer">
@@ -916,10 +914,7 @@ function renderUserRow(u) {
         <tr class="hover:bg-gray-50 transition">
             <td class="py-3 px-4">
                 <div class="font-bold text-gray-900">${u.first_name || 'Без имени'}</div>
-                <div class="text-xs text-gray-400">ID: ${u.id}</div>
-            </td>
-            <td class="py-3 px-4 font-mono text-xs text-blue-600 bg-blue-50 rounded-lg px-2 py-1 w-fit">
-                ${u.telegram_id}
+                <div class="text-xs text-gray-400">TG: ${u.telegram_id}</div>
             </td>
             <td class="py-3 px-4">
                 <span class="px-2 py-1 rounded text-xs font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
@@ -941,37 +936,24 @@ function renderUserRow(u) {
 // Глобальная функция для переключения (чтобы работала из HTML)
 window.toggleUserModule = async (tgId, moduleName, isChecked) => {
     try {
-        // 1. Получаем текущий список пользователей, чтобы найти старые модули
-        // (Это не оч эффективно, лучше бы передавать текущий список в аргументы, но так проще)
         const users = await API.system.getUsers();
         const user = users.find(u => u.telegram_id === tgId);
-        
-        if (!user) return alert('Пользователь не найден');
+        if (!user) return;
 
         let currentModules = (user.modules || '').split(',').filter(m => m && m.trim() !== '');
 
         if (isChecked) {
-            // Добавляем, если нет
             if (!currentModules.includes(moduleName)) currentModules.push(moduleName);
         } else {
-            // Удаляем
             currentModules = currentModules.filter(m => m !== moduleName);
         }
 
-        // Собираем обратно в строку
-        const newModulesStr = currentModules.join(',');
-
-        // 2. Отправляем на сервер
-        await API.system.updateModules(tgId, newModulesStr);
-        
-        // Не перезагружаем всю таблицу, чтобы не мигало, но в идеале надо бы
-        // console.log(`Updated user ${tgId}: ${newModulesStr}`);
-        
+        await API.system.updateModules(tgId, currentModules.join(','));
+        // Можно не перезагружать, галочка уже переключилась
     } catch (e) {
-        console.error('Ошибка обновления модулей:', e);
-        alert('Ошибка при сохранении. Проверь консоль.');
-        // Если ошибка — верни галочку назад (тут упрощенно перезагружаем)
-        loadAdmin();
+        console.error(e);
+        alert('Ошибка обновления прав');
+        loadAdmin(); // Откат при ошибке
     }
 };
 
