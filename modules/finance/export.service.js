@@ -1,15 +1,16 @@
 const db = require('../../db');
 
-async function generateCsv() {
-    // 1. Берем все транзакции
-    const txs = await db.dbAll('SELECT * FROM transactions ORDER BY date DESC');
+// 🔥 Теперь принимаем userId
+async function generateCsv(userId) {
+    // 1. Берем транзакции ТОЛЬКО этого пользователя
+    const txs = await db.dbAll('SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC', [userId]);
     
     // 2. Заголовки CSV
     const header = ['ID', 'Date', 'Type', 'Category', 'Amount', 'Comment', 'Tag'].join(';');
     
     // 3. Данные
     const rows = txs.map(t => {
-        // Экранируем кавычки и заменяем переносы строк, чтобы CSV не сломался
+        // Экранируем кавычки и убираем переносы строк
         const comment = (t.comment || '').replace(/"/g, '""').replace(/\n/g, ' ');
         const tag = (t.tag || '').replace(/"/g, '""');
         
@@ -17,14 +18,13 @@ async function generateCsv() {
             t.id,
             t.date,
             t.type,
-            `"${t.category}"`, // Категории в кавычки
+            `"${t.category}"`,
             t.amount,
             `"${comment}"`,
             `"${tag}"`
         ].join(';');
     });
 
-    // 4. Склеиваем (с BOM для корректного открытия в Excel на Windows)
     return '\uFEFF' + [header, ...rows].join('\n');
 }
 
