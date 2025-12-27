@@ -65,4 +65,17 @@ router.get('/balances', safeHandler(async (req, res) => {
     res.json(data);
 }));
 
+// --- УДАЛЕНИЕ ТРАНЗАКЦИИ ---
+router.post('/delete', async (req, res) => {
+    try {
+        const { id } = req.body;
+        // Удаляем запись, принадлежащую текущему юзеру
+        await db.dbRun('DELETE FROM transactions WHERE id = ? AND user_id = ?', [id, req.userId]);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 module.exports = router;
