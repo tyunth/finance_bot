@@ -1,5 +1,6 @@
 const { Composer } = require('telegraf');
-const sport = require('./sport.service');
+// 🔥 ВАЖНО: Подключаем сервис, который лежит РЯДОМ в этой же папке
+const sportService = require('./sport.service'); 
 const db = require('../../db');
 
 const bot = new Composer();
@@ -12,26 +13,17 @@ const checkAccess = async (ctx, next) => {
 };
 
 // Команды
-bot.command('sport', checkAccess, (ctx) => sport.renderMainMenu(ctx));
-bot.hears('💪 Спорт', checkAccess, (ctx) => sport.renderMainMenu(ctx));
+// Обращаемся к sportService, а не sport
+bot.command('sport', checkAccess, (ctx) => sportService.renderMainMenu(ctx));
+bot.hears('💪 Спорт', checkAccess, (ctx) => sportService.renderMainMenu(ctx));
 
 // Обработка всех callback-ов, начинающихся на sport_
-bot.action(/^sport_/, (ctx) => sport.handleCallback(ctx));
+bot.action(/^sport_/, (ctx) => sportService.handleCallback(ctx));
 
-// Загрузка плана (файл или текст)
-bot.on('document', async (ctx, next) => {
-    if (ctx.session.state && ctx.session.state.step === 'AWAITING_SPORT_PLAN') {
-        // Логика обработки файла, если нужна, или перенаправление в sport.js
-        // В твоем sport.js handlePlanUpload ждет ctx.message.text, 
-        // поэтому файлы пока пропустим или нужно доработать sport.js
-        return next();
-    }
-    return next();
-});
-
+// Обработка текста (для загрузки плана)
 bot.on('text', async (ctx, next) => {
     if (ctx.session.state && ctx.session.state.step === 'AWAITING_SPORT_PLAN') {
-        return sport.handlePlanUpload(ctx);
+        return sportService.handlePlanUpload(ctx);
     }
     return next();
 });
