@@ -322,6 +322,23 @@ function renderDayOfWeekChart(dataArray) { // Ожидает массив [Пн,
     });
 }
 
+// --- ХЕЛПЕР ДЛЯ ТЕГОВ ---
+function fillTagSelects() {
+    const tags = new Set();
+    // Собираем все уникальные теги из транзакций
+    STATE.transactions.forEach(t => { 
+        if(t.tag && t.tag.trim()) tags.add(t.tag.trim()); 
+    });
+    
+    const opts = Array.from(tags).sort().map(t => `<option value="${t}">${t}</option>`).join('');
+    
+    // Заполняем выпадающий список в фильтрах
+    const filterEl = document.getElementById('filter-tag');
+    if(filterEl) {
+        filterEl.innerHTML = '<option value="">Все теги</option>' + opts;
+    }
+}
+
 // --- ХЕЛПЕР: Топ-10 Трат ---
 function renderTopExpenses(data) {
     const list = document.getElementById('top-expenses-list');
