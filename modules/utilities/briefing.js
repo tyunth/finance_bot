@@ -1,7 +1,7 @@
 const axios = require('axios');
 const db = require('../../db');
 const ai = require('../../ai');
-const sport = require('../../sport');
+const sport = require('../sport/sport.service')
 
 async function sendMorningBriefing(bot, chatId) {
     try {
