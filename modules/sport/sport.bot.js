@@ -1,5 +1,5 @@
 const { Composer } = require('telegraf');
-const sport = require('../../sport'); // Подключаем твой sport.js
+const sport = require('./sport.service');
 const db = require('../../db');
 
 const bot = new Composer();
