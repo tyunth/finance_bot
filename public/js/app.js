@@ -24,6 +24,17 @@ function setupEventListeners() {
     document.getElementById('tx-search')?.addEventListener('input', filterTransactionsList);
     document.getElementById('tx-tag-filter')?.addEventListener('change', filterTransactionsList);
     
+    // 3. 🔥 ФИЛЬТРЫ (КНОПКИ)
+    // Кнопка "Применить" (Стрелка)
+    document.getElementById('btn-apply-filter')?.addEventListener('click', applyFilters);
+    
+    // Кнопка "Сброс"
+    document.getElementById('btn-reset-filter')?.addEventListener('click', resetFilters);
+    
+    // Поиск по нажатию Enter
+    document.getElementById('filter-search')?.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') applyFilters();
+    });
     document.getElementById('filter-search')?.addEventListener('change', applyFilters);
 
     // Модалка Транзакции
@@ -984,9 +995,18 @@ async function initCalendar() {
 }
 
 function resetFilters() {
+    // Сбрасываем селекты и поиск
     document.getElementById('filter-category').value = 'ALL';
-    document.getElementById('filter-type').value = 'ALL';     // Сброс типа
-    document.getElementById('filter-tag').value = '';         // Сброс тега
-    document.getElementById('filter-search').value = '';      // Сброс поиска
+    document.getElementById('filter-type').value = 'ALL';
+    document.getElementById('filter-tag').value = '';
+    document.getElementById('filter-search').value = '';
+    
+    // Сбрасываем даты на "Текущий месяц"
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
+    document.getElementById('filter-date-end').value = formatDateISO(now);
+
+    // Применяем изменения
     applyFilters();
 }
