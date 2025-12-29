@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const db = require('../../db');
-const ai = require('./sport.ai'); // Подключаем локальный AI (он должен лежать рядом)
+const ai = require('./sport.ai'); // Подключаем локальный AI
 
 // --- ОТРИСОВКА МЕНЮ ---
 async function renderMainMenu(ctx) {
@@ -88,14 +88,12 @@ async function renderMainMenu(ctx) {
     ]);
 
     try {
-        // Редактируем или отправляем новое (чтобы не мигало, пробуем edit)
         if (ctx.callbackQuery) {
             await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(inlineButtons) });
         } else {
             await ctx.reply(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(inlineButtons) });
         }
     } catch (e) { 
-        // Если текст не изменился, телеграм выдаст ошибку, игнорируем её или шлем новое
         console.error('Render error (swallowing):', e.message); 
     }
 }
@@ -113,7 +111,7 @@ async function handleCallback(ctx) {
         const iIdx = parseInt(iIndex);
         const step = parseInt(stepStr);
 
-        await updateLog(userId, today, bIdx, iIdx, step, false); // false = прибавляем
+        await updateLog(userId, today, bIdx, iIdx, step, false); 
         await ctx.answerCbQuery(`+${step}!`);
     }
 
@@ -126,7 +124,6 @@ async function handleCallback(ctx) {
             const plan = JSON.parse(planRow.plan_data);
             const block = plan.blocks[bIdx];
             if (block) {
-                // Ставим всем упражнениям в блоке статус "выполнено" (max count)
                 for (const item of block.items) {
                     const target = item.target || 1; 
                     await setLogDone(userId, today, item.name, target);
@@ -152,9 +149,7 @@ async function handleCallback(ctx) {
 
 // --- ХЕЛПЕРЫ БАЗЫ ДАННЫХ ---
 
-// Инкремент прогресса
 async function updateLog(userId, date, bIdx, iIdx, amount, isSet = false) {
-    // 1. Достаем название упражнения из плана
     const planRow = await db.dbGet('SELECT plan_data FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
     if (!planRow) return;
     const plan = JSON.parse(planRow.plan_data);
@@ -163,32 +158,20 @@ async function updateLog(userId, date, bIdx, iIdx, amount, isSet = false) {
     const item = plan.blocks[bIdx].items[iIdx];
     const name = item.name;
 
-    // 2. Ищем лог
     const log = await db.dbGet('SELECT * FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, date, name]);
     
     let newCount = 0;
-    if (log) {
-        newCount = log.count + amount;
-    } else {
-        newCount = amount;
-    }
+    if (log) newCount = log.count + amount;
+    else newCount = amount;
 
-    // 3. Сохраняем
-    if (log) {
-        await db.dbRun('UPDATE sport_logs SET count = ? WHERE id = ?', [newCount, log.id]);
-    } else {
-        await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, count, is_done) VALUES (?, ?, ?, ?, 0)', [userId, name, date, newCount]);
-    }
+    if (log) await db.dbRun('UPDATE sport_logs SET count = ? WHERE id = ?', [newCount, log.id]);
+    else await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, count, is_done) VALUES (?, ?, ?, ?, 0)', [userId, name, date, newCount]);
 }
 
-// Установить "Выполнено" (для блоков)
 async function setLogDone(userId, date, name, targetVal) {
     const log = await db.dbGet('SELECT id FROM sport_logs WHERE user_id = ? AND date = ? AND exercise_name = ?', [userId, date, name]);
-    if (log) {
-        await db.dbRun('UPDATE sport_logs SET is_done = 1, count = ? WHERE id = ?', [targetVal, log.id]);
-    } else {
-        await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, is_done, count) VALUES (?, ?, ?, 1, ?)', [userId, name, date, targetVal]);
-    }
+    if (log) await db.dbRun('UPDATE sport_logs SET is_done = 1, count = ? WHERE id = ?', [targetVal, log.id]);
+    else await db.dbRun('INSERT INTO sport_logs (user_id, exercise_name, date, is_done, count) VALUES (?, ?, ?, 1, ?)', [userId, name, date, targetVal]);
 }
 
 // Обработка загрузки текста
@@ -203,9 +186,7 @@ async function handlePlanUpload(ctx) {
         return ctx.editMessageText('❌ Не удалось понять план. Попробуй проще.', { chat_id: ctx.chat.id, message_id: loadingMsg.message_id });
     }
 
-    // Архивируем старые
     await db.dbRun('UPDATE sport_plans SET is_active = 0 WHERE user_id = ?', [ctx.from.id]);
-    // Сохраняем новый
     await db.dbRun('INSERT INTO sport_plans (user_id, title, plan_data, created_at) VALUES (?, ?, ?, ?)', [ctx.from.id, json.title, JSON.stringify(json), new Date().toISOString()]);
     
     ctx.session.state = null;
@@ -251,4 +232,46 @@ async function getDailySummary(userId, dateOffset = 0) {
     };
 }
 
-module.exports = { renderMainMenu, handleCallback, handlePlanUpload, getDailySummary };
+// --- 🔥 УМНОЕ НАПОМИНАНИЕ (ДЛЯ CRON) ---
+async function processEveningReminders(bot) {
+    console.log('🏃 Проверка вечернего спорта...');
+    
+    // Берем всех пользователей из базы
+    const users = await db.dbAll('SELECT * FROM users');
+
+    for (const user of users) {
+        // 1. Проверяем права (modules string: "finance,sport")
+        const modules = (user.modules || '').split(',');
+        // Если спорта нет в модулях И пользователь не админ
+        if (!modules.includes('sport') && !modules.includes('all') && user.role !== 'admin') {
+            continue;
+        }
+
+        // 2. Проверяем выполнение плана на сегодня
+        const summary = await getDailySummary(user.telegram_id, 0);
+        
+        // Если план есть (summary не null), но выполнен не на 100%
+        if (summary && summary.percent < 100) {
+            try {
+                await bot.telegram.sendMessage(
+                    user.telegram_id,
+                    `🏋️‍♂️ <b>Вечерняя проверка!</b>\nПлан выполнен на ${summary.percent}%.\nНе забудь отметить тренировку!`,
+                    { 
+                        parse_mode: 'HTML',
+                        ...Markup.inlineKeyboard([[Markup.button.callback('💪 Открыть меню', 'sport_refresh')]])
+                    }
+                );
+            } catch (e) {
+                console.error(`Не удалось отправить напоминание юзеру ${user.telegram_id}:`, e.message);
+            }
+        }
+    }
+}
+
+module.exports = { 
+    renderMainMenu, 
+    handleCallback, 
+    handlePlanUpload, 
+    getDailySummary, 
+    processEveningReminders // <-- Экспортируем
+};
