@@ -6,7 +6,7 @@ const keyboard = require('./modules/utilities/keyboard');
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.use(session());
-bot.use(require('./modules/tracking/tracking.bot'));
+
 
 // --- 1. MIDDLEWARE (Фейс-контроль) ---
 bot.use(async (ctx, next) => {
@@ -82,6 +82,7 @@ bot.hears(['Меню', 'menu'], async (ctx) => {
 
 // Запуск кронов
 require('./jobs/cron.manager')(bot);
+bot.use(require('./modules/tracking/tracking.bot'));
 
 bot.launch().then(() => console.log('🚀 Bot V2 Full Power started'));
 
