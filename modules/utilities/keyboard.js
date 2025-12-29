@@ -40,7 +40,7 @@ async function getMainMenu(userId) {
     if (hasAccess('students'))  dynamicButtons.push('🎓 Ученики');
     if (hasAccess('calendar'))  dynamicButtons.push('📅 Календарь');
     if (hasAccess('utilities')) dynamicButtons.push('💡 Быт');
-    
+    if (hasAccess('all')) dynamicButtons.push('📦 Посылки');
     // Админская кнопка
     if (isAdmin) dynamicButtons.push('⚙️ Админка');
 
