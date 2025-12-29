@@ -24,16 +24,16 @@ db.serialize(() => {
         const oldId = row.user_id;
         console.log(`✅ Нашли старый ID владельца данных: ${oldId}`);
 
-        // 2. Меняем ID пользователя admin на этот старый ID
-        console.log(`🔄 Меняем ID у пользователя 'admin' на ${oldId}...`);
+        // 2. Меняем ID пользователя tyunth на этот старый ID
+        console.log(`🔄 Меняем ID у пользователя 'tyunth' на ${oldId}...`);
         
-        db.run(`UPDATE users SET id = ? WHERE username = 'admin'`, [oldId], function(err) {
+        db.run(`UPDATE users SET id = ? WHERE username = 'tyunth'`, [oldId], function(err) {
             if (err) {
                 // Если такой ID в таблице users уже занят (вдруг), удалим дубликат и попробуем снова
                 if(err.message.includes('UNIQUE')) {
                     console.log('⚠️ Этот ID уже занят кем-то другим. Удаляем старый аккаунт-пустышку...');
                     db.run(`DELETE FROM users WHERE id = ?`, [oldId], () => {
-                         db.run(`UPDATE users SET id = ? WHERE username = 'admin'`, [oldId], (e) => {
+                         db.run(`UPDATE users SET id = ? WHERE username = 'tyunth'`, [oldId], (e) => {
                              if(e) console.error('Ошибка:', e);
                              else finish(oldId);
                          });
@@ -49,8 +49,8 @@ db.serialize(() => {
 });
 
 function finish(id) {
-    console.log(`🎉 ГОТОВО! Ваш логин 'admin' теперь привязан к ID ${id}.`);
+    console.log(`🎉 ГОТОВО! Ваш логин 'tyunth' теперь привязан к ID ${id}.`);
     console.log('➡️  1. Перезагрузите сервер: pm2 restart server');
-    console.log('➡️  2. Выйдите из системы (кнопка Выход) и войдите снова как admin.');
+    console.log('➡️  2. Выйдите из системы (кнопка Выход) и войдите снова как tyunth.');
     console.log('➡️  Данные должны появиться.');
 }
