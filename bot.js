@@ -1,7 +1,7 @@
 const { Telegraf, session, Markup } = require('telegraf');
 const config = require('./config');
 const db = require('./db');
-const { getMainMenu } = require('./modules/utilities/menu.js');
+const keyboard = require('./modules/utilities/keyboard');
 
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -70,10 +70,13 @@ bot.start(async (ctx) => {
     ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
     
-    // Генерируем меню через утилиту
-    const menu = await getMainMenu(ctx.from.id);
-    
-    await ctx.reply(`Привет, ${ctx.from.first_name}! Бот готов.`, menu);
+    const menu = await keyboard.getMainMenu(ctx.from.id); // <--- Вот здесь
+    await ctx.reply(`Привет! Меню обновлено.`, menu);
+});
+
+bot.hears(['Меню', 'menu'], async (ctx) => {
+    const menu = await keyboard.getMainMenu(ctx.from.id);
+    await ctx.reply('Главное меню:', menu);
 });
 
 // Запуск кронов
