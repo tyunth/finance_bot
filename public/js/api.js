@@ -1,7 +1,9 @@
-// Определение User ID
+// api.js
+
 const TG = window.Telegram?.WebApp;
 let CURRENT_USER_ID = null;
 
+// 1. Инициализация ID пользователя
 if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     CURRENT_USER_ID = TG.initDataUnsafe.user.id;
     TG.expand();
@@ -13,25 +15,38 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
 
 const BASE_URL = '/budzet';
 
-// Глобальный перехват ошибок 401
-export async function fetchWithAuth(url, options) {
+// 2. Универсальная функция fetch с проверкой авторизации
+export async function fetchWithAuth(url, options = {}) {
+    // Если заголовков нет, создаем объект
+    if (!options.headers) options.headers = {};
+    
+    // Добавляем ID пользователя во все запросы
+    if (CURRENT_USER_ID) {
+        options.headers['X-User-Id'] = CURRENT_USER_ID;
+    }
+
     const res = await fetch(url, options);
+    
     if (res.status === 401) {
+        // Если протух токен или нет доступа
         window.location.href = '/budzet/login.html';
         throw new Error('Unauthorized');
     }
+    
     return res;
 }
 
+// 3. Обертка для JSON-запросов
 async function request(endpoint, method = 'GET', body = null) {
     const headers = { 'Content-Type': 'application/json' };
-    if (CURRENT_USER_ID) headers['X-User-Id'] = CURRENT_USER_ID;
-
+    
     const config = { method, headers };
     if (body) config.body = JSON.stringify(body);
 
     try {
-        const res = await fetch(`${BASE_URL}${endpoint}`, config);
+        // ВАЖНО: Используем fetchWithAuth вместо обычного fetch
+        const res = await fetchWithAuth(`${BASE_URL}${endpoint}`, config);
+        
         if (!res.ok) throw new Error(`API Error: ${res.status}`);
         return await res.json();
     } catch (e) {
@@ -40,6 +55,7 @@ async function request(endpoint, method = 'GET', body = null) {
     }
 }
 
+// 4. Объект API
 export const API = {
     getUserId: () => CURRENT_USER_ID,
     
@@ -78,9 +94,7 @@ export const API = {
         getKPI: (month) => request(`/stats/kpi?month=${month}`),
         getUsers: () => request('/admin/users'),
         updateModules: (telegramId, modules) => request('/admin/users/modules', 'POST', { telegramId, modules }),
-        getMe: () => request('/users/me'),
-        
-        // 🔥 НОВЫЕ МЕТОДЫ
+        getMe: () => request('/users/me'), // <--- Это вернет 404, если на сервере нет маршрута
         getSettings: () => request('/settings'),
         saveSetting: (key, value) => request('/settings', 'POST', { key, value })
     }
