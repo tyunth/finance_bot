@@ -99,6 +99,19 @@ function setupEventListeners() {
     document.getElementById('trash-list')?.addEventListener('click', handleTrashClick);
     document.querySelectorAll('.btn-close-modal').forEach(btn => btn.addEventListener('click', closeAllModals));
     window.onclick = (e) => { if(e.target.id.startsWith('modal-')) closeAllModals(); };
+
+    document.getElementById('todo-list')?.addEventListener('change', async (e) => {
+        if (e.target.classList.contains('js-change-period')) {
+            const id = e.target.dataset.id;
+            const newPeriod = e.target.value;
+            
+            // Отправляем на сервер
+            await API.todos.action({ action: 'update_period', id, period: newPeriod });
+            
+            // Перегружаем список (чтобы задача улетела в нужную категорию сортировки)
+            loadTodos();
+        }
+    });
 }
 
 // --- INIT DATA ---
@@ -730,7 +743,8 @@ function setTodoFilter(filter) {
     });
     loadTodos();
 }
-// 1. Обновляем отрисовку списка
+
+// 1. Обновляем отрисовку (теперь с выпадашкой)
 async function loadTodos() {
     const list = await API.todos.getAll();
     const active = list.filter(t => !t.is_done);
@@ -740,12 +754,11 @@ async function loadTodos() {
     const weights = { urgent: 3, medium: 2, later: 1 };
     active.sort((a,b) => weights[b.period||'urgent'] - weights[a.period||'urgent']);
     
-    // Фильтр по табам (оставляем твою логику)
     const filtered = active.filter(t => (t.period || 'urgent') === CURRENT_TODO_FILTER);
 
-    const periodIcons = { urgent: '🔥', medium: '⚡', later: '💤' };
-
-    document.getElementById('todo-list').innerHTML = filtered.map(t => `
+    document.getElementById('todo-list').innerHTML = filtered.map(t => {
+        const p = t.period || 'urgent';
+        return `
         <div class="flex items-start gap-2 p-2 bg-gray-50 rounded-lg group hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition">
             
             <input type="checkbox" class="js-check-todo mt-1.5 w-4 h-4 text-gray-800 rounded cursor-pointer" data-id="${t.id}">
@@ -754,15 +767,16 @@ async function loadTodos() {
                 ${t.text}
             </div>
 
-            <button class="js-cycle-period text-lg leading-none px-1 hover:scale-110 transition" data-id="${t.id}" data-period="${t.period || 'urgent'}" title="Изменить важность">
-                ${periodIcons[t.period || 'urgent']}
-            </button>
+            <select class="js-change-period bg-transparent outline-none cursor-pointer text-lg appearance-none text-center w-8 hover:scale-110 transition" data-id="${t.id}" title="Изменить важность">
+                <option value="urgent" ${p === 'urgent' ? 'selected' : ''}>🔥</option>
+                <option value="medium" ${p === 'medium' ? 'selected' : ''}>⚡</option>
+                <option value="later"  ${p === 'later'  ? 'selected' : ''}>💤</option>
+            </select>
 
             <button class="js-del-todo text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 px-1 font-bold" data-id="${t.id}">×</button>
         </div>
-    `).join('') || '<div class="text-center text-xs text-gray-400 py-4">Нет задач</div>';
+    `}).join('') || '<div class="text-center text-xs text-gray-400 py-4">Нет задач</div>';
 }
-
 async function handleTodoSubmit(e) {
     e.preventDefault();
     const text = document.getElementById('todo-input').value;
