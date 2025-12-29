@@ -650,10 +650,48 @@ async function getUser(telegramId) {
 
 async function createUser(telegramId, username, firstName) {
     const now = new Date().toISOString();
-    return dbRun(
+
+    // 1. Создаем пользователя
+    const result = await dbRun(
         'INSERT INTO users (telegram_id, username, first_name, created_at, is_approved) VALUES (?, ?, ?, ?, 0)', 
         [telegramId, username || '', firstName || 'Unknown', now]
     );
+
+    const newUserId = result.lastID; // Получаем ID только что созданного юзера
+
+    // 2. Стартовый набор категорий
+    const DEFAULTS = [
+        { name: 'Еда', type: 'expense' },
+        { name: 'Транспорт', type: 'expense' },
+        { name: 'Дом', type: 'expense' },
+        { name: 'Здоровье', type: 'expense' },
+        { name: 'Одежда', type: 'expense' },
+        { name: 'Развлечения', type: 'expense' },
+        { name: 'Образование', type: 'expense' },
+        { name: 'Подарки', type: 'expense' },
+        { name: 'Связь', type: 'expense' },
+        { name: 'Кафе', type: 'expense' },
+        { name: 'Спорт', type: 'expense' },
+        { name: 'Зарплата', type: 'income' },
+        { name: 'Фриланс', type: 'income' },
+        { name: 'Подарок', type: 'income' },
+        { name: 'Проценты', type: 'income' }
+    ];
+
+    // 3. Записываем категории в базу
+    // Используем Promise.all, чтобы добавить их параллельно и быстро
+    const promises = DEFAULTS.map(cat => 
+        dbRun(
+            'INSERT INTO categories (user_id, name, type, created_at) VALUES (?, ?, ?, ?)', 
+            [newUserId, cat.name, cat.type, now]
+        )
+    );
+
+    await Promise.all(promises);
+    
+    console.log(`👤 Новый пользователь (ID: ${newUserId}) создан, категории добавлены.`);
+    
+    return result;
 }
 
 async function approveUser(telegramId) {
