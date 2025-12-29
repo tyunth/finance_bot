@@ -211,15 +211,20 @@
 
                 <div id="tab-shopping" class="tab-content hidden space-y-6">
                     <div class="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                        <form id="form-shopping" class="flex flex-col md:flex-row gap-4">
-                            <input type="text" name="title" class="flex-1 rounded-xl p-3 outline-none border border-blue-200" placeholder="Что купить? (Хлеб...)" required>
-                            <select name="type" class="rounded-xl p-3 outline-none border border-blue-200 bg-white">
-                                <option value="buy">🛒 Повседневное</option>
-                                <option value="market">📦 Маркетплейс</option>
-                                <option value="wish">🎁 Вишлист</option>
-                            </select>
-                            <input type="number" name="price" class="w-24 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-price-input" placeholder="Цена">
-                            <button type="submit" class="bg-blue-600 text-white px-8 rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-200 transition">+</button>
+                        <form id="form-shopping" class="flex flex-col md:flex-row gap-4 items-start">
+                            <div class="flex-1 w-full flex gap-2">
+                                <input type="text" name="title" class="flex-1 rounded-xl p-3 outline-none border border-blue-200" placeholder="Что купить? (Хлеб...)" required>
+                                <select name="type" class="rounded-xl p-3 outline-none border border-blue-200 bg-white cursor-pointer w-[160px]">
+                                    <option value="buy">🛒 Повседнев</option>
+                                    <option value="market">📦 Маркет</option>
+                                    <option value="wish">🎁 Вишлист</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 w-full md:w-auto">
+                                <input type="text" name="url" class="flex-1 w-full md:w-48 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-url-input" placeholder="Ссылка (URL)">
+                                <input type="number" name="price_estimate" class="w-24 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-price-input" placeholder="Цена">
+                                <button type="submit" class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-200 transition text-xl leading-none pt-1 pb-2">+</button>
+                            </div>
                         </form>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -388,6 +393,45 @@
             <h2 class="font-bold mb-4 text-xl">Корзина</h2>
             <div id="trash-list" class="flex-1 overflow-y-auto space-y-2"></div>
             <button class="btn-close-modal mt-4 w-full py-2 bg-gray-100 rounded-xl font-bold text-gray-600">Закрыть</button>
+        </div>
+    </div>
+
+    <div id="modal-shop-edit" class="fixed inset-0 bg-gray-900/50 hidden items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Редактирование</h2>
+            <form id="form-shop-edit" class="space-y-4">
+                <input type="hidden" name="id">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Название</label>
+                    <input type="text" name="title" class="w-full border border-gray-200 rounded-xl p-3 font-medium outline-none" placeholder="Название" required>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">Тип</label>
+                    <select name="type" class="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 outline-none">
+                        <option value="buy">🛒 Повседневное</option>
+                        <option value="market">📦 Маркетплейс</option>
+                        <option value="wish">🎁 Вишлист</option>
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-1">Цена</label>
+                        <input type="number" name="price_estimate" class="w-full border border-gray-200 rounded-xl p-3 outline-none" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-400 mb-1">Ссылка</label>
+                        <input type="text" name="url" class="w-full border border-gray-200 rounded-xl p-3 outline-none" placeholder="http://...">
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" class="btn-close-modal px-4 py-2 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200">Отмена</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Сохранить</button>
+                </div>
+            </form>
         </div>
     </div>
 
