@@ -2,12 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const cookieParser = require('cookie-parser'); // 🔥 Нужно для чтения кук
+const cookieParser = require('cookie-parser');
 const config = require('./config');
 
 // Подключаем наши новые модули авторизации
 const authRoutes = require('./modules/auth/auth.routes');
 const authMiddleware = require('./modules/auth/auth.middleware');
+
+// Подключаем модули заранее, чтобы использовать их для нескольких путей
+const financeRoutes = require('./modules/finance/finance.routes');
+const studentRoutes = require('./modules/students/students.routes');
+const systemRoutes = require('./modules/system/system.routes');
+const trashRoutes = require('./modules/trash/trash.routes'); // Убедитесь, что файл существует
 
 const app = express();
 const HOST = '127.0.0.1';
@@ -16,52 +22,59 @@ const PORT = 4000;
 // --- 1. НАСТРОЙКИ И MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
-app.use(cookieParser()); // 🔥 Включаем парсер кук
+app.use(cookieParser()); 
 
-// Раздача статики (Фронтенд)
-// Файлы из папки public доступны всем (там лежат html, css, js)
+// Раздача статики
 app.use(express.static(path.join(__dirname, 'public')));
 
 
-// --- 2. РОУТИНГ (ПОРЯДОК ВАЖЕН!) ---
+// --- 2. РОУТИНГ ---
 
-// 🟢 А. ОТКРЫТЫЕ МАРШРУТЫ (Пароль не нужен)
-// Логин, Выход, Проверка статуса
+// 🟢 А. ОТКРЫТЫЕ МАРШРУТЫ
 app.use('/budzet/auth', authRoutes);
-
-// Вебхук от Home Assistant (он защищен своим секретом в URL)
 app.use('/budzet/ha', require('./modules/home/home.routes'));
 
 
 // 🔴 Б. ЗАЩИЩЕННЫЕ МАРШРУТЫ (Нужен вход)
-// Все маршруты ниже проходят через authMiddleware.
-// Если куки нет — сервер вернет 401 ошибку.
 
-// Финансы
-app.use('/budzet/transactions', authMiddleware, require('./modules/finance/finance.routes'));
+// --- ФИНАНСЫ ---
+// В api.js запросы идут на /transactions, /balances, /categories
+// Направляем их все в financeRoutes
+app.use('/budzet/transactions', authMiddleware, financeRoutes);
+app.use('/budzet/balances', authMiddleware, financeRoutes);
+app.use('/budzet/categories', authMiddleware, financeRoutes);
 
-// Ученики
-app.use('/budzet/students', authMiddleware, require('./modules/students/students.routes'));
+// --- УЧЕНИКИ ---
+// В api.js запросы идут на /students и /debts
+app.use('/budzet/students', authMiddleware, studentRoutes);
+app.use('/budzet/debts', authMiddleware, studentRoutes);
 
-// Покупки
+// --- ПОКУПКИ ---
 app.use('/budzet/shopping', authMiddleware, require('./modules/shopping/shopping.routes'));
 
-// Коммуналка
+// --- КОММУНАЛКА ---
 app.use('/budzet/utilities', authMiddleware, require('./modules/utilities/utilities.routes'));
 
-// Список дел
+// --- СПИСОК ДЕЛ ---
 app.use('/budzet/todos', authMiddleware, require('./modules/todos/todos.routes'));
 
-// Системное (Админка, конфиг, корзина)
-// Обрати внимание: я добавил префикс /system, чтобы не было конфликтов
-app.use('/budzet/system', authMiddleware, require('./modules/system/system.routes'));
+// --- СИСТЕМНОЕ (Админка, конфиг, профиль) ---
+// В api.js много разных запросов, которые логично обрабатывать в systemRoutes:
+// /users/me, /settings, /config, /stats/kpi, /admin/users
+app.use('/budzet/system', authMiddleware, systemRoutes);
+app.use('/budzet/users', authMiddleware, systemRoutes);   // для /users/me
+app.use('/budzet/settings', authMiddleware, systemRoutes); // для /settings
+app.use('/budzet/config', authMiddleware, systemRoutes);   // для /config
+app.use('/budzet/admin', authMiddleware, systemRoutes);    // для /admin/users
+app.use('/budzet/stats', authMiddleware, systemRoutes);    // для /stats/kpi
 
-// Корзина (если она у тебя была отдельно, добавь так же)
-// app.use('/budzet/trash', authMiddleware, require('./modules/trash/trash.routes'));
+// --- КОРЗИНА ---
+// В api.js запрос идет на /trash
+app.use('/budzet/trash', authMiddleware, trashRoutes);
 
 
 // --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Secure Server running at http://${HOST}:${PORT}/`);
-    console.log(`🔒 Auth System: ENABLED (JWT + Cookies)`);
+    console.log(`🔒 Auth System: ENABLED`);
 });
