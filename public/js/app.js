@@ -132,8 +132,17 @@ async function initData() {
         if (exportBtn) {
             exportBtn.href = `/budzet/transactions/export?userId=${API.getUserId()}`;
         }
-        const me = await API.system.getMe();
+
+        // --- ИСПРАВЛЕНИЕ НАЧАЛО: Безопасная загрузка прав ---
+        let me = { role: 'user', modules: 'all' }; // Дефолт (на время разработки)
+        try {
+            me = await API.system.getMe();
+        } catch (error) {
+            console.warn('⚠️ API /users/me не найден (404) или ошибка сети. Использую стандартные права.');
+            // Не выкидываем ошибку дальше, чтобы приложение загрузилось
+        }
         applyModules(me.modules, me.role);
+        // --- ИСПРАВЛЕНИЕ КОНЕЦ ---
 
         // 1. Грузим основные данные
         const [cats, txs, bal] = await Promise.all([
@@ -150,7 +159,7 @@ async function initData() {
         fillCategorySelects();
         fillTagSelects();
 
-        // 2. Устанавливаем фильтры дат (если они пустые)
+        // 2. Устанавливаем фильтры дат
         if (!document.getElementById('filter-date-start').value) {
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -163,7 +172,7 @@ async function initData() {
         document.getElementById('loading').classList.add('hidden');
 
         // 4. Отрисовка
-        renderAnalyticsFromState(); // Графики
+        renderAnalyticsFromState(); 
         
         // 5. Грузим остальные модули
         loadTodos();
@@ -171,10 +180,10 @@ async function initData() {
         loadDebts();
         loadStudents();
         loadUtilities();
-        if(me.role === 'admin') loadAdmin();
+        if(me.role === 'admin') loadAdmin(); // Загружаем админку только если роль admin
         initCalendar();
 
-        // 🔥 ИСПРАВЛЕНИЕ 1: Загрузка KPI (Уроков за месяц)
+        // KPI
         const now = new Date();
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         try {
@@ -182,11 +191,9 @@ async function initData() {
             document.getElementById('stat-lessons-count').textContent = kpiData.count || 0;
         } catch (e) { console.error('KPI Error:', e); }
 
-        // 🔥 ВАЖНО: Мы УБРАЛИ отсюда switchTab('analytics'), чтобы не перекидывало при обновлении
-
     } catch (e) {
         console.error(e);
-        document.getElementById('loading').textContent = 'Ошибка загрузки данных';
+        document.getElementById('loading').textContent = 'Ошибка загрузки данных: ' + e.message;
     }
 }
 // --- TABS & UI ---
