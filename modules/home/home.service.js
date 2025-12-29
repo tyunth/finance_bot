@@ -3,7 +3,10 @@ const config = require('../../config');
 
 // Создаем "почтальона" отдельно от основного бота
 const telegram = new Telegram(config.BOT_TOKEN);
-
+// Добавь проверку для отладки (потом можно убрать)
+if (!config.BOT_TOKEN) {
+    console.error("❌ ОШИБКА: config.BOT_TOKEN не найден! Проверь .env и config.js");
+}
 async function handleWebhook(payload) {
     console.log('🏠 HA Webhook:', payload);
 
