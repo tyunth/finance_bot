@@ -14,7 +14,7 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
 const BASE_URL = '/budzet';
 
 // Глобальный перехват ошибок 401
-async function fetchWithAuth(url, options = {}) {
+export async function fetchWithAuth(url, options) {
     const res = await fetch(url, options);
     if (res.status === 401) {
         window.location.href = '/budzet/login.html';
