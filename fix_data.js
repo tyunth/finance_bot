@@ -2,7 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 // Укажите правильный путь к базе
-const dbPath = path.resolve(__dirname, 'database.db'); // или data/database.db
+const dbPath = path.resolve(__dirname, 'finance.db'); // или data/database.db
 
 const db = new sqlite3.Database(dbPath);
 
