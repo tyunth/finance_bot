@@ -3,7 +3,17 @@ const router = express.Router();
 const db = require('../../db'); 
 const exportService = require('./export.service');
 
-// Вспомогательная функция для безопасности (чтобы не писать try-catch везде)
+// 🔥 ВАЖНОЕ ИСПРАВЛЕНИЕ:
+// Этот код берет ID из токена (req.user.id) и сохраняет его как req.userId,
+// чтобы старые запросы к базе работали.
+router.use((req, res, next) => {
+    if (req.user && req.user.id) {
+        req.userId = req.user.id;
+    }
+    next();
+});
+
+// Вспомогательная функция для безопасности
 const safeHandler = (fn) => async (req, res, next) => {
     try {
         await fn(req, res, next);
@@ -16,7 +26,7 @@ const safeHandler = (fn) => async (req, res, next) => {
 // --- ТРАНЗАКЦИИ ---
 
 router.get('/transactions', safeHandler(async (req, res) => {
-    // req.userId приходит из server.js (middleware)
+    // Теперь req.userId заполнен корректно!
     const rows = await db.dbAll('SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC', [req.userId]);
     res.json(rows);
 }));
@@ -42,8 +52,13 @@ router.post('/transactions/add', safeHandler(async (req, res) => {
 router.post('/transactions/edit', safeHandler(async (req, res) => {
     const { id, amount, category, comment, tag } = req.body;
     
+    // Проверка владельца
     const tx = await db.dbGet('SELECT user_id FROM transactions WHERE id = ?', [id]);
-    if (!tx || tx.user_id !== req.userId) return res.status(403).json({ error: 'Access Denied' });
+    
+    // Если транзакции нет или она чужая
+    if (!tx || tx.user_id !== req.userId) {
+        return res.status(403).json({ error: 'Access Denied' });
+    }
 
     await db.dbRun(`UPDATE transactions SET amount = ?, category = ?, comment = ?, tag = ? WHERE id = ?`, 
         [amount, category, comment, tag, id]);
@@ -70,7 +85,6 @@ router.get('/balances', safeHandler(async (req, res) => {
 router.post('/transactions/delete', async (req, res) => {
     try {
         const { id } = req.body;
-        // Удаляем запись, принадлежащую текущему юзеру
         await db.dbRun('DELETE FROM transactions WHERE id = ? AND user_id = ?', [id, req.userId]);
         res.json({ success: true });
     } catch (e) {
@@ -82,8 +96,6 @@ router.post('/transactions/delete', async (req, res) => {
 // Роут для скачивания
 router.get('/transactions/export', async (req, res) => {
     try {
-        // 🔥 Передаем req.userId в сервис
-        // req.userId берется из middleware в server.js (из заголовка или query-параметра)
         const csv = await exportService.generateCsv(req.userId);
         
         res.header('Content-Type', 'text/csv');
