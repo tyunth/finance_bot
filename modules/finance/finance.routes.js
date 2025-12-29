@@ -9,6 +9,10 @@ const exportService = require('./export.service');
 router.use((req, res, next) => {
     if (req.user && req.user.id) {
         req.userId = req.user.id;
+        // 🔥 ДОБАВЬТЕ ЭТОТ ЛОГ:
+        console.log(`👤 User ID detected: ${req.userId}`);
+    } else {
+        console.log('⚠️ No user ID found in token!');
     }
     next();
 });
@@ -24,10 +28,13 @@ const safeHandler = (fn) => async (req, res, next) => {
 };
 
 // --- ТРАНЗАКЦИИ ---
-
 router.get('/transactions', safeHandler(async (req, res) => {
-    // Теперь req.userId заполнен корректно!
+    // 🔥 И ЭТОТ ЛОГ:
+    console.log(`🔍 Seeking transactions for User ${req.userId}...`);
+    
     const rows = await db.dbAll('SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC', [req.userId]);
+    
+    console.log(`✅ Found ${rows.length} transactions.`); // Покажет, сколько нашел
     res.json(rows);
 }));
 
