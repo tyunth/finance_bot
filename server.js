@@ -8,7 +8,7 @@ const config = require('./config');
 const authRoutes = require('./modules/auth/auth.routes');
 const authMiddleware = require('./modules/auth/auth.middleware');
 
-// Модули
+// --- ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
 const financeRoutes = require('./modules/finance/finance.routes');
 const studentRoutes = require('./modules/students/students.routes');
 const systemRoutes = require('./modules/system/system.routes');
@@ -16,47 +16,78 @@ const shoppingRoutes = require('./modules/shopping/shopping.routes');
 const utilitiesRoutes = require('./modules/utilities/utilities.routes');
 const todosRoutes = require('./modules/todos/todos.routes');
 
-// ❌ УБРАЛИ КОРЗИНУ, чтобы сервер не падал (пока файла нет)
-// const trashRoutes = require('./modules/trash/trash.routes'); 
+// const trashRoutes = require('./modules/trash/trash.routes'); // Пока выключено
 
 const app = express();
 const HOST = '127.0.0.1';
 const PORT = 4000;
 
+// --- 1. НАСТРОЙКИ ---
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
-
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- РОУТИНГ ---
+// 🔥 ОТЛАДКА: Логируем каждый запрос в консоль
+app.use((req, res, next) => {
+    console.log(`📥 Запрос: ${req.method} ${req.url}`);
+    next();
+});
 
-// 1. ОТКРЫТЫЕ МАРШРУТЫ
+// --- 2. РОУТИНГ ---
+
+// А. Открытые маршруты
 app.use('/budzet/auth', authRoutes);
 app.use('/budzet/ha', require('./modules/home/home.routes'));
 
-// 2. ЗАЩИЩЕННЫЕ МАРШРУТЫ
-// Мы подключаем все роутеры к /budzet. 
-// Express будет по очереди заходить в каждый роутер и искать совпадение пути.
-// Например, запрос /budzet/transactions зайдет в financeRoutes, найдет там /transactions и сработает.
-
-// Важно: Сначала проверяем токен (authMiddleware)
+// Б. Проверка токена для всего, что начинается с /budzet (кроме auth/ha)
 app.use('/budzet', authMiddleware);
 
-// Затем подключаем модули. Порядок не важен, если внутри них разные пути.
-app.use('/budzet', financeRoutes);   // Ищет: /transactions, /categories, /balances
-app.use('/budzet', studentRoutes);   // Ищет: /students, /debts
-app.use('/budzet', systemRoutes);    // Ищет: /users, /settings, /config, /admin, /stats
-app.use('/budzet', shoppingRoutes);  // Ищет: /shopping
-app.use('/budzet', utilitiesRoutes); // Ищет: /utilities
-app.use('/budzet', todosRoutes);     // Ищет: /todos
+// В. Маршруты (ЯВНОЕ УКАЗАНИЕ ПУТЕЙ)
 
-// Корзина отключена
-// app.use('/budzet', trashRoutes);
+// === ФИНАНСЫ (Transactions, Categories, Balances) ===
+// В api.js запросы идут на /transactions, /categories, /balances.
+// Мы направляем их все в financeRoutes. Внутри файла роутера должны быть обработчики.
+// Если financeRoutes обрабатывает корень '/', то запросы пойдут верно.
+app.use('/budzet/transactions', financeRoutes); 
+app.use('/budzet/categories', financeRoutes);
+app.use('/budzet/balances', financeRoutes);
+
+// === УЧЕНИКИ ===
+app.use('/budzet/students', studentRoutes);
+app.use('/budzet/debts', studentRoutes); // Если долги тоже там
+
+// === ПОКУПКИ ===
+app.use('/budzet/shopping', shoppingRoutes);
+
+// === КОММУНАЛКА ===
+app.use('/budzet/utilities', utilitiesRoutes);
+
+// === ЗАДАЧИ ===
+app.use('/budzet/todos', todosRoutes);
+
+// === СИСТЕМА (User, Settings, Admin, Config) ===
+// api.js: request('/users/me') -> направляем в systemRoutes
+app.use('/budzet/users', systemRoutes); 
+
+// api.js: request('/settings')
+app.use('/budzet/settings', systemRoutes);
+
+// api.js: request('/config')
+app.use('/budzet/config', systemRoutes);
+
+// api.js: request('/admin/users')
+app.use('/budzet/admin', systemRoutes);
+
+// api.js: request('/stats/kpi')
+app.use('/budzet/stats', systemRoutes);
+
+// === КОРЗИНА (Пока выключена) ===
+// app.use('/budzet/trash', trashRoutes);
 
 
-// --- ЗАПУСК ---
+// --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Server running at http://${HOST}:${PORT}/`);
-    console.log(`🔒 Auth System: ENABLED`);
+    console.log(`📝 Debug logging enabled (check console for 404s)`);
 });
