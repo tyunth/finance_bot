@@ -1,14 +1,6 @@
 // Определение User ID
 const TG = window.Telegram?.WebApp;
 let CURRENT_USER_ID = null;
-async function fetchWithAuth(url, options = {}) {
-    const res = await fetch(url, options);
-    if (res.status === 401) {
-        window.location.href = '/budzet/login.html';
-        throw new Error('Unauthorized');
-    }
-    return res;
-}
 
 if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     CURRENT_USER_ID = TG.initDataUnsafe.user.id;
@@ -21,6 +13,7 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
 
 const BASE_URL = '/budzet';
 
+// Глобальный перехват ошибок 401
 async function fetchWithAuth(url, options = {}) {
     const res = await fetch(url, options);
     if (res.status === 401) {
