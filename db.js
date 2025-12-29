@@ -124,7 +124,7 @@ function initializeTables() {
         // Миграция для модулей (Permissions)
         db.run("ALTER TABLE users ADD COLUMN modules TEXT DEFAULT 'finance'", () => {});
 
-
+        db.run(`ALTER TABLE shopping_list ADD COLUMN url TEXT`, () => {});
         // --- 3. МИГРАЦИЯ ДАННЫХ (Добавляем user_id везде, где его нет) ---
 
         const tablesNeedingUserId = [
@@ -735,6 +735,17 @@ function getAllSettings() {
     });
 }
 
+async function updateShoppingItem(userId, data) {
+    const { id, title, price, url } = data;
+    // title = название, price = цена (price_estimate), url = ссылка
+    return dbRun(
+        `UPDATE shopping_list 
+         SET item_name = ?, price_estimate = ?, url = ? 
+         WHERE id = ? AND user_id = ?`,
+        [title, price || 0, url || '', id, userId]
+    );
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -750,6 +761,7 @@ module.exports = {
     updateShoppingStatus, 
     deleteShoppingItem, 
     reorderShoppingList,
+    updateShoppingItem,
 
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
