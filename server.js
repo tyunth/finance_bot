@@ -1,60 +1,67 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path'); // <-- Не забудь этот импорт!
+const path = require('path');
+const cookieParser = require('cookie-parser'); // 🔥 Нужно для чтения кук
 const config = require('./config');
 
+// Подключаем наши новые модули авторизации
+const authRoutes = require('./modules/auth/auth.routes');
+const authMiddleware = require('./modules/auth/auth.middleware');
 
 const app = express();
 const HOST = '127.0.0.1';
 const PORT = 4000;
-const cookieParser = require('cookie-parser'); // Не забудь подключить
-const authRoutes = require('./modules/auth/auth.routes');
-const authMiddleware = require('./modules/auth/auth.middleware');
 
-// --- 1. CONFIG & MIDDLEWARE ---
+// --- 1. НАСТРОЙКИ И MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser()); // 🔥 Включаем парсер кук
 
-
-// ВАЖНО: Указываем серверу, что сайт лежит в папке 'public'
+// Раздача статики (Фронтенд)
+// Файлы из папки public доступны всем (там лежат html, css, js)
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(cookieParser());
-// Авторизация (Middleware)
-app.use((req, res, next) => {
-    const headerId = req.headers['x-user-id'];
-    if (headerId) { req.userId = parseInt(headerId); return next(); }
-    if (req.query.userId) { req.userId = parseInt(req.query.userId); return next(); }
-    
-    req.userId = config.ADMIN_ID; // Fallback
-    next();
-});
 
-// --- 2. ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
+
+// --- 2. РОУТИНГ (ПОРЯДОК ВАЖЕН!) ---
+
+// 🟢 А. ОТКРЫТЫЕ МАРШРУТЫ (Пароль не нужен)
+// Логин, Выход, Проверка статуса
+app.use('/budzet/auth', authRoutes);
+
+// Вебхук от Home Assistant (он защищен своим секретом в URL)
+app.use('/budzet/ha', require('./modules/home/home.routes'));
+
+
+// 🔴 Б. ЗАЩИЩЕННЫЕ МАРШРУТЫ (Нужен вход)
+// Все маршруты ниже проходят через authMiddleware.
+// Если куки нет — сервер вернет 401 ошибку.
 
 // Финансы
-app.use('/', require('./modules/finance/finance.routes'));
+app.use('/budzet/transactions', authMiddleware, require('./modules/finance/finance.routes'));
 
 // Ученики
-app.use('/', require('./modules/students/students.routes'));
+app.use('/budzet/students', authMiddleware, require('./modules/students/students.routes'));
 
 // Покупки
-app.use('/', require('./modules/shopping/shopping.routes.js'));
+app.use('/budzet/shopping', authMiddleware, require('./modules/shopping/shopping.routes'));
 
 // Коммуналка
-app.use('/', require('./modules/utilities/utilities.routes.js'));
+app.use('/budzet/utilities', authMiddleware, require('./modules/utilities/utilities.routes'));
 
 // Список дел
-app.use('/', require('./modules/todos/todos.routes.js'));
+app.use('/budzet/todos', authMiddleware, require('./modules/todos/todos.routes'));
 
 // Системное (Админка, конфиг, корзина)
-app.use('/', require('./modules/system/system.routes.js'));
+// Обрати внимание: я добавил префикс /system, чтобы не было конфликтов
+app.use('/budzet/system', authMiddleware, require('./modules/system/system.routes'));
 
-app.use('/', require('./modules/home/home.routes.js'));
+// Корзина (если она у тебя была отдельно, добавь так же)
+// app.use('/budzet/trash', authMiddleware, require('./modules/trash/trash.routes'));
+
 
 // --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
-    console.log(`🚀 Modular Server running at http://${HOST}:${PORT}/`);
-    console.log(`📦 Modules loaded: Finance, Students, Shopping, Utilities, Todos, System`);
-    console.log(`📂 Serving static files from ./public`);
+    console.log(`🚀 Secure Server running at http://${HOST}:${PORT}/`);
+    console.log(`🔒 Auth System: ENABLED (JWT + Cookies)`);
 });
