@@ -1,7 +1,7 @@
 import { API } from './api.js';
 import { formatCurrency, formatDateISO } from './utils.js';
 
-let STATE = { categories: [], transactions: [], accounts: [], charts: {} };
+let STATE = { categories: [], transactions: [], accounts: [], charts: {}, shopping: [] };
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
 let CURRENT_TODO_FILTER = 'urgent';
 let CURRENT_FILTERED_DATA = []; // 🔥 НОВАЯ ПЕРЕМЕННАЯ (хранит результат глобального фильтра)
@@ -49,17 +49,27 @@ function setupEventListeners() {
         document.getElementById(`tf-${p}`)?.addEventListener('click', () => setTodoFilter(p));
     });
 
-    // --- ФИКС ВИШЛИСТА (ПОКАЗ ЦЕНЫ) ---
+    // Обработка формы добавления
     document.getElementById('form-shopping')?.addEventListener('submit', handleShoppingSubmit);
+
+    // 🔥 ПОКАЗЫВАЕМ ПОЛЯ ЦЕНЫ И ССЫЛКИ ПРИ ВЫБОРЕ ТИПА
     document.querySelector('select[name="type"]')?.addEventListener('change', (e) => {
         const priceInput = document.getElementById('shop-price-input');
-        // Если Вишлист или Маркет - показываем цену
-        if(['wish', 'market'].includes(e.target.value)) {
+        const urlInput = document.getElementById('shop-url-input');
+        // Если Вишлист или Маркет - показываем доп. поля
+        const isAdvanced = ['wish', 'market'].includes(e.target.value);
+        
+        if (isAdvanced) {
             priceInput.classList.remove('hidden');
+            urlInput.classList.remove('hidden');
         } else {
             priceInput.classList.add('hidden');
+            urlInput.classList.add('hidden');
         }
     });
+    
+    // Обработка формы редактирования (которую мы добавили в HTML)
+    document.getElementById('form-shop-edit')?.addEventListener('submit', handleShoppingEditSubmit);
     ['list-buy', 'list-market', 'list-wish'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', handleShoppingClick);
     });
@@ -685,28 +695,38 @@ async function deleteTransaction(id) {
 
 // --- SHOPPING (ПОКУПКИ) ---
 async function loadShopping() {
-    const list = await API.shopping.getAll();
+    // 1. Сохраняем в стейт, чтобы потом достать данные для редактирования
+    STATE.shopping = await API.shopping.getAll();
+    const list = STATE.shopping;
+
     const render = (type, elId) => {
         const items = list.filter(i => i.type === type && !i.is_bought);
         document.getElementById(elId).innerHTML = items.length ? items.map(i => `
             <div class="flex items-center justify-between p-2 bg-white border border-gray-100 rounded-xl" data-id="${i.id}">
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" class="w-4 h-4 text-blue-600 rounded cursor-pointer">
-                    <span class="text-sm font-medium">${i.title}</span>
-                    ${i.price_estimate ? `<span class="text-xs text-green-600 font-bold">~${i.price_estimate}</span>` : ''}
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <input type="checkbox" class="w-4 h-4 text-blue-600 rounded cursor-pointer shrink-0">
+                    <div class="flex flex-col min-w-0">
+                        <div class="flex items-center gap-1">
+                            ${i.url ? `<a href="${i.url}" target="_blank" class="text-blue-500 hover:text-blue-700" title="Ссылка">🔗</a>` : ''}
+                            <span class="text-sm font-medium truncate">${i.title}</span>
+                        </div>
+                        ${i.price_estimate ? `<span class="text-xs text-green-600 font-bold">~${i.price_estimate}</span>` : ''}
+                    </div>
                 </div>
-                <button class="js-del-shop text-gray-300 hover:text-red-500 text-xs px-2">✕</button>
+                <div class="flex gap-2 shrink-0">
+                    <button class="js-edit-shop text-blue-300 hover:text-blue-500 text-lg font-bold">✎</button>
+                    <button class="js-del-shop text-gray-300 hover:text-red-500 text-lg font-bold">×</button>
+                </div>
             </div>
         `).join('') : '<div class="text-center text-xs text-gray-400 py-2 italic">Пусто</div>';
         
-        // Drag & Drop
         new Sortable(document.getElementById(elId), { animation: 150 });
     };
     render('buy', 'list-buy'); 
     render('market', 'list-market'); 
     render('wish', 'list-wish');
     
-    // Счетчики
+    // Обновляем счетчики
     document.getElementById('count-buy').textContent = list.filter(i => i.type === 'buy' && !i.is_bought).length;
     document.getElementById('count-market').textContent = list.filter(i => i.type === 'market' && !i.is_bought).length;
     document.getElementById('count-wish').textContent = list.filter(i => i.type === 'wish' && !i.is_bought).length;
@@ -730,6 +750,9 @@ async function handleShoppingClick(e) {
     }
     if(e.target.classList.contains('js-del-shop')) {
         if(confirm('Удалить?')) { await API.shopping.action({ action: 'status', id, status: 'deleted' }); loadShopping(); }
+    }
+    if (e.target.classList.contains('js-edit-shop')) {
+        openShoppingEdit(id);
     }
 }
 
@@ -1174,4 +1197,36 @@ function resetFilters() {
 
     // Применяем изменения
     applyFilters();
+}
+
+// Открытие модалки редактирования
+window.openShoppingEdit = (id) => {
+    // Ищем товар в локальном стейте (id может быть строкой или числом, поэтому нестрогое сравнение)
+    const item = STATE.shopping.find(i => i.id == id);
+    if (!item) return;
+
+    const modal = document.getElementById('modal-shop-edit');
+    const form = document.getElementById('form-shop-edit');
+    
+    // Заполняем форму
+    form.id.value = item.id;
+    form.title.value = item.title || item.item_name;
+    form.type.value = item.type;
+    form.price_estimate.value = item.price_estimate || '';
+    form.url.value = item.url || '';
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+// Сабмит формы редактирования
+async function handleShoppingEditSubmit(e) {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    
+    // Отправляем action 'edit'
+    await API.shopping.action({ action: 'edit', ...data });
+    
+    closeAllModals();
+    loadShopping();
 }
