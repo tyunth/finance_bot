@@ -736,16 +736,19 @@ function getAllSettings() {
 }
 
 async function updateShoppingItem(userId, data) {
-    const { id, title, price, url } = data;
-    // title = название, price = цена (price_estimate), url = ссылка
+    // Исправление: явно берем price_estimate из пришедших данных
+    const { id, title, url, price_estimate } = data;
+    
+    // Если вдруг пришло поле 'price', используем его как запасной вариант
+    const finalPrice = price_estimate || data.price || 0;
+
     return dbRun(
         `UPDATE shopping_list 
          SET item_name = ?, price_estimate = ?, url = ? 
          WHERE id = ? AND user_id = ?`,
-        [title, price || 0, url || '', id, userId]
+        [title, finalPrice, url || '', id, userId]
     );
 }
-
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
