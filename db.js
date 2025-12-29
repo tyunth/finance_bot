@@ -111,6 +111,18 @@ function initializeTables() {
             date TEXT
         )`);
 
+        // --- ТРЕКИНГ ПОСЫЛОК ---
+        db.run(`CREATE TABLE IF NOT EXISTS parcels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            track_number TEXT,
+            description TEXT,
+            last_status TEXT,
+            last_location TEXT,
+            last_check TEXT,
+            is_delivered INTEGER DEFAULT 0
+        )`);
+
         // Таблица настроек (Ключ - Значение)
         db.run(`CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -749,6 +761,26 @@ async function updateShoppingItem(userId, data) {
         [title, finalPrice, url || '', id, userId]
     );
 }
+
+// --- ТРЕКИНГ ---
+async function addParcel(userId, track, desc) {
+    return dbRun('INSERT INTO parcels (user_id, track_number, description, last_status, last_check) VALUES (?, ?, ?, ?, ?)', 
+        [userId, track, desc, 'Ожидает проверки', new Date().toISOString()]);
+}
+
+async function getParcels(userId) {
+    return dbAll('SELECT * FROM parcels WHERE user_id = ? AND is_delivered = 0', [userId]);
+}
+
+async function deleteParcel(id) {
+    return dbRun('DELETE FROM parcels WHERE id = ?', [id]);
+}
+
+async function updateParcelStatus(id, status, location, isDelivered) {
+    return dbRun('UPDATE parcels SET last_status = ?, last_location = ?, last_check = ?, is_delivered = ? WHERE id = ?',
+        [status, location, new Date().toISOString(), isDelivered ? 1 : 0, id]);
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -765,6 +797,8 @@ module.exports = {
     deleteShoppingItem, 
     reorderShoppingList,
     updateShoppingItem,
+
+    addParcel, getParcels, deleteParcel, updateParcelStatus,
 
     getUtilityReadings, addUtilityReading, deleteUtilityReading, 
     getLessonCount, payDebt,
