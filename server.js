@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const cookieParser = require('cookie-parser');
-const config = require('./config');
 
 const authRoutes = require('./modules/auth/auth.routes');
 const authMiddleware = require('./modules/auth/auth.middleware');
@@ -16,8 +15,6 @@ const shoppingRoutes = require('./modules/shopping/shopping.routes');
 const utilitiesRoutes = require('./modules/utilities/utilities.routes');
 const todosRoutes = require('./modules/todos/todos.routes');
 
-// const trashRoutes = require('./modules/trash/trash.routes'); // Пока выключено
-
 const app = express();
 const HOST = '127.0.0.1';
 const PORT = 4000;
@@ -28,58 +25,44 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🔥 ОТЛАДКА: Логируем каждый запрос (чтобы видеть, что приходит)
+// Логируем запросы для отладки
 app.use((req, res, next) => {
-    console.log(`📥 Запрос: ${req.method} ${req.url}`);
+    // Не засоряем логи статикой (картинки, css)
+    if (!req.url.includes('.')) {
+        console.log(`📥 API запрос: ${req.method} ${req.url}`);
+    }
     next();
 });
 
 // --- 2. РОУТИНГ ---
 
-// 🟢 А. ОТКРЫТЫЕ МАРШРУТЫ (без /budzet, так как Nginx его отрезает)
+// А. Открытые маршруты (Auth написан правильно, там пути относительные)
 app.use('/auth', authRoutes);
 app.use('/ha', require('./modules/home/home.routes'));
 
-
-// 🔒 Б. ЗАЩИЩЕННЫЕ МАРШРУТЫ
-// Все, что идет ниже этой строки, требует токен
+// Б. ЗАЩИТА (все, что ниже, требует входа)
 app.use(authMiddleware);
 
-// Явное указание путей (без /budzet)
+// В. МОДУЛИ (Исправлено!)
+// Мы подключаем их к корню '/', чтобы сработали пути внутри файлов
+// (например, router.get('/transactions') внутри financeRoutes)
 
-// === ФИНАНСЫ ===
-// Если запрос приходит как GET /transactions, он пойдет в financeRoutes
-app.use('/transactions', financeRoutes); 
-app.use('/categories', financeRoutes);
-app.use('/balances', financeRoutes);
+app.use('/', financeRoutes);   // Ловит /transactions, /categories, /balances
+app.use('/', studentRoutes);   // Ловит /students, /debts
+app.use('/', shoppingRoutes);  // Ловит /shopping
+app.use('/', utilitiesRoutes); // Ловит /utilities
+app.use('/', todosRoutes);     // Ловит /todos
 
-// === УЧЕНИКИ ===
-app.use('/students', studentRoutes);
-app.use('/debts', studentRoutes);
+// Для системных путей (/users/me, /settings) скорее всего тоже нужны полные пути
+// Если в system.routes.js написано router.get('/users/me'), то подключаем к корню:
+app.use('/', systemRoutes);
 
-// === ПОКУПКИ ===
-app.use('/shopping', shoppingRoutes);
-
-// === КОММУНАЛКА ===
-app.use('/utilities', utilitiesRoutes);
-
-// === ЗАДАЧИ ===
-app.use('/todos', todosRoutes);
-
-// === СИСТЕМА ===
-// Для /users/me (api.js шлет /budzet/users/me -> Nginx режет -> приходит /users/me)
-app.use('/users', systemRoutes); 
-app.use('/settings', systemRoutes);
-app.use('/config', systemRoutes);
-app.use('/admin', systemRoutes);
-app.use('/stats', systemRoutes);
-
-// === КОРЗИНА (Выключена) ===
-// app.use('/trash', trashRoutes);
+// Если вдруг внутри system.routes.js написано просто router.get('/me'), 
+// то для запроса /users/me нужно раскомментировать строку ниже, а верхнюю убрать:
+// app.use('/users', systemRoutes); 
 
 
 // --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Server running at http://${HOST}:${PORT}/`);
-    console.log(`✅ Ready to accept stripped requests (e.g. /transactions instead of /budzet/transactions)`);
 });
