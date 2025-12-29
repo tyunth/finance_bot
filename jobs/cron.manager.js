@@ -6,6 +6,7 @@ const config = require('../config');
 const calendarService = require('../modules/calendar/calendar.service');
 const sportService = require('../modules/sport/sport.service');
 const { sendMorningBriefing } = require('../modules/utilities/briefing.js');
+const tracking = require('../modules/tracking/tracking.service');
 
 module.exports = (bot) => {
     console.log('⏰ Cron Manager initialized');
@@ -29,6 +30,9 @@ module.exports = (bot) => {
         // Проверяем уроки для админа (или можно переделать под всех)
         await calendarService.checkLessons(bot, config.ADMIN_ID);
     }, 60 * 60 * 1000);
+    cron.schedule('0 10 * * *', async () => {
+        await tracking.checkAllParcels(bot);
+    });
 };
 
 // --- ФУНКЦИИ ---
