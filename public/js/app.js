@@ -1,5 +1,6 @@
 import { API } from './api.js';
 import { formatCurrency, formatDateISO } from './utils.js';
+import { fetchWithAuth } from './api.js';
 
 let STATE = { categories: [], transactions: [], accounts: [], charts: {}, shopping: [] };
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
