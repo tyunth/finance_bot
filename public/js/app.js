@@ -730,21 +730,34 @@ function setTodoFilter(filter) {
     });
     loadTodos();
 }
-
+// 1. Обновляем отрисовку списка
 async function loadTodos() {
     const list = await API.todos.getAll();
     const active = list.filter(t => !t.is_done);
     document.getElementById('todo-count').textContent = active.length;
     
+    // Сортировка: Срочно -> Средне -> Позже
     const weights = { urgent: 3, medium: 2, later: 1 };
     active.sort((a,b) => weights[b.period||'urgent'] - weights[a.period||'urgent']);
     
+    // Фильтр по табам (оставляем твою логику)
     const filtered = active.filter(t => (t.period || 'urgent') === CURRENT_TODO_FILTER);
+
+    const periodIcons = { urgent: '🔥', medium: '⚡', later: '💤' };
 
     document.getElementById('todo-list').innerHTML = filtered.map(t => `
         <div class="flex items-start gap-2 p-2 bg-gray-50 rounded-lg group hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition">
-            <input type="checkbox" class="js-check-todo mt-1 w-4 h-4 text-gray-800 rounded cursor-pointer" data-id="${t.id}">
-            <div class="flex-1 text-sm text-gray-700 leading-snug">${t.text}</div>
+            
+            <input type="checkbox" class="js-check-todo mt-1.5 w-4 h-4 text-gray-800 rounded cursor-pointer" data-id="${t.id}">
+            
+            <div class="flex-1 text-sm text-gray-700 leading-snug pt-0.5">
+                ${t.text}
+            </div>
+
+            <button class="js-cycle-period text-lg leading-none px-1 hover:scale-110 transition" data-id="${t.id}" data-period="${t.period || 'urgent'}" title="Изменить важность">
+                ${periodIcons[t.period || 'urgent']}
+            </button>
+
             <button class="js-del-todo text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 px-1 font-bold" data-id="${t.id}">×</button>
         </div>
     `).join('') || '<div class="text-center text-xs text-gray-400 py-4">Нет задач</div>';
@@ -759,13 +772,32 @@ async function handleTodoSubmit(e) {
     document.getElementById('todo-input').value = '';
     loadTodos();
 }
+// 2. Добавляем обработку клика по огоньку в handleTodoClick
 async function handleTodoClick(e) {
+    const id = e.target.dataset.id;
+
+    // Выполнение
     if (e.target.classList.contains('js-check-todo')) {
-        await API.todos.action({ action: 'toggle', id: e.target.dataset.id, status: 1 });
+        await API.todos.action({ action: 'toggle', id, status: 1 });
         loadTodos();
     }
+    // Удаление
     if (e.target.classList.contains('js-del-todo')) {
-        if(confirm('Удалить?')) { await API.todos.action({ action: 'delete', id: e.target.dataset.id }); loadTodos(); }
+        if(confirm('Удалить?')) { await API.todos.action({ action: 'delete', id }); loadTodos(); }
+    }
+
+    // 🔥 Смена приоритета (Новая логика)
+    const periodBtn = e.target.closest('.js-cycle-period');
+    if (periodBtn) {
+        const current = periodBtn.dataset.period;
+        const nextMap = { 'urgent': 'medium', 'medium': 'later', 'later': 'urgent' };
+        const next = nextMap[current] || 'urgent';
+
+        // Обновляем UI мгновенно (для отзывчивости), потом запрос
+        periodBtn.textContent = { urgent: '🔥', medium: '⚡', later: '💤' }[next];
+        
+        await API.todos.action({ action: 'update_period', id: periodBtn.dataset.id, period: next });
+        loadTodos(); // Перерисовываем, чтобы задача улетела в нужную вкладку
     }
 }
 
