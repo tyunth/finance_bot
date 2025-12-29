@@ -11,6 +11,7 @@ const PORT = 4000;
 app.use(cors());
 app.use(express.json());
 
+
 // ВАЖНО: Указываем серверу, что сайт лежит в папке 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -44,6 +45,7 @@ app.use('/', require('./modules/todos/todos.routes.js'));
 // Системное (Админка, конфиг, корзина)
 app.use('/', require('./modules/system/system.routes.js'));
 
+app.use('/', require('./modules/home/home.routes.js'));
 
 // --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
