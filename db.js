@@ -19,10 +19,16 @@ function initializeTables() {
             telegram_id INTEGER UNIQUE, 
             username TEXT, 
             first_name TEXT, 
+            password TEXT,
             role TEXT DEFAULT 'user', -- 'admin' или 'user'
             is_approved INTEGER DEFAULT 0, -- 0 = ждет, 1 = принят
             created_at TEXT
         )`);
+        
+            // Миграция для старых баз: пытаемся добавить колонку, если её нет
+        db.run("ALTER TABLE users ADD COLUMN password TEXT", () => {});
+        });
+        
 
         // --- 2. Основные таблицы (Обновляем структуру) ---
         
@@ -137,6 +143,9 @@ function initializeTables() {
         db.run("ALTER TABLE users ADD COLUMN modules TEXT DEFAULT 'finance'", () => {});
 
         db.run(`ALTER TABLE shopping_list ADD COLUMN url TEXT`, () => {});
+
+
+        
         // --- 3. МИГРАЦИЯ ДАННЫХ (Добавляем user_id везде, где его нет) ---
 
         const tablesNeedingUserId = [
@@ -781,6 +790,17 @@ async function updateParcelStatus(id, status, location, isDelivered) {
         [status, location, new Date().toISOString(), isDelivered ? 1 : 0, id]);
 }
 
+
+// 2. Добавь функцию для поиска пользователя по логину (username)
+async function getUserByUsername(username) {
+    return dbGet('SELECT * FROM users WHERE username = ?', [username]);
+}
+
+// 3. Добавь функцию установки пароля
+async function setUserPassword(id, hashedPassword) {
+    return dbRun('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, id]);
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -812,5 +832,7 @@ module.exports = {
     getAllUsers, updateUserModules, getUserModules,
     addEnglishWord,
     getSetting, setSetting, getAllSettings,
+
+    getUserByUsername, setUserPassword,
     DB_PATH
 };
