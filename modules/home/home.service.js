@@ -1,27 +1,34 @@
+const { Telegram } = require('telegraf');
 const config = require('../../config');
 
-/**
- * Обработка события от Home Assistant
- * @param {Object} bot - экземпляр Telegraf
- * @param {Object} payload - данные от HA { event: 'button_click', data: 'sport_increase' }
- */
-async function handleWebhook(bot, payload) {
-    console.log('🏠 HA Webhook received:', payload);
+// Создаем "почтальона" отдельно от основного бота
+const telegram = new Telegram(config.BOT_TOKEN);
+
+async function handleWebhook(payload) {
+    console.log('🏠 HA Webhook:', payload);
 
     if (!payload || !payload.event) return;
 
-    // Пример обработки события "sport_click"
-    if (payload.event === 'sport_click') {
-        const userId = config.ADMIN_ID; // Пока хардкод на тебя
-        
-        // Тут можно вызвать sportService.updateLog(...)
-        // Но пока просто уведомим
-        await bot.telegram.sendMessage(userId, `🔘 Нажата кнопка! Действие: ${payload.action || 'Unknown'}`);
-    }
+    // --- ЛОГИКА ОБРАБОТКИ СОБЫТИЙ ---
     
-    // Пример: Уведомление о стиралке
-    if (payload.event === 'laundry_done') {
-        await bot.telegram.sendMessage(config.ADMIN_ID, '🧺 Стирка завершена. Развесь белье!');
+    // 1. Тестовое событие
+    if (payload.event === 'test') {
+        await telegram.sendMessage(config.ADMIN_ID, `🟢 Тест интеграции прошел успешно!`);
+    }
+
+    // 2. Нажатие Zigbee кнопки (пример payload: { event: 'button_click', action: 'single' })
+    if (payload.event === 'button_click') {
+        const action = payload.action || 'click';
+        await telegram.sendMessage(config.ADMIN_ID, `🔘 Кнопка нажата: ${action}`);
+        
+        // Тут потом добавим:
+        // if (action === 'single') sportService.addRepetition(...)
+        // if (action === 'double') shoppingService.add(...)
+    }
+
+    // 3. Уведомление
+    if (payload.event === 'notify') {
+        await telegram.sendMessage(config.ADMIN_ID, `🏠 Дом сообщает: ${payload.message}`);
     }
 }
 
