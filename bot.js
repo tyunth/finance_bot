@@ -2,10 +2,11 @@ const { Telegraf, session, Markup } = require('telegraf');
 const config = require('./config');
 const db = require('./db');
 const keyboard = require('./modules/utilities/keyboard');
-
+bot.use(require('./modules/tracking/tracking.bot'));
 // Инициализация
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.use(session());
+
 
 // --- 1. MIDDLEWARE (Фейс-контроль) ---
 bot.use(async (ctx, next) => {
