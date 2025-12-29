@@ -28,7 +28,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 🔥 ОТЛАДКА: Логируем каждый запрос в консоль
+// 🔥 ОТЛАДКА: Логируем каждый запрос (чтобы видеть, что приходит)
 app.use((req, res, next) => {
     console.log(`📥 Запрос: ${req.method} ${req.url}`);
     next();
@@ -36,58 +36,50 @@ app.use((req, res, next) => {
 
 // --- 2. РОУТИНГ ---
 
-// А. Открытые маршруты
-app.use('/budzet/auth', authRoutes);
-app.use('/budzet/ha', require('./modules/home/home.routes'));
+// 🟢 А. ОТКРЫТЫЕ МАРШРУТЫ (без /budzet, так как Nginx его отрезает)
+app.use('/auth', authRoutes);
+app.use('/ha', require('./modules/home/home.routes'));
 
-// Б. Проверка токена для всего, что начинается с /budzet (кроме auth/ha)
-app.use('/budzet', authMiddleware);
 
-// В. Маршруты (ЯВНОЕ УКАЗАНИЕ ПУТЕЙ)
+// 🔒 Б. ЗАЩИЩЕННЫЕ МАРШРУТЫ
+// Все, что идет ниже этой строки, требует токен
+app.use(authMiddleware);
 
-// === ФИНАНСЫ (Transactions, Categories, Balances) ===
-// В api.js запросы идут на /transactions, /categories, /balances.
-// Мы направляем их все в financeRoutes. Внутри файла роутера должны быть обработчики.
-// Если financeRoutes обрабатывает корень '/', то запросы пойдут верно.
-app.use('/budzet/transactions', financeRoutes); 
-app.use('/budzet/categories', financeRoutes);
-app.use('/budzet/balances', financeRoutes);
+// Явное указание путей (без /budzet)
+
+// === ФИНАНСЫ ===
+// Если запрос приходит как GET /transactions, он пойдет в financeRoutes
+app.use('/transactions', financeRoutes); 
+app.use('/categories', financeRoutes);
+app.use('/balances', financeRoutes);
 
 // === УЧЕНИКИ ===
-app.use('/budzet/students', studentRoutes);
-app.use('/budzet/debts', studentRoutes); // Если долги тоже там
+app.use('/students', studentRoutes);
+app.use('/debts', studentRoutes);
 
 // === ПОКУПКИ ===
-app.use('/budzet/shopping', shoppingRoutes);
+app.use('/shopping', shoppingRoutes);
 
 // === КОММУНАЛКА ===
-app.use('/budzet/utilities', utilitiesRoutes);
+app.use('/utilities', utilitiesRoutes);
 
 // === ЗАДАЧИ ===
-app.use('/budzet/todos', todosRoutes);
+app.use('/todos', todosRoutes);
 
-// === СИСТЕМА (User, Settings, Admin, Config) ===
-// api.js: request('/users/me') -> направляем в systemRoutes
-app.use('/budzet/users', systemRoutes); 
+// === СИСТЕМА ===
+// Для /users/me (api.js шлет /budzet/users/me -> Nginx режет -> приходит /users/me)
+app.use('/users', systemRoutes); 
+app.use('/settings', systemRoutes);
+app.use('/config', systemRoutes);
+app.use('/admin', systemRoutes);
+app.use('/stats', systemRoutes);
 
-// api.js: request('/settings')
-app.use('/budzet/settings', systemRoutes);
-
-// api.js: request('/config')
-app.use('/budzet/config', systemRoutes);
-
-// api.js: request('/admin/users')
-app.use('/budzet/admin', systemRoutes);
-
-// api.js: request('/stats/kpi')
-app.use('/budzet/stats', systemRoutes);
-
-// === КОРЗИНА (Пока выключена) ===
-// app.use('/budzet/trash', trashRoutes);
+// === КОРЗИНА (Выключена) ===
+// app.use('/trash', trashRoutes);
 
 
 // --- 3. ЗАПУСК ---
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Server running at http://${HOST}:${PORT}/`);
-    console.log(`📝 Debug logging enabled (check console for 404s)`);
+    console.log(`✅ Ready to accept stripped requests (e.g. /transactions instead of /budzet/transactions)`);
 });
