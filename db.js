@@ -189,7 +189,7 @@ function initializeTables() {
         
         // Миграция для utility_readings (comment)
         db.run(`ALTER TABLE utility_readings ADD COLUMN comment TEXT`, () => {});
-    });
+    
 }
 
 // Обертки
