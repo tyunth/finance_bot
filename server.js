@@ -12,7 +12,12 @@ const authMiddleware = require('./modules/auth/auth.middleware');
 const financeRoutes = require('./modules/finance/finance.routes');
 const studentRoutes = require('./modules/students/students.routes');
 const systemRoutes = require('./modules/system/system.routes');
-// const trashRoutes = require('./modules/trash/trash.routes'); // ❌ ЗАКОММЕНТИРОВАЛ, ТАК КАК ФАЙЛА НЕТ
+const shoppingRoutes = require('./modules/shopping/shopping.routes');
+const utilitiesRoutes = require('./modules/utilities/utilities.routes');
+const todosRoutes = require('./modules/todos/todos.routes');
+
+// ❌ УБРАЛИ КОРЗИНУ, чтобы сервер не падал (пока файла нет)
+// const trashRoutes = require('./modules/trash/trash.routes'); 
 
 const app = express();
 const HOST = '127.0.0.1';
@@ -24,42 +29,34 @@ app.use(cookieParser());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- РОУТЫ ---
+// --- РОУТИНГ ---
 
-// 1. Открытые
+// 1. ОТКРЫТЫЕ МАРШРУТЫ
 app.use('/budzet/auth', authRoutes);
 app.use('/budzet/ha', require('./modules/home/home.routes'));
 
-// 2. Защищенные
-// Финансы
-app.use('/budzet/transactions', authMiddleware, financeRoutes);
-app.use('/budzet/balances', authMiddleware, financeRoutes);
-app.use('/budzet/categories', authMiddleware, financeRoutes);
+// 2. ЗАЩИЩЕННЫЕ МАРШРУТЫ
+// Мы подключаем все роутеры к /budzet. 
+// Express будет по очереди заходить в каждый роутер и искать совпадение пути.
+// Например, запрос /budzet/transactions зайдет в financeRoutes, найдет там /transactions и сработает.
 
-// Ученики
-app.use('/budzet/students', authMiddleware, studentRoutes);
-app.use('/budzet/debts', authMiddleware, studentRoutes);
+// Важно: Сначала проверяем токен (authMiddleware)
+app.use('/budzet', authMiddleware);
 
-// Покупки
-app.use('/budzet/shopping', authMiddleware, require('./modules/shopping/shopping.routes'));
+// Затем подключаем модули. Порядок не важен, если внутри них разные пути.
+app.use('/budzet', financeRoutes);   // Ищет: /transactions, /categories, /balances
+app.use('/budzet', studentRoutes);   // Ищет: /students, /debts
+app.use('/budzet', systemRoutes);    // Ищет: /users, /settings, /config, /admin, /stats
+app.use('/budzet', shoppingRoutes);  // Ищет: /shopping
+app.use('/budzet', utilitiesRoutes); // Ищет: /utilities
+app.use('/budzet', todosRoutes);     // Ищет: /todos
 
-// Коммуналка
-app.use('/budzet/utilities', authMiddleware, require('./modules/utilities/utilities.routes'));
+// Корзина отключена
+// app.use('/budzet', trashRoutes);
 
-// Задачи
-app.use('/budzet/todos', authMiddleware, require('./modules/todos/todos.routes'));
 
-// Система
-app.use('/budzet/system', authMiddleware, systemRoutes);
-app.use('/budzet/users', authMiddleware, systemRoutes);
-app.use('/budzet/settings', authMiddleware, systemRoutes);
-app.use('/budzet/config', authMiddleware, systemRoutes);
-app.use('/budzet/admin', authMiddleware, systemRoutes);
-app.use('/budzet/stats', authMiddleware, systemRoutes);
-
-// Корзина (Пока отключаем, чтобы сервер не падал)
-// app.use('/budzet/trash', authMiddleware, trashRoutes); 
-
+// --- ЗАПУСК ---
 app.listen(PORT, HOST, () => {
     console.log(`🚀 Server running at http://${HOST}:${PORT}/`);
+    console.log(`🔒 Auth System: ENABLED`);
 });
