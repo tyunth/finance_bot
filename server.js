@@ -1,7 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path'); // <-- Не забудь этот импорт!
 const config = require('./config');
+
 
 const app = express();
 const HOST = '127.0.0.1';
