@@ -8,6 +8,9 @@ const config = require('./config');
 const app = express();
 const HOST = '127.0.0.1';
 const PORT = 4000;
+const cookieParser = require('cookie-parser'); // Не забудь подключить
+const authRoutes = require('./modules/auth/auth.routes');
+const authMiddleware = require('./modules/auth/auth.middleware');
 
 // --- 1. CONFIG & MIDDLEWARE ---
 app.use(cors());
@@ -16,7 +19,7 @@ app.use(express.json());
 
 // ВАЖНО: Указываем серверу, что сайт лежит в папке 'public'
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(cookieParser());
 // Авторизация (Middleware)
 app.use((req, res, next) => {
     const headerId = req.headers['x-user-id'];
