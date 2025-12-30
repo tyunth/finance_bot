@@ -158,7 +158,8 @@ async function initData() {
         renderBalances(bal.balances);
         fillCategorySelects();
         fillTagSelects();
-
+        loadShopAnalytics();
+        
         // 2. Устанавливаем фильтры дат
         if (!document.getElementById('filter-date-start').value) {
             const now = new Date();
@@ -1237,4 +1238,68 @@ async function handleShoppingEditSubmit(e) {
     
     closeAllModals();
     loadShopping();
+}
+
+// --- АНАЛИТИКА МАГАЗИНОВ ---
+async function loadShopAnalytics() {
+    const tbody = document.getElementById('shop-analytics-body');
+    if (!tbody) return;
+
+    try {
+        // Используем fetchWithAuth, который уже импортирован в начале файла
+        const response = await fetchWithAuth('/transactions/analytics/shops'); // Путь зависит от роутинга, проверь префикс!
+        // Если в server.js подключено как app.use('/', financeRoutes), то путь просто '/analytics/shops'
+        // Если app.use('/budzet', financeRoutes), то '/budzet/analytics/shops'
+        // Сделаем универсально, если у тебя настроен API wrapper, но пока так:
+        
+        // ВНИМАНИЕ: В твоем finance.routes.js роуты подключены к корню '/', 
+        // но в server.js скорее всего есть префикс. 
+        // Если не сработает, попробуй путь '/analytics/shops' без /transactions
+        
+        // Давай попробуем через твой API класс, если там есть метод, но проще прямым фетчем:
+        const res = await fetch('/analytics/shops', {
+             headers: { 'Authorization': `Bearer ${getCookie('token')}` } 
+        }); 
+        
+        // ПРАВИЛЬНЫЙ ВАРИАНТ (используем твой API хелпер если он есть, или fetchWithAuth)
+        // Судя по коду app.js, ты используешь fetchWithAuth.
+        // Но так как я не вижу api.js, давай напишем надежно:
+        
+        const data = await (await fetchWithAuth('/analytics/shops')).json();
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Нет данных о чеках</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map((shop, index) => {
+            const icon = index === 0 ? '🥇' : (index === 1 ? '🥈' : (index === 2 ? '🥉' : ''));
+            return `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="p-3 font-bold text-gray-800">
+                        ${icon} ${shop.shop_name}
+                    </td>
+                    <td class="p-3 text-center">
+                        <span class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-xs font-bold">${shop.visit_count}</span>
+                    </td>
+                    <td class="p-3 text-right font-medium">
+                        ${formatCurrency(shop.avg_check)}
+                    </td>
+                    <td class="p-3 text-right font-bold text-gray-900">
+                        ${formatCurrency(shop.total_spent)}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        
+    } catch (e) {
+        console.error('Ошибка загрузки магазинов:', e);
+    }
+}
+
+// Хелпер для куки (если вдруг fetchWithAuth не сработает, пригодится)
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
 }
