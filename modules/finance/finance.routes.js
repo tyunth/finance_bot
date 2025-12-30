@@ -127,7 +127,7 @@ router.get('/analytics/shops', safeHandler(async (req, res) => {
         FROM receipts r
         LEFT JOIN shop_aliases a ON r.shop_name = a.raw_name AND a.user_id = r.user_id
         WHERE r.user_id = ? 
-        GROUP BY display_name, r.shop_address -- 🔥 ТУТ ТОЖЕ ВАЖНО ПОМЕНЯТЬ
+        GROUP BY shop_name, r.shop_address -- 🔥 ТУТ ТОЖЕ ВАЖНО ПОМЕНЯТЬ
         ORDER BY visit_count DESC
     `;
     
