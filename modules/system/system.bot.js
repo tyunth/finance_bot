@@ -1,7 +1,7 @@
 const { Composer, Markup } = require('telegraf');
 const db = require('../../db');
 const config = require('../../config');
-const exporter = require('../../export_service'); 
+const exporter = require('../finance/export.service'); 
 const { sendMorningBriefing } = require('../utilities/briefing.js');
 const bot = new Composer();
 
