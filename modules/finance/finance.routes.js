@@ -114,4 +114,23 @@ router.get('/transactions/export', async (req, res) => {
     }
 });
 
+// --- АНАЛИТИКА МАГАЗИНОВ ---
+router.get('/analytics/shops', safeHandler(async (req, res) => {
+    // Группируем чеки по названию магазина
+    const sql = `
+        SELECT 
+            shop_name, 
+            COUNT(*) as visit_count, 
+            SUM(total_sum) as total_spent,
+            AVG(total_sum) as avg_check
+        FROM receipts 
+        WHERE user_id = ? 
+        GROUP BY shop_name 
+        ORDER BY visit_count DESC
+    `;
+    
+    const rows = await db.dbAll(sql, [req.userId]);
+    res.json(rows);
+}));
+
 module.exports = router;
