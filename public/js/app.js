@@ -1247,25 +1247,12 @@ async function loadShopAnalytics() {
 
     try {
         // Используем fetchWithAuth, который уже импортирован в начале файла
-        const response = await fetchWithAuth('/transactions/analytics/shops'); // Путь зависит от роутинга, проверь префикс!
-        // Если в server.js подключено как app.use('/', financeRoutes), то путь просто '/analytics/shops'
-        // Если app.use('/budzet', financeRoutes), то '/budzet/analytics/shops'
-        // Сделаем универсально, если у тебя настроен API wrapper, но пока так:
-        
-        // ВНИМАНИЕ: В твоем finance.routes.js роуты подключены к корню '/', 
-        // но в server.js скорее всего есть префикс. 
-        // Если не сработает, попробуй путь '/analytics/shops' без /transactions
-        
-        // Давай попробуем через твой API класс, если там есть метод, но проще прямым фетчем:
-        const res = await fetch('/analytics/shops', {
+        const response = await fetchWithAuth('/budzet/transactions/analytics/shops'); 
+        const res = await fetch('/budzet/analytics/shops', {
              headers: { 'Authorization': `Bearer ${getCookie('token')}` } 
         }); 
         
-        // ПРАВИЛЬНЫЙ ВАРИАНТ (используем твой API хелпер если он есть, или fetchWithAuth)
-        // Судя по коду app.js, ты используешь fetchWithAuth.
-        // Но так как я не вижу api.js, давай напишем надежно:
-        
-        const data = await (await fetchWithAuth('/analytics/shops')).json();
+        const data = await (await fetchWithAuth('/budzet/analytics/shops')).json();
 
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Нет данных о чеках</td></tr>';
