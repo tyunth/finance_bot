@@ -119,7 +119,7 @@ router.get('/transactions/export', async (req, res) => {
 router.get('/analytics/shops', safeHandler(async (req, res) => {
     const sql = `
         SELECT 
-            COALESCE(a.brand_name, r.shop_name) as display_name,
+            COALESCE(a.brand_name, r.shop_name) as shop_name,
             r.shop_address as address,  -- 🔥 БЫЛО r.address, СТАЛО r.shop_address
             COUNT(*) as visit_count, 
             SUM(r.total_sum) as total_spent,
