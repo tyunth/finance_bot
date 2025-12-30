@@ -1246,8 +1246,6 @@ async function loadShopAnalytics() {
     if (!tbody) return;
 
     try {
-        // Используем fetchWithAuth, который уже импортирован в начале файла
-        const response = await fetchWithAuth('/budzet/transactions/analytics/shops'); 
         const res = await fetch('/budzet/analytics/shops', {
              headers: { 'Authorization': `Bearer ${getCookie('token')}` } 
         }); 
