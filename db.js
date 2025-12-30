@@ -66,7 +66,7 @@ function initializeTables() {
             brand_name TEXT,  -- Magnum
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, raw_name)
-        );
+        )`);
 
         // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS students (
