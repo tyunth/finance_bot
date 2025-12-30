@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const DB_PATH = path.resolve(__dirname, 'finance.db');
-
+const config = require('./config');
 const db = new sqlite3.Database(DB_PATH, (err) => {
     if (err) {
         console.error('Ошибка подключения к БД:', err.message);
@@ -534,18 +534,28 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
+// Вспомогательная функция (можно добавить прямо перед createReceipt или в конец файла)
+function getAutoTag(category) {
+    if (!category) return 'Разное';
+    // Проверяем, есть ли такой ключ в AUTO_TAGS
+    if (config.AUTO_TAGS && config.AUTO_TAGS[category]) {
+        return config.AUTO_TAGS[category];
+    }
+    return 'Разное'; // Если совпадений нет
+}
+
 async function createReceipt(userId, data, photoFileId) {
     const created = new Date().toISOString();
     
-    // 1. Создаем запись чека
+    // 1. Создаем запись чека (Здесь сохраняем магазин для будущей аналитики)
     return new Promise((resolve, reject) => {
         db.run(
             `INSERT INTO receipts (user_id, shop_name, shop_address, date, total_sum, calculated_sum, item_count, discount, raw_json, photo_file_id, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 userId, 
-                data.shop.name || 'Магазин', 
-                data.shop.address || '', 
+                data.shop.name || 'Магазин',     
+                data.shop.address || '',         
                 data.date, 
                 data.meta.total_receipt, 
                 data.meta.total_calculated, 
@@ -561,24 +571,22 @@ async function createReceipt(userId, data, photoFileId) {
                 const receiptId = this.lastID;
 
                 // 2. Создаем транзакции для каждого товара
-                // (Используем нашу же функцию addTransaction, чтобы обновились балансы!)
                 try {
                     for (const item of data.items) {
-                        // Тут можно подключить getUserSettings, когда сделаем его
-                        // Пока хардкод или передача извне, но упростим:
-                        const tag = 'Покупка'; // Или передавай маппинг тегов сюда
-                        
+                        // 🔥 АВТО-ТЕГ: Берем категорию товара и ищем ей пару в конфиге
+                        const autoTag = getAutoTag(item.category);
+
                         await addTransaction({
                             userId,
                             type: 'expense',
                             amount: item.sum,
-                            category: item.category,
-                            tag: tag,
+                            category: item.category, // Категория от ИИ (напр. "Молочка")
+                            tag: autoTag,            // Тег из конфига (напр. "Еда") или "Разное"
                             comment: `${item.name} (${item.qty} шт)`,
-                            sourceAccount: 'Основной', // Хардкод пока, потом параметризуем
+                            sourceAccount: 'Основной',
                             targetAccount: null,
                             date: data.date,
-                            receipt_id: receiptId // <--- ВОТ ОНО, СВЯЗЫВАНИЕ
+                            receipt_id: receiptId
                         });
                     }
                     resolve(receiptId);
