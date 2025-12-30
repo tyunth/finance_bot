@@ -166,9 +166,15 @@ bot.action('receipt_save_confirm', async (ctx) => {
             [Markup.button.callback('📜 Показать детали', `receipt_show_${receiptId}`)],
             [Markup.button.callback('❌ Удалить чек', `receipt_del_${receiptId}`)]
         ]);
-        await ctx.editMessageText(`✅ *Чек #${receiptId} сохранен\\!*`, { parse_mode: 'MarkdownV2', ...finalBtns });
+
+        // 🔥 ИСПРАВЛЕНИЕ: Добавил слэш перед #
+        // Было: *Чек #${receiptId}
+        // Стало: *Чек \#${receiptId}
+        await ctx.editMessageText(`✅ *Чек \\#${receiptId} сохранен\\!*`, { parse_mode: 'MarkdownV2', ...finalBtns });
+        
     } catch (e) {
-        ctx.reply('Ошибка БД: ' + e.message);
+        console.error(e); // Логируем ошибку в консоль
+        ctx.reply('Ошибка: ' + e.message);
     }
 });
 
