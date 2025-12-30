@@ -114,25 +114,20 @@ router.get('/transactions/export', async (req, res) => {
     }
 });
 
+
 // --- АНАЛИТИКА МАГАЗИНОВ ---
 router.get('/analytics/shops', safeHandler(async (req, res) => {
-    // 🔥 Магия SQL:
-    // 1. Берем данные из чеков (receipts)
-    // 2. Джойним таблицу синонимов (shop_aliases)
-    // 3. Если есть синоним (brand_name) - берем его, иначе берем исходное название (shop_name)
-    // 4. Группируем по ИМЕНИ + АДРЕСУ
-    
     const sql = `
         SELECT 
             COALESCE(a.brand_name, r.shop_name) as display_name,
-            r.address,
+            r.shop_address as address,  -- 🔥 БЫЛО r.address, СТАЛО r.shop_address
             COUNT(*) as visit_count, 
             SUM(r.total_sum) as total_spent,
             AVG(r.total_sum) as avg_check
         FROM receipts r
         LEFT JOIN shop_aliases a ON r.shop_name = a.raw_name AND a.user_id = r.user_id
         WHERE r.user_id = ? 
-        GROUP BY display_name, r.address
+        GROUP BY display_name, r.shop_address -- 🔥 ТУТ ТОЖЕ ВАЖНО ПОМЕНЯТЬ
         ORDER BY visit_count DESC
     `;
     
