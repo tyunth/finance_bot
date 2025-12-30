@@ -5,39 +5,42 @@ const db = require('../../db');
 
 const bot = new Composer();
 
-// 🔥 ФУНКЦИЯ ЗАЩИТЫ ОТ ОШИБОК РАЗМЕТКИ
-// Экранирует символы: _ * [ ] ( ) ~ ` > # + - = | { } . !
+// 🔥 УЛУЧШЕННАЯ ФУНКЦИЯ ЭКРАНИРОВАНИЯ
+// Теперь она превращает все спецсимволы в безопасные
 const escape = (text) => {
     if (!text) return '';
+    // Экранируем: _ * [ ] ( ) ~ ` > # + - = | { } . !
     return text.toString().replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
 };
 
-// Вспомогательная функция: Показываем итоговый чек
+// Исправленная функция предпросмотра
 async function sendReceiptPreview(ctx) {
     const temp = ctx.session.temp_receipt;
     if (!temp) return ctx.reply('⚠️ Ошибка сессии. Попробуйте снова.');
 
     const data = temp.data;
-    
-    // Определяем имя (из алиаса или сырое)
     const displayName = temp.brandName || data.shop.name;
-
     const diff = Math.abs(data.meta.total_receipt - data.meta.total_calculated);
     const statusIcon = diff < 5 ? '✅' : '⚠️';
     
-    // 🔥 ВЕЗДЕ ИСПОЛЬЗУЕМ escape()
+    // 🔥 ИСПРАВЛЕНИЕ: Экранируем даже жестко прописанные символы
+    // Было: 🏪 ${escape(displayName)}
+    // Стало: экранируем весь текст вокруг переменных тоже, где есть спецсимволы
+    
     let preview = `🧾 *Предпросмотр чека*\n🏪 ${escape(displayName)}\n`;
     
+    // Вот здесь была ошибка с '('
     if (temp.brandName && temp.brandName !== data.shop.name) {
-        preview += `_(по чеку: ${escape(data.shop.name)})_\n`;
+        // Мы вручную добавляем \\ перед скобками
+        preview += `_\\(по чеку: ${escape(data.shop.name)}\\)_\n`;
     }
     
     preview += `📅 ${escape(data.date)}\n`;
-    preview += `💰 Итого: *${data.meta.total_receipt}*\n🧮 Расчет: *${data.meta.total_calculated}* ${statusIcon}\n\n`;
+    preview += `💰 Итого: *${escape(data.meta.total_receipt)}*\n🧮 Расчет: *${escape(data.meta.total_calculated)}* ${statusIcon}\n\n`;
     
     data.items.forEach((item, i) => {
-        // 🔥 Тут тоже экранируем названия товаров и категории
-        preview += `${i+1}. ${escape(item.name)} — ${item.sum}\n   └ _${escape(item.category)}_\n`;
+        // Точку после цифры тоже нужно экранировать: `${i+1}\\.`
+        preview += `${i+1}\\. ${escape(item.name)} — ${escape(item.sum)}\n   └ _${escape(item.category)}_\n`;
     });
 
     preview += `\n_Записать эти данные в базу?_`;
@@ -55,7 +58,8 @@ async function sendReceiptPreview(ctx) {
         }
     } catch (e) {
         console.error('Markdown Error:', e);
-        ctx.reply('⚠️ Не удалось отформатировать чек, но данные есть. ' + e.message);
+        // Если все равно упало — отправляем чистый текст без форматирования, чтобы не терять чек
+        ctx.reply('⚠️ Форматирование не прошло, но вот данные:\n\n' + preview.replace(/\\/g, ''));
     }
 }
 
