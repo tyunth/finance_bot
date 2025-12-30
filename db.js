@@ -59,6 +59,15 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, shop_name TEXT, shop_address TEXT, date TEXT, total_sum REAL, calculated_sum REAL, item_count INTEGER, discount REAL, raw_json TEXT, photo_file_id TEXT, created_at TEXT
         )`);
 
+        db.run(`CREATE TABLE IF NOT EXISTS shop_aliases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            raw_name TEXT,    -- ТОО "Ритейл Норд"
+            brand_name TEXT,  -- Magnum
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, raw_name)
+        );
+
         // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT ''
