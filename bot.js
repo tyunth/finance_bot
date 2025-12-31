@@ -40,6 +40,7 @@ bot.use(require('./modules/reports/reports.bot'));     // 📊 Отчеты
 bot.use(require('./modules/system/system.bot'));       // ⚙️ Админка
 bot.use(require('./modules/calendar/calendar.bot')); // <-- Календарь
 bot.use(require('./modules/sport/sport.bot'));       // <-- Спорт
+bot.use(require('./modules/media/1se.bot'));
 
 // --- ПОЛНОЕ МЕНЮ ПОМОЩИ ---
 const HELP_MSG = `
