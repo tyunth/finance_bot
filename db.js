@@ -143,6 +143,14 @@ function initializeTables() {
         key TEXT PRIMARY KEY,
         value TEXT
         )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS one_second_videos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        file_path TEXT,
+        date TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
     
         // Заполним дефолтной ценой урока, если нет
         db.get("SELECT key FROM settings WHERE key = 'lesson_price'", (err, row) => {
