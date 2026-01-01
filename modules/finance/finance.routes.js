@@ -3,14 +3,24 @@ const router = express.Router();
 const db = require('../../db'); 
 const exportService = require('./export.service');
 
-// 🔥 ВАЖНОЕ ИСПРАВЛЕНИЕ:
-// Этот код берет ID из токена (req.user.id) и сохраняет его как req.userId,
-// чтобы старые запросы к базе работали.
+// Формат: 'логин_в_браузере': реальный_telegram_id
+const USER_MAPPING = {
+    'Galina': 1047396910,  
+};
+
 router.use((req, res, next) => {
-    if (req.user && req.user.id) {
-        req.userId = req.user.id;
-        // 🔥 ДОБАВЬТЕ ЭТОТ ЛОГ:
-        console.log(`👤 User ID detected: ${req.userId}`);
+    if (req.user) {
+        let finalId = req.user.id; // По умолчанию верим токену
+        const login = req.user.username; // Или req.user.login, зависит от вашей авторизации
+
+        // Проверяем, есть ли для этого логина "настоящий" ID
+        if (login && USER_MAPPING[login]) {
+            console.log(`🔄 Mapping User: '${login}' (ID ${req.user.id}) -> ID ${USER_MAPPING[login]}`);
+            finalId = USER_MAPPING[login];
+        }
+
+        req.userId = finalId;
+        console.log(`👤 Final User ID context: ${req.userId}`);
     } else {
         console.log('⚠️ No user ID found in token!');
     }
