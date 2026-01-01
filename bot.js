@@ -106,9 +106,7 @@ bot.command('last', async (ctx) => {
 // ВРЕМЕННАЯ КОМАНДА: Слияние пользователя ID 2 в ID 1047396910
 bot.command('merge_users', async (ctx) => {
     const OLD_ID = 2;              // От кого забираем
-    const NEW_ID = 1047396910;     // Кому отдаем (Твой ID)
-
-    if (ctx.from.id !== NEW_ID) return ctx.reply('Только хозяин может это делать.');
+    const NEW_ID = 1047396910;     // Кому отдаем 
 
     try {
         let report = `🔄 Слияние ID ${OLD_ID} -> ID ${NEW_ID}:\n`;
