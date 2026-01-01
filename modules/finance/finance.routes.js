@@ -3,32 +3,33 @@ const router = express.Router();
 const db = require('../../db'); 
 const exportService = require('./export.service');
 
-// Если заходит 'admin', сервер будет считать, что это ID 1047396910
 const USER_MAPPING = {
     'Galina': 1047396910, 
 };
 
-router.use((req, res, next) => {
-    // 1. Берем ID из токена по умолчанию
-    let currentId = null;
-    let currentLogin = null;
+router.use(async (req, res, next) => {
+    try {
+        if (req.user && req.user.id) {
+            // 1. Сначала берем ID из сессии (это ID=2)
+            let effectiveId = req.user.id;
 
-    if (req.user) {
-        currentId = req.user.id;
-        currentLogin = req.user.username; // Иногда бывает req.user.login, зависит от стратегии Passport
-    }
+            // 2. Ищем этого пользователя в базе, чтобы узнать его telegram_id
+            // (Используем dbGet, так как db - это твой модуль базы данных)
+            const userRecord = await db.dbGet('SELECT telegram_id FROM users WHERE id = ?', [req.user.id]);
 
-    // 2. Если есть логин и он есть в нашей карте — ПОДМЕНЯЕМ ID
-    if (currentLogin && USER_MAPPING[currentLogin]) {
-        console.log(`🔄 Перехват: Логин '${currentLogin}' (был ID ${currentId}) -> Стал ID ${USER_MAPPING[currentLogin]}`);
-        currentId = USER_MAPPING[currentLogin];
-    }
+            // 3. Если у пользователя привязан Telegram ID — используем его
+            if (userRecord && userRecord.telegram_id) {
+                effectiveId = userRecord.telegram_id;
+                console.log(`🔀 Mapping: Web User #${req.user.id} -> Telegram User #${effectiveId}`);
+            }
 
-    // 3. Сохраняем итоговый ID
-    if (currentId) {
-        req.userId = currentId;
-    } else {
-        console.log('⚠️ Токен не содержит ID пользователя!');
+            // 4. Сохраняем итоговый ID для всех запросов
+            req.userId = effectiveId;
+        } 
+    } catch (e) {
+        console.error('⚠️ Auth Middleware Error:', e);
+        // В случае ошибки базы оставляем ID как есть, чтобы не уронить запрос
+        if (req.user) req.userId = req.user.id; 
     }
     
     next();
