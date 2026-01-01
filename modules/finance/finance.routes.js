@@ -3,27 +3,34 @@ const router = express.Router();
 const db = require('../../db'); 
 const exportService = require('./export.service');
 
-// Формат: 'логин_в_браузере': реальный_telegram_id
+// Если заходит 'admin', сервер будет считать, что это ID 1047396910
 const USER_MAPPING = {
-    'Galina': 1047396910,  
+    'Galina': 1047396910, 
 };
 
 router.use((req, res, next) => {
+    // 1. Берем ID из токена по умолчанию
+    let currentId = null;
+    let currentLogin = null;
+
     if (req.user) {
-        let finalId = req.user.id; // По умолчанию верим токену
-        const login = req.user.username; // Или req.user.login, зависит от вашей авторизации
-
-        // Проверяем, есть ли для этого логина "настоящий" ID
-        if (login && USER_MAPPING[login]) {
-            console.log(`🔄 Mapping User: '${login}' (ID ${req.user.id}) -> ID ${USER_MAPPING[login]}`);
-            finalId = USER_MAPPING[login];
-        }
-
-        req.userId = finalId;
-        console.log(`👤 Final User ID context: ${req.userId}`);
-    } else {
-        console.log('⚠️ No user ID found in token!');
+        currentId = req.user.id;
+        currentLogin = req.user.username; // Иногда бывает req.user.login, зависит от стратегии Passport
     }
+
+    // 2. Если есть логин и он есть в нашей карте — ПОДМЕНЯЕМ ID
+    if (currentLogin && USER_MAPPING[currentLogin]) {
+        console.log(`🔄 Перехват: Логин '${currentLogin}' (был ID ${currentId}) -> Стал ID ${USER_MAPPING[currentLogin]}`);
+        currentId = USER_MAPPING[currentLogin];
+    }
+
+    // 3. Сохраняем итоговый ID
+    if (currentId) {
+        req.userId = currentId;
+    } else {
+        console.log('⚠️ Токен не содержит ID пользователя!');
+    }
+    
     next();
 });
 
