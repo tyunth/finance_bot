@@ -81,6 +81,28 @@ bot.hears(['Меню', 'menu'], async (ctx) => {
     await ctx.reply('Главное меню:', menu);
 });
 
+bot.command('last', async (ctx) => {
+    // Проверка на админа (по желанию, можно убрать if)
+    if (ctx.from.id !== 133245761) return; // <-- Твой ID (или используй config.ADMIN_ID)
+
+    try {
+        const rows = await db.dbAll(`
+            SELECT id, user_id, amount, category, comment, date 
+            FROM transactions 
+            ORDER BY id DESC 
+            LIMIT 10
+        `);
+        
+        console.log('\n--- ПОСЛЕДНИЕ ТРАНЗАКЦИИ ---');
+        console.table(rows); // console.table делает красоту
+        console.log('----------------------------\n');
+        
+        ctx.reply('Вывел последние 10 транзакций в консоль сервера.');
+    } catch (e) {
+        ctx.reply('Ошибка: ' + e.message);
+    }
+});
+
 // Запуск кронов
 require('./jobs/cron.manager')(bot);
 bot.use(require('./modules/tracking/tracking.bot'));
