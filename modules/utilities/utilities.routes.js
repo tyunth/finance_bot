@@ -19,4 +19,10 @@ router.post('/utilities/action', safeHandler(async (req, res) => {
     res.json({ status: 'ok' });
 }));
 
+// --- WORDS (Английские слова) ---
+router.get('/words', safeHandler(async (req, res) => {
+    const words = await db.dbAll('SELECT * FROM english_words WHERE user_id = ? ORDER BY date DESC', [req.userId]);
+    res.json(words);
+}));
+
 module.exports = router;

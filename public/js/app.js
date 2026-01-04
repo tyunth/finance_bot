@@ -2,7 +2,7 @@ import { API } from './api.js';
 import { formatCurrency, formatDateISO } from './utils.js';
 import { fetchWithAuth } from './api.js';
 
-let STATE = { categories: [], transactions: [], accounts: [], charts: {}, shopping: [] };
+let STATE = { categories: [], transactions: [], accounts: [], charts: {}, shopping: [], words: [] };
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
 let CURRENT_TODO_FILTER = 'urgent';
 let CURRENT_FILTERED_DATA = []; // 🔥 НОВАЯ ПЕРЕМЕННАЯ (хранит результат глобального фильтра)
@@ -74,6 +74,13 @@ function setupEventListeners() {
     ['list-buy', 'list-market', 'list-wish'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', handleShoppingClick);
     });
+
+    // Слова (flashcards)
+    document.getElementById('btn-start-flashcards')?.addEventListener('click', startFlashcards);
+    document.getElementById('btn-prev-word')?.addEventListener('click', prevWord);
+    document.getElementById('btn-next-word')?.addEventListener('click', nextWord);
+    document.getElementById('btn-exit-flashcards')?.addEventListener('click', exitFlashcards);
+    document.getElementById('flashcard-card')?.addEventListener('click', flipCard);
 
     // --- ФИКС УДАЛЕНИЯ ТРАНЗАКЦИЙ ---
     document.getElementById('table-body')?.addEventListener('click', (e) => {
@@ -212,12 +219,13 @@ function switchTab(tab) {
     
     // Lazy load
     if(tab === 'utilities') loadUtilities();
+    if(tab === 'words') loadWords();
     if(tab === 'admin') loadAdmin();
 }
 
 function applyModules(modules, role) {
     const isAll = role === 'admin' || modules.includes('all');
-    ['students', 'shopping', 'utilities', 'calendar', 'admin'].forEach(mod => {
+    ['students', 'shopping', 'utilities', 'calendar', 'words', 'admin'].forEach(mod => {
         const btn = document.getElementById(`nav-btn-${mod}`);
         if(isAll || modules.includes(mod)) btn?.classList.remove('hidden');
     });
@@ -1295,4 +1303,96 @@ function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+// --- WORDS (Английские слова) ---
+let currentWordIndex = 0;
+let isFlipped = false;
+
+async function loadWords() {
+    try {
+        document.getElementById('words-loading').classList.remove('hidden');
+        document.getElementById('words-content').classList.add('hidden');
+
+        STATE.words = await API.words.getAll();
+
+        document.getElementById('words-count').textContent = STATE.words.length;
+        document.getElementById('words-list').innerHTML = STATE.words.map(w => `
+            <div class="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-md transition">
+                <div class="font-bold text-lg text-blue-600">${w.word}</div>
+                <div class="text-gray-700 mt-1">${w.translation}</div>
+                ${w.definition ? `<div class="text-sm text-gray-500 italic mt-2">${w.definition}</div>` : ''}
+                ${w.example ? `<div class="text-xs text-gray-400 mt-1">"${w.example}"</div>` : ''}
+                <div class="text-xs text-gray-300 mt-2">${w.date}</div>
+            </div>
+        `).join('') || '<div class="col-span-full text-center text-gray-400 py-8">Нет слов для повторения</div>';
+
+        document.getElementById('words-loading').classList.add('hidden');
+        document.getElementById('words-content').classList.remove('hidden');
+    } catch (e) {
+        console.error('Load words error:', e);
+        document.getElementById('words-loading').innerHTML = '<p class="text-red-500">Ошибка загрузки слов</p>';
+    }
+}
+
+function startFlashcards() {
+    if (STATE.words.length === 0) {
+        alert('Нет слов для повторения');
+        return;
+    }
+    currentWordIndex = 0;
+    isFlipped = false;
+    document.getElementById('words-content').classList.add('hidden');
+    document.getElementById('flashcard-mode').classList.remove('hidden');
+    showCurrentWord();
+}
+
+function showCurrentWord() {
+    const word = STATE.words[currentWordIndex];
+    document.getElementById('flashcard-front').textContent = word.word;
+    document.getElementById('flashcard-translation').textContent = word.translation;
+    document.getElementById('flashcard-definition').textContent = word.definition || '';
+    document.getElementById('flashcard-example').textContent = word.example || '';
+    flipCard(false); // Сброс на переднюю сторону
+}
+
+function flipCard(force = null) {
+    const card = document.getElementById('flashcard-card');
+    const front = document.getElementById('flashcard-front');
+    const back = document.getElementById('flashcard-back');
+
+    if (force !== null) {
+        isFlipped = force;
+    } else {
+        isFlipped = !isFlipped;
+    }
+
+    if (isFlipped) {
+        front.classList.add('hidden');
+        back.classList.remove('hidden');
+    } else {
+        back.classList.add('hidden');
+        front.classList.remove('hidden');
+    }
+}
+
+function prevWord() {
+    if (currentWordIndex > 0) {
+        currentWordIndex--;
+        showCurrentWord();
+    }
+}
+
+function nextWord() {
+    if (currentWordIndex < STATE.words.length - 1) {
+        currentWordIndex++;
+        showCurrentWord();
+    } else {
+        alert('Все слова пройдены!');
+    }
+}
+
+function exitFlashcards() {
+    document.getElementById('flashcard-mode').classList.add('hidden');
+    document.getElementById('words-content').classList.remove('hidden');
 }
