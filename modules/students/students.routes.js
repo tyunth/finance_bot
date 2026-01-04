@@ -15,10 +15,13 @@ router.get('/students', async (req, res) => {
 router.get('/students/stats', async (req, res) => {
     try {
         const { id } = req.query;
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+        const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
         const student = await db.dbGet('SELECT * FROM students WHERE id = ? AND user_id = ?', [id, req.userId]);
         const transactions = await db.dbAll(
-            'SELECT * FROM transactions WHERE user_id = ? AND tag LIKE ? ORDER BY date DESC', 
-            [req.userId, `%${student.name}%`]
+            'SELECT * FROM transactions WHERE user_id = ? AND tag LIKE ? AND date LIKE ? ORDER BY date DESC',
+            [req.userId, `%${student.name}%`, `${monthKey}-%`]
         );
         res.json({ student, transactions });
     } catch (e) { res.status(500).json({ error: e.message }); }

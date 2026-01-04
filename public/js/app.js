@@ -556,6 +556,7 @@ async function loadStudents() {
             <div class="text-sm text-gray-500 space-y-1">
                 <p>📍 ${s.address || '—'}</p>
                 <p>📱 ${s.phone || '—'}</p>
+                <p>👨 ${s.parents || '—'} (${s.parent_phone || '—'})</p>
             </div>
             <button onclick="event.stopPropagation(); openStudentStats(${s.id})" class="w-full mt-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm font-bold rounded-xl">📊 Статистика</button>
         </div>
@@ -580,6 +581,13 @@ window.openStudentEdit = async (id) => {
         form.subject.value = s.subject;
         form.phone.value = s.phone;
         form.parents.value = s.parents;
+        form.parent_phone.value = s.parent_phone;
+        if (s.schedule_days) {
+            const days = s.schedule_days.split(',').map(d => d.trim());
+            document.querySelectorAll('input[name="weekdays"]').forEach(cb => {
+                cb.checked = days.includes(cb.value);
+            });
+        }
         form.address.value = s.address;
         form.notes.value = s.notes;
         form.school.value = s.school;
