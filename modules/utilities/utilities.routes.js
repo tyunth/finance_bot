@@ -25,4 +25,10 @@ router.get('/words', safeHandler(async (req, res) => {
     res.json(words);
 }));
 
+router.post('/words/delete', safeHandler(async (req, res) => {
+    const { id } = req.body;
+    await db.dbRun('DELETE FROM english_words WHERE id = ? AND user_id = ?', [id, req.userId]);
+    res.json({ status: 'ok' });
+}));
+
 module.exports = router;

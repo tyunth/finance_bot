@@ -6,7 +6,7 @@ let STATE = { categories: [], transactions: [], accounts: [], charts: {}, shoppi
 let CHART_DATA = { dayOfWeekMap: [], dayOfMonthMap: [] };
 let CURRENT_TODO_FILTER = 'urgent';
 let CURRENT_FILTERED_DATA = []; // 🔥 НОВАЯ ПЕРЕМЕННАЯ (хранит результат глобального фильтра)
-const ALL_MODULES = ['finance', 'students', 'shopping', 'utilities', 'todos', 'sport', 'calendar'];
+const ALL_MODULES = ['finance', 'students', 'shopping', 'utilities', 'todos', 'sport', 'calendar', 'words'];
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 App Started');
@@ -1318,12 +1318,13 @@ async function loadWords() {
 
         document.getElementById('words-count').textContent = STATE.words.length;
         document.getElementById('words-list').innerHTML = STATE.words.map(w => `
-            <div class="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-md transition">
+            <div class="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-md transition relative group" data-id="${w.id}">
                 <div class="font-bold text-lg text-blue-600">${w.word}</div>
                 <div class="text-gray-700 mt-1">${w.translation}</div>
                 ${w.definition ? `<div class="text-sm text-gray-500 italic mt-2">${w.definition}</div>` : ''}
                 ${w.example ? `<div class="text-xs text-gray-400 mt-1">"${w.example}"</div>` : ''}
                 <div class="text-xs text-gray-300 mt-2">${w.date}</div>
+                <button class="absolute top-2 right-2 text-red-400 hover:text-red-600 font-bold opacity-0 group-hover:opacity-100 transition" onclick="deleteWord(${w.id})">×</button>
             </div>
         `).join('') || '<div class="col-span-full text-center text-gray-400 py-8">Нет слов для повторения</div>';
 
@@ -1340,6 +1341,8 @@ function startFlashcards() {
         alert('Нет слов для повторения');
         return;
     }
+    // Перемешиваем слова для случайного порядка
+    STATE.words = [...STATE.words].sort(() => Math.random() - 0.5);
     currentWordIndex = 0;
     isFlipped = false;
     document.getElementById('words-content').classList.add('hidden');
@@ -1396,3 +1399,16 @@ function exitFlashcards() {
     document.getElementById('flashcard-mode').classList.add('hidden');
     document.getElementById('words-content').classList.remove('hidden');
 }
+
+async function deleteWord(id) {
+    if (!confirm('Удалить это слово?')) return;
+    try {
+        await API.words.delete(id);
+        loadWords(); // Перезагружаем список слов
+    } catch (e) {
+        console.error('Delete word error:', e);
+        alert('Ошибка удаления слова');
+    }
+}
+
+window.deleteWord = deleteWord; // Экспортируем в глобальную область

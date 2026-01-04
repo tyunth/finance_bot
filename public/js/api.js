@@ -86,7 +86,8 @@ export const API = {
         action: (data) => request('/utilities/action', 'POST', data)
     },
     words: {
-        getAll: () => request('/words')
+        getAll: () => request('/words'),
+        delete: (id) => request('/words/delete', 'POST', { id })
     },
     trash: {
         getAll: () => request('/trash'),
