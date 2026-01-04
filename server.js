@@ -37,25 +37,25 @@ app.use((req, res, next) => {
 // --- 2. РОУТИНГ ---
 
 // А. Открытые маршруты (Auth написан правильно, там пути относительные)
-app.use('/auth', authRoutes);
-app.use('/ha', require('./modules/home/home.routes'));
+app.use('/budzet/auth', authRoutes);
+app.use('/budzet/ha', require('./modules/home/home.routes'));
 
 // Б. ЗАЩИТА (все, что ниже, требует входа)
 app.use(authMiddleware);
 
 // В. МОДУЛИ (Исправлено!)
-// Мы подключаем их к корню '/', чтобы сработали пути внутри файлов
+// Мы подключаем их к /budzet, чтобы сработали пути внутри файлов
 // (например, router.get('/transactions') внутри financeRoutes)
 
-app.use('/', financeRoutes);   // Ловит /transactions, /categories, /balances
-app.use('/', studentRoutes);   // Ловит /students, /debts
-app.use('/', shoppingRoutes);  // Ловит /shopping
-app.use('/', utilitiesRoutes); // Ловит /utilities
-app.use('/', todosRoutes);     // Ловит /todos
+app.use('/budzet', financeRoutes);   // Ловит /budzet/transactions, /budzet/categories, /budzet/balances
+app.use('/budzet', studentRoutes);   // Ловит /budzet/students, /budzet/debts
+app.use('/budzet', shoppingRoutes);  // Ловит /budzet/shopping
+app.use('/budzet', utilitiesRoutes); // Ловит /budzet/utilities
+app.use('/budzet', todosRoutes);     // Ловит /budzet/todos
 
 // Для системных путей (/users/me, /settings) скорее всего тоже нужны полные пути
-// Если в system.routes.js написано router.get('/users/me'), то подключаем к корню:
-app.use('/', systemRoutes);
+// Если в system.routes.js написано router.get('/users/me'), то подключаем к /budzet:
+app.use('/budzet', systemRoutes);
 
 // Если вдруг внутри system.routes.js написано просто router.get('/me'), 
 // то для запроса /users/me нужно раскомментировать строку ниже, а верхнюю убрать:
