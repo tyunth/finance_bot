@@ -144,17 +144,19 @@ function initializeTables() {
         value TEXT
         )`);
 
-        // Таблица счетчиков использования функций (пересоздаем для добавления type)
-        db.run(`DROP TABLE IF EXISTS usage_counters`);
-        db.run(`CREATE TABLE usage_counters (
+        // Таблица счетчиков использования функций
+        db.run(`CREATE TABLE IF NOT EXISTS usage_counters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             function_name TEXT,
-            type TEXT DEFAULT 'web',
             count INTEGER DEFAULT 1,
             last_used TEXT,
-            UNIQUE(user_id, function_name, type)
+            UNIQUE(user_id, function_name)
         )`);
+        // Миграция: добавить колонку type
+        db.run("ALTER TABLE usage_counters ADD COLUMN type TEXT DEFAULT 'web'", () => {});
+        db.run("UPDATE usage_counters SET type = 'web' WHERE type IS NULL OR type = ''", () => {});
+        // Создать индекс для нового UNIQUE (SQLite не позволяет менять UNIQUE, так что оставим старый)
 
         db.run(`CREATE TABLE IF NOT EXISTS one_second_videos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
