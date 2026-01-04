@@ -81,6 +81,68 @@ bot.hears(['Меню', 'menu'], async (ctx) => {
     await ctx.reply('Главное меню:', menu);
 });
 
+bot.command('last', async (ctx) => {
+    // Проверка на админа (по желанию, можно убрать if)
+    if (ctx.from.id !== 133245761) return; // <-- Твой ID (или используй config.ADMIN_ID)
+
+    try {
+        const rows = await db.dbAll(`
+            SELECT id, user_id, amount, category, comment, date 
+            FROM transactions 
+            ORDER BY id DESC 
+            LIMIT 10
+        `);
+        
+        console.log('\n--- ПОСЛЕДНИЕ ТРАНЗАКЦИИ ---');
+        console.table(rows); // console.table делает красоту
+        console.log('----------------------------\n');
+        
+        ctx.reply('Вывел последние 10 транзакций в консоль сервера.');
+    } catch (e) {
+        ctx.reply('Ошибка: ' + e.message);
+    }
+});
+
+// ВРЕМЕННАЯ КОМАНДА: Слияние пользователя ID 2 в ID 1047396910
+bot.command('merge_users', async (ctx) => {
+    const OLD_ID = 2;              // От кого забираем
+    const NEW_ID = 1047396910;     // Кому отдаем 
+
+    try {
+        let report = `🔄 Слияние ID ${OLD_ID} -> ID ${NEW_ID}:\n`;
+
+        // 1. Простые таблицы (просто меняем владельца)
+        await db.dbRun('UPDATE transactions SET user_id = ? WHERE user_id = ?', [NEW_ID, OLD_ID]);
+        report += `✅ Транзакции перенесены\n`;
+
+        await db.dbRun('UPDATE receipts SET user_id = ? WHERE user_id = ?', [NEW_ID, OLD_ID]);
+        report += `✅ Чеки перенесены\n`;
+
+        await db.dbRun('UPDATE one_second_videos SET user_id = ? WHERE user_id = ?', [NEW_ID, OLD_ID]);
+        report += `✅ Видео перенесены\n`;
+        
+        await db.dbRun('UPDATE todos SET user_id = ? WHERE user_id = ?', [NEW_ID, OLD_ID]);
+        report += `✅ Задачи перенесены\n`;
+
+        // 2. Сложная таблица (Алиасы магазинов) - там есть UNIQUE(user_id, raw_name)
+        // Сначала обновляем те, что не конфликтуют
+        await db.dbRun('UPDATE OR IGNORE shop_aliases SET user_id = ? WHERE user_id = ?', [NEW_ID, OLD_ID]);
+        // Удаляем оставшиеся дубликаты у старого юзера
+        await db.dbRun('DELETE FROM shop_aliases WHERE user_id = ?', [OLD_ID]);
+        report += `✅ Алиасы магазинов объединены\n`;
+
+        // 3. Удаляем старого пользователя
+        await db.dbRun('DELETE FROM users WHERE telegram_id = ?', [OLD_ID]);
+        report += `🗑 Пользователь-призрак (ID ${OLD_ID}) удален.`;
+
+        ctx.reply(report);
+
+    } catch (e) {
+        console.error(e);
+        ctx.reply('❌ Ошибка: ' + e.message);
+    }
+});
+
 // Запуск кронов
 require('./jobs/cron.manager')(bot);
 bot.use(require('./modules/tracking/tracking.bot'));

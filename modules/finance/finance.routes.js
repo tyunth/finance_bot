@@ -3,17 +3,35 @@ const router = express.Router();
 const db = require('../../db'); 
 const exportService = require('./export.service');
 
-// 🔥 ВАЖНОЕ ИСПРАВЛЕНИЕ:
-// Этот код берет ID из токена (req.user.id) и сохраняет его как req.userId,
-// чтобы старые запросы к базе работали.
-router.use((req, res, next) => {
-    if (req.user && req.user.id) {
-        req.userId = req.user.id;
-        // 🔥 ДОБАВЬТЕ ЭТОТ ЛОГ:
-        console.log(`👤 User ID detected: ${req.userId}`);
-    } else {
-        console.log('⚠️ No user ID found in token!');
+const USER_MAPPING = {
+    'Galina': 1047396910, 
+};
+
+router.use(async (req, res, next) => {
+    try {
+        if (req.user && req.user.id) {
+            // 1. Сначала берем ID из сессии (это ID=2)
+            let effectiveId = req.user.id;
+
+            // 2. Ищем этого пользователя в базе, чтобы узнать его telegram_id
+            // (Используем dbGet, так как db - это твой модуль базы данных)
+            const userRecord = await db.dbGet('SELECT telegram_id FROM users WHERE id = ?', [req.user.id]);
+
+            // 3. Если у пользователя привязан Telegram ID — используем его
+            if (userRecord && userRecord.telegram_id) {
+                effectiveId = userRecord.telegram_id;
+                console.log(`🔀 Mapping: Web User #${req.user.id} -> Telegram User #${effectiveId}`);
+            }
+
+            // 4. Сохраняем итоговый ID для всех запросов
+            req.userId = effectiveId;
+        } 
+    } catch (e) {
+        console.error('⚠️ Auth Middleware Error:', e);
+        // В случае ошибки базы оставляем ID как есть, чтобы не уронить запрос
+        if (req.user) req.userId = req.user.id; 
     }
+    
     next();
 });
 
