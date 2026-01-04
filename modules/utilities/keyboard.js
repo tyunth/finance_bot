@@ -44,9 +44,8 @@ async function getMainMenu(userId) {
     // Админская кнопка
     if (isAdmin) dynamicButtons.push('⚙️ Админка');
 
-    // Разбиваем динамические кнопки по 2 или 3 в ряд (как тебе красивее)
-    // Сейчас поставил по 2, чтобы их было удобно нажимать
-    const dynamicRows = chunk(dynamicButtons, 2); 
+    // Разбиваем динамические кнопки по 3 в ряд
+    const dynamicRows = chunk(dynamicButtons, 3);
 
     // 4. Склеиваем всё вместе
     return Markup.keyboard([

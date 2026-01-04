@@ -151,6 +151,16 @@ function initializeTables() {
         date TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
+
+        // --- СПОРТ: ВЫХОДНЫЕ ДНИ ---
+        db.run(`CREATE TABLE IF NOT EXISTS sport_rest_days (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            date TEXT,
+            reason TEXT,
+            created_at TEXT,
+            UNIQUE(user_id, date)
+        )`);
     
         // Заполним дефолтной ценой урока, если нет
         db.get("SELECT key FROM settings WHERE key = 'lesson_price'", (err, row) => {
@@ -864,6 +874,58 @@ async function setUserPassword(id, hashedPassword) {
     return dbRun('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, id]);
 }
 
+// --- СПОРТ: ВЫХОДНЫЕ ДНИ ---
+async function addRestDay(userId, date, reason = 'Выходной') {
+    const now = new Date().toISOString();
+    return dbRun(
+        'INSERT OR REPLACE INTO sport_rest_days (user_id, date, reason, created_at) VALUES (?, ?, ?, ?)',
+        [userId, date, reason, now]
+    );
+}
+
+async function removeRestDay(userId, date) {
+    return dbRun('DELETE FROM sport_rest_days WHERE user_id = ? AND date = ?', [userId, date]);
+}
+
+async function isRestDay(userId, date) {
+    const row = await dbGet('SELECT id FROM sport_rest_days WHERE user_id = ? AND date = ?', [userId, date]);
+    return !!row;
+}
+
+async function getRestDays(userId, startDate = null) {
+    if (startDate) {
+        return dbAll('SELECT * FROM sport_rest_days WHERE user_id = ? AND date >= ? ORDER BY date ASC', [userId, startDate]);
+    }
+    return dbAll('SELECT * FROM sport_rest_days WHERE user_id = ? ORDER BY date DESC LIMIT 30', [userId]);
+}
+
+// Автоматически добавить воскресенья на месяц вперед
+async function addSundaysAsRestDays(userId, monthsAhead = 1) {
+    const today = new Date();
+    const endDate = new Date(today);
+    endDate.setMonth(endDate.getMonth() + monthsAhead);
+    
+    const sundays = [];
+    const current = new Date(today);
+    
+    while (current <= endDate) {
+        if (current.getDay() === 0) { // 0 = воскресенье
+            sundays.push(current.toISOString().split('T')[0]);
+        }
+        current.setDate(current.getDate() + 1);
+    }
+    
+    for (const sunday of sundays) {
+        try {
+            await addRestDay(userId, sunday, 'Воскресенье');
+        } catch (e) {
+            // Игнорируем дубликаты
+        }
+    }
+    
+    return sundays.length;
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -897,5 +959,9 @@ module.exports = {
     getSetting, setSetting, getAllSettings,
 
     getUserByUsername, setUserPassword,
+    
+    // Спорт: выходные дни
+    addRestDay, removeRestDay, isRestDay, getRestDays, addSundaysAsRestDays,
+    
     DB_PATH
 };

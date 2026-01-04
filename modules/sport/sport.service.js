@@ -5,21 +5,40 @@ const ai = require('./sport.ai'); // Подключаем локальный AI
 // --- ОТРИСОВКА МЕНЮ ---
 async function renderMainMenu(ctx) {
     const userId = ctx.from.id;
+    const today = new Date().toISOString().split('T')[0];
     
-    // 1. Ищем активный план
+    // 1. Проверяем, выходной ли сегодня
+    const isRest = await db.isRestDay(userId, today);
+    
+    if (isRest) {
+        return ctx.reply(
+            '😴 *Сегодня выходной!*\nОтдыхай и набирайся сил 💪',
+            { 
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.callback('✅ Всё равно тренироваться', 'sport_cancel_rest')],
+                    [Markup.button.callback('📅 Управление выходными', 'sport_rest_menu')]
+                ])
+            }
+        );
+    }
+    
+    // 2. Ищем активный план
     const planRow = await db.dbGet('SELECT * FROM sport_plans WHERE user_id = ? AND is_active = 1', [userId]);
     
     if (!planRow) {
         return ctx.reply(
             '🏋️‍♂️ План тренировок не найден.\nНапиши мне что-то вроде: "Утром зарядка, а днем 50 подтягиваний"',
-            Markup.inlineKeyboard([[Markup.button.callback('📝 Создать план', 'sport_new')]])
+            Markup.inlineKeyboard([
+                [Markup.button.callback('📝 Создать план', 'sport_new')],
+                [Markup.button.callback('📅 Управление выходными', 'sport_rest_menu')]
+            ])
         );
     }
 
     let plan;
     try { plan = JSON.parse(planRow.plan_data); } catch (e) { return ctx.reply('Ошибка данных плана.'); }
 
-    const today = new Date().toISOString().split('T')[0];
     const logs = await db.dbAll('SELECT * FROM sport_logs WHERE user_id = ? AND date = ?', [userId, today]);
     
     let msg = `📅 *${today}* — ${plan.title || 'Тренировка'}\n\n`;
@@ -144,7 +163,129 @@ async function handleCallback(ctx) {
         return ctx.answerCbQuery();
     }
 
+    // Управление выходными днями
+    if (data === 'sport_rest_menu') {
+        return renderRestMenu(ctx);
+    }
+
+    if (data === 'sport_cancel_rest') {
+        // Всё равно тренироваться - просто рендерим обычное меню, игнорируя выходной
+        await ctx.answerCbQuery('Начинаем тренировку!');
+    }
+
+    // --- ОБРАБОТЧИКИ ДЛЯ МЕНЮ ВЫХОДНЫХ ---
+    if (data === 'sport_add_rest') {
+        await ctx.reply('📅 Введите дату выходного дня в формате ГГГГ-ММ-ДД (например: 2026-01-15).\nИли нажмите "Сегодня" для сегодняшнего дня.');
+        if (!ctx.session) ctx.session = {};
+
+        // Клавиатура для быстрого выбора
+        const quickKeyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('Сегодня', 'sport_add_rest_today')],
+            [Markup.button.callback('Завтра', 'sport_add_rest_tomorrow')]
+        ]);
+
+        await ctx.reply('Быстрый выбор:', quickKeyboard);
+        ctx.session.state = { step: 'AWAITING_REST_DATE' };
+        return;
+    }
+
+    if (data === 'sport_add_rest_today') {
+        const today = new Date().toISOString().split('T')[0];
+        await db.addRestDay(userId, today, 'Выходной');
+        await ctx.answerCbQuery(`Выходной добавлен: ${today}`);
+        return renderRestMenu(ctx);
+    }
+
+    if (data === 'sport_add_rest_tomorrow') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        await db.addRestDay(userId, tomorrowStr, 'Выходной');
+        await ctx.answerCbQuery(`Выходной добавлен: ${tomorrowStr}`);
+        return renderRestMenu(ctx);
+    }
+
+    if (data === 'sport_auto_sundays') {
+        const addedCount = await db.addSundaysAsRestDays(userId, 3);
+        await ctx.answerCbQuery(`Добавлено ${addedCount} воскресений как выходные`);
+        return renderRestMenu(ctx);
+    }
+
+    if (data === 'sport_remove_rest') {
+        const restDays = await db.getRestDays(userId);
+        if (restDays.length === 0) {
+            await ctx.answerCbQuery('Нет выходных для удаления');
+            return renderRestMenu(ctx);
+        }
+
+        let removeMsg = '📅 Выберите выходной для удаления:\n\n';
+        const removeKeyboard = [];
+
+        restDays.slice(0, 8).forEach((day, index) => {
+            removeMsg += `${index + 1}. ${day.date} — ${day.reason}\n`;
+            removeKeyboard.push([Markup.button.callback(`${index + 1}. Удалить ${day.date}`, `sport_del_rest_${day.date}`)]);
+        });
+
+        removeKeyboard.push([Markup.button.callback('⬅️ Назад', 'sport_rest_menu')]);
+
+        await ctx.editMessageText(removeMsg, { parse_mode: 'Markdown', reply_markup: { inline_keyboard: removeKeyboard } });
+        await ctx.answerCbQuery();
+        return;
+    }
+
+    if (data.startsWith('sport_del_rest_')) {
+        const dateToDelete = data.replace('sport_del_rest_', '');
+        await db.removeRestDay(userId, dateToDelete);
+        await ctx.answerCbQuery(`Выходной удален: ${dateToDelete}`);
+        return renderRestMenu(ctx);
+    }
+
+    if (data === 'sport_back_to_main') {
+        return renderMainMenu(ctx);
+    }
+
     await renderMainMenu(ctx);
+}
+
+// ---- МЕНЮ УПРАВЛЕНИЯ ВЫХОДНЫМИ ----
+async function renderRestMenu(ctx) {
+    const userId = ctx.from.id;
+    const today = new Date().toISOString().split('T')[0];
+
+    // Получаем ближайшие выходные дни (от сегодня)
+    const restDays = await db.getRestDays(userId, today);
+    let restDaysText = '';
+
+    if (restDays.length === 0) {
+        restDaysText = '😴 Выходных дней нет.';
+    } else {
+        restDaysText = '📅 *Запланированные выходные:*\n';
+        restDays.slice(0, 10).forEach(day => { // Показываем максимум 10 ближайших
+            restDaysText += `• ${day.date} — ${day.reason}\n`;
+        });
+        if (restDays.length > 10) restDaysText += `... и ещё ${restDays.length - 10} дней\n`;
+    }
+
+    const msg = `${restDaysText}\n\n*Выберите действие:*`;
+
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('➕ Добавить выходной', 'sport_add_rest')],
+        [Markup.button.callback('➖ Удалить выходной', 'sport_remove_rest')],
+        [Markup.button.callback('📅 Авто: воскресенья', 'sport_auto_sundays')],
+        [Markup.button.callback('⬅️ Назад', 'sport_back_to_main')]
+    ]);
+
+    try {
+        if (ctx.callbackQuery) {
+            await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...keyboard });
+        } else {
+            await ctx.reply(msg, { parse_mode: 'Markdown', ...keyboard });
+        }
+    } catch (e) {
+        console.error('Rest menu render error:', e.message);
+    }
+
+    await ctx.answerCbQuery();
 }
 
 // --- ХЕЛПЕРЫ БАЗЫ ДАННЫХ ---
@@ -193,6 +334,36 @@ async function handlePlanUpload(ctx) {
     try { await ctx.deleteMessage(loadingMsg.message_id); } catch(e){}
     await ctx.reply('✅ План сохранен!');
     return renderMainMenu(ctx);
+}
+
+// --- ОБРАБОТКА ВВОДА ДАТЫ ВЫХОДНОГО ---
+async function handleRestDateInput(ctx) {
+    const text = ctx.message.text.trim();
+    const userId = ctx.from.id;
+
+    // Валидация формата даты: ГГГГ-ММ-ДД
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(text)) {
+        await ctx.reply('❌ Неверный формат даты. Используйте ГГГГ-ММ-ДД (например: 2026-01-15)');
+        return;
+    }
+
+    // Проверяем, что дата не в прошлом (сегодня или будущее)
+    const today = new Date().toISOString().split('T')[0];
+    if (text < today) {
+        await ctx.reply('❌ Нельзя добавить выходной в прошлое. Выберите сегодняшнюю или будущую дату.');
+        return;
+    }
+
+    try {
+        await db.addRestDay(userId, text, 'Выходной');
+        ctx.session.state = null;
+        await ctx.reply(`✅ Выходной добавлен: ${text}`);
+        return renderRestMenu(ctx);
+    } catch (e) {
+        console.error('Error adding rest day:', e);
+        await ctx.reply('❌ Ошибка при добавлении выходного дня.');
+    }
 }
 
 // --- СВОДКА ДЛЯ AI (BRIEFING) ---
@@ -268,10 +439,11 @@ async function processEveningReminders(bot) {
     }
 }
 
-module.exports = { 
-    renderMainMenu, 
-    handleCallback, 
-    handlePlanUpload, 
-    getDailySummary, 
+module.exports = {
+    renderMainMenu,
+    handleCallback,
+    handlePlanUpload,
+    handleRestDateInput,
+    getDailySummary,
     processEveningReminders // <-- Экспортируем
 };
