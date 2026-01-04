@@ -144,6 +144,16 @@ function initializeTables() {
         value TEXT
         )`);
 
+        // Таблица счетчиков использования функций
+        db.run(`CREATE TABLE IF NOT EXISTS usage_counters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            function_name TEXT,
+            count INTEGER DEFAULT 1,
+            last_used TEXT,
+            UNIQUE(user_id, function_name)
+        )`);
+
         db.run(`CREATE TABLE IF NOT EXISTS one_second_videos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -926,6 +936,41 @@ async function addSundaysAsRestDays(userId, monthsAhead = 1) {
     return sundays.length;
 }
 
+// --- СЧЕТЧИКИ ИСПОЛЬЗОВАНИЯ ---
+// Увеличить счетчик для функции
+async function incrementUsageCounter(userId, functionName) {
+    const now = new Date().toISOString();
+    return dbRun(
+        'INSERT INTO usage_counters (user_id, function_name, count, last_used) VALUES (?, ?, 1, ?) ON CONFLICT(user_id, function_name) DO UPDATE SET count = count + 1, last_used = ?',
+        [userId, functionName, now, now]
+    );
+}
+
+// Получить счетчики для пользователя
+async function getUsageCounters(userId) {
+    return dbAll('SELECT function_name, count, last_used FROM usage_counters WHERE user_id = ? ORDER BY count DESC', [userId]);
+}
+
+// Получить средние счетчики по всем пользователям
+async function getAverageUsageCounters() {
+    return dbAll(`
+        SELECT function_name, AVG(count) as avg_count, COUNT(user_id) as user_count
+        FROM usage_counters
+        GROUP BY function_name
+        ORDER BY avg_count DESC
+    `);
+}
+
+// Получить все счетчики для админки
+async function getAllUsageCounters() {
+    return dbAll(`
+        SELECT u.first_name, uc.function_name, uc.count, uc.last_used
+        FROM usage_counters uc
+        JOIN users u ON uc.user_id = u.id
+        ORDER BY u.first_name, uc.count DESC
+    `);
+}
+
 // --- EXPORTS ---
 module.exports = {
     db, dbRun, dbAll, dbGet,
@@ -934,21 +979,21 @@ module.exports = {
     getProductCategory, learnProductCategory, saveReceiptItems,
     getCategoryByComment, learnKeyword, wasInterestPaidThisMonth,
     getStudents, addStudent, updateStudent, deleteStudent, getStudentStats,
-    
+
     // Покупки
-    getShoppingList, 
-    addShoppingItem, 
-    updateShoppingStatus, 
-    deleteShoppingItem, 
+    getShoppingList,
+    addShoppingItem,
+    updateShoppingStatus,
+    deleteShoppingItem,
     reorderShoppingList,
     updateShoppingItem,
 
     addParcel, getParcels, deleteParcel, updateParcelStatus,
 
-    getUtilityReadings, addUtilityReading, deleteUtilityReading, 
+    getUtilityReadings, addUtilityReading, deleteUtilityReading,
     getLessonCount, payDebt,
-    getTodos, addTodo, toggleTodo, deleteTodo, 
-    addLessonHistory, checkLessonHistoryExists, 
+    getTodos, addTodo, toggleTodo, deleteTodo,
+    addLessonHistory, checkLessonHistoryExists,
     createReceipt,
     getUserCategories, addCategory,
     getArchivedItems, restoreItem,
@@ -959,9 +1004,12 @@ module.exports = {
     getSetting, setSetting, getAllSettings,
 
     getUserByUsername, setUserPassword,
-    
+
     // Спорт: выходные дни
     addRestDay, removeRestDay, isRestDay, getRestDays, addSundaysAsRestDays,
-    
+
+    // Счетчики использования
+    incrementUsageCounter, getUsageCounters, getAverageUsageCounters, getAllUsageCounters,
+
     DB_PATH
 };

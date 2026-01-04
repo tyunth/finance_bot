@@ -25,13 +25,26 @@ router.use(async (req, res, next) => {
 
             // 4. Сохраняем итоговый ID для всех запросов
             req.userId = effectiveId;
-        } 
+        }
     } catch (e) {
         console.error('⚠️ Auth Middleware Error:', e);
         // В случае ошибки базы оставляем ID как есть, чтобы не уронить запрос
-        if (req.user) req.userId = req.user.id; 
+        if (req.user) req.userId = req.user.id;
     }
-    
+
+    next();
+});
+
+// Middleware для логирования использования
+router.use(async (req, res, next) => {
+    if (req.userId) {
+        const functionName = req.route.path || req.path;
+        try {
+            await db.incrementUsageCounter(req.userId, functionName);
+        } catch (e) {
+            console.error('Error logging usage:', e);
+        }
+    }
     next();
 });
 

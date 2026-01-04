@@ -93,4 +93,29 @@ router.post('/settings', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// --- СТАТИСТИКА ИСПОЛЬЗОВАНИЯ ---
+// Средние счетчики по функциям
+router.get('/admin/usage/average', async (req, res) => {
+    try {
+        if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
+        const stats = await db.getAverageUsageCounters();
+        res.json(stats);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Все счетчики для фильтрации по пользователям
+router.get('/admin/usage/all', async (req, res) => {
+    try {
+        if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
+        const stats = await db.getAllUsageCounters();
+        res.json(stats);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Счетчики для конкретного пользователя
+router.get('/usage/me', safeHandler(async (req, res) => {
+    const stats = await db.getUsageCounters(req.userId);
+    res.json(stats);
+}));
+
 module.exports = router;

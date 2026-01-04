@@ -101,5 +101,10 @@ export const API = {
         getMe: () => request('/users/me'), // <--- Это вернет 404, если на сервере нет маршрута
         getSettings: () => request('/settings'),
         saveSetting: (key, value) => request('/settings', 'POST', { key, value })
+    },
+    usage: {
+        getMyStats: () => request('/usage/me'),
+        getAverageStats: () => request('/admin/usage/average'),
+        getAllStats: () => request('/admin/usage/all')
     }
 };

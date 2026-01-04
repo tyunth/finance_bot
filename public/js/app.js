@@ -923,16 +923,34 @@ function initSnowToggle() {
 
 async function loadAdmin() {
     try {
-        // Загружаем юзеров и настройки параллельно
-        const [users, settings] = await Promise.all([
+        // Загружаем юзеров, настройки и статистику параллельно
+        const [users, settings, avgStats, allStats] = await Promise.all([
             API.system.getUsers(),
-            API.system.getSettings() // Теперь этот метод есть в api.js
+            API.system.getSettings(),
+            API.usage.getAverageStats(),
+            API.usage.getAllStats()
         ]);
 
         const container = document.getElementById('admin-users-list');
         container.innerHTML = '';
 
-        // 1. Блок Настроек (Цена урока)
+        // 1. Блок Статистики использования
+        const statsHtml = `
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
+                <h2 class="text-xl font-bold mb-4 text-gray-800">📊 Статистика использования функций</h2>
+                <div class="mb-4">
+                    <select id="stats-filter-user" class="border border-gray-200 rounded-xl p-2">
+                        <option value="">Средние по всем пользователям</option>
+                        ${[...new Set(allStats.map(s => s.first_name))].map(name => `<option value="${name}">${name}</option>`).join('')}
+                    </select>
+                </div>
+                <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    ${renderUsageStats(avgStats, allStats, '')}
+                </div>
+            </div>
+        `;
+
+        // 2. Блок Настроек (Цена урока)
         const settingsHtml = `
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
                 <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Настройки системы</h2>
@@ -948,7 +966,7 @@ async function loadAdmin() {
             </div>
         `;
 
-        // 2. Таблица пользователей
+        // 3. Таблица пользователей
         const usersHtml = `
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">Пользователи</h2>
@@ -970,7 +988,13 @@ async function loadAdmin() {
             </div>
         `;
 
-        container.innerHTML = settingsHtml + usersHtml;
+        container.innerHTML = statsHtml + settingsHtml + usersHtml;
+
+        // Обработчик фильтра статистики
+        document.getElementById('stats-filter-user').addEventListener('change', (e) => {
+            const selectedUser = e.target.value;
+            document.getElementById('stats-container').innerHTML = renderUsageStats(avgStats, allStats, selectedUser);
+        });
 
     } catch(e) { console.error('Admin Load Error:', e); }
 }
@@ -1412,3 +1436,30 @@ async function deleteWord(id) {
 }
 
 window.deleteWord = deleteWord; // Экспортируем в глобальную область
+
+// --- РЕНДЕР СТАТИСТИКИ ИСПОЛЬЗОВАНИЯ ---
+function renderUsageStats(avgStats, allStats, selectedUser) {
+    if (selectedUser) {
+        // Фильтруем по пользователю
+        const userStats = allStats.filter(s => s.first_name === selectedUser)
+            .reduce((acc, s) => {
+                acc[s.function_name] = (acc[s.function_name] || 0) + s.count;
+                return acc;
+            }, {});
+        return Object.entries(userStats).map(([func, count]) => `
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div class="text-sm font-bold text-gray-700">${func}</div>
+                <div class="text-2xl font-extrabold text-blue-600 mt-2">${count}</div>
+            </div>
+        `).join('');
+    } else {
+        // Средние по всем
+        return avgStats.map(stat => `
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div class="text-sm font-bold text-gray-700">${stat.function_name}</div>
+                <div class="text-2xl font-extrabold text-blue-600 mt-2">${stat.avg_count.toFixed(1)}</div>
+                <div class="text-xs text-gray-500 mt-1">${stat.user_count} пользователей</div>
+            </div>
+        `).join('');
+    }
+}

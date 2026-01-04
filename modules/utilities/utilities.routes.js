@@ -2,8 +2,38 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../db');
 
+router.use(async (req, res, next) => {
+    try {
+        if (req.user && req.user.id) {
+            let effectiveId = req.user.id;
+            const userRecord = await db.dbGet('SELECT telegram_id FROM users WHERE id = ?', [req.user.id]);
+            if (userRecord && userRecord.telegram_id) {
+                effectiveId = userRecord.telegram_id;
+            }
+            req.userId = effectiveId;
+        }
+    } catch (e) {
+        console.error('Auth Middleware Error:', e);
+        if (req.user) req.userId = req.user.id;
+    }
+    next();
+});
+
+// Middleware для логирования использования
+router.use(async (req, res, next) => {
+    if (req.userId) {
+        const functionName = req.route.path || req.path;
+        try {
+            await db.incrementUsageCounter(req.userId, functionName);
+        } catch (e) {
+            console.error('Error logging usage:', e);
+        }
+    }
+    next();
+});
+
 const safeHandler = (fn) => async (req, res, next) => {
-    try { await fn(req, res, next); } 
+    try { await fn(req, res, next); }
     catch (e) { res.status(500).json({ error: e.message }); }
 };
 
