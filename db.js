@@ -375,7 +375,7 @@ async function wasInterestPaidThisMonth(userId, accountName) {
 async function getStudents(userId) {
     return dbAll('SELECT * FROM students WHERE user_id = ? ORDER BY name ASC', [userId]);
 }
-async function addStudent(userId, data) { // <--- Добавили userId
+async function addStudent(userId, data) {
     const { name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week } = data;
     return dbRun(
         `INSERT INTO students (user_id, name, subject, parents, school, grade, teacher, phone, address, notes, parent_phone, lessons_per_week) 
@@ -394,7 +394,7 @@ async function updateStudent(data) {
 async function deleteStudent(id) {
     return dbRun('DELETE FROM students WHERE id = ?', [id]);
 }
-async function getStudentStats(userId, studentName) { // <--- Добавили userId
+async function getStudentStats(userId, studentName) {
     return dbAll(
         `SELECT * FROM transactions WHERE user_id = ? AND type = 'income' AND tag = ? ORDER BY date DESC`, 
         [userId, `Ученик: ${studentName}`]
@@ -403,7 +403,7 @@ async function getStudentStats(userId, studentName) { // <--- Добавили u
 
 // --- СПИСОК ПОКУПОК ---
 
-async function getShoppingList(userId) { // <--- Добавили userId
+async function getShoppingList(userId) {
     return new Promise((resolve, reject) => {
         // Фильтруем по user_id
         db.all(
@@ -428,7 +428,7 @@ async function getShoppingList(userId) { // <--- Добавили userId
 }
 
 // Функция принимает объект, так как сервер шлет объект data
-async function addShoppingItem(userId, data) { // <--- Добавили userId первым аргументом
+async function addShoppingItem(userId, data) {
     const title = data.title || data.text || data.item_name; 
     const type = data.type || 'buy';
     const price = data.price_estimate || 0;
@@ -482,7 +482,7 @@ async function reorderShoppingList(ids) {
 async function getUtilityReadings(userId) {
     return dbAll("SELECT * FROM utility_readings WHERE user_id = ? ORDER BY date DESC", [userId]);
 }
-async function addUtilityReading(userId, data) { // <--- Добавили userId
+async function addUtilityReading(userId, data) {
     const { date, service, reading, amount, comment } = data;
     return dbRun(
         `INSERT INTO utility_readings (user_id, date, service, reading, amount, comment) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -521,7 +521,7 @@ async function payDebt(debtId) {
 }
 
 // --- СПИСОК ДЕЛ (TO-DO) ---
-async function getTodos(userId) { // <--- Добавили userId
+async function getTodos(userId) {
     return new Promise((resolve, reject) => {
         db.all("SELECT * FROM todos WHERE user_id = ? AND deleted_at IS NULL", [userId], (err, rows) => {
             if (err) reject(err);
@@ -530,7 +530,7 @@ async function getTodos(userId) { // <--- Добавили userId
     });
 }
 
-async function addTodo(userId, text, period) { // <--- Добавили userId
+async function addTodo(userId, text, period) {
     const p = period || 'urgent';
     const now = new Date().toISOString();
     return dbRun(
@@ -659,7 +659,7 @@ async function addCategory(userId, name, type = 'expense') {
 }
 
 // Получить последние удаленные элементы (Дела + Покупки)
-async function getArchivedItems(userId, limit = 15) { // <--- userId
+async function getArchivedItems(userId, limit = 15) {
     return new Promise((resolve, reject) => {
         const sql = `
             SELECT id, text AS title, 'todo' AS type, deleted_at FROM todos WHERE user_id = ? AND deleted_at IS NOT NULL

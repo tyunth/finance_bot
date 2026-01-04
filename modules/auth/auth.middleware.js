@@ -10,7 +10,7 @@ module.exports = (req, res, next) => {
 
     if (!token) {
         // Если токена нет совсем - ошибка 401
-        console.log('🔒 AuthMiddleware: Token not found');
+        // console.log('🔒 AuthMiddleware: Token not found');
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
     }
 
@@ -19,8 +19,8 @@ module.exports = (req, res, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
 
         // 3. Сохраняем данные пользователя в запрос
-        req.user = decoded;      // Для нового кода (req.user.id)
-        req.userId = decoded.id; // Для старого кода (req.userId)
+        req.user = decoded;
+        req.userId = decoded.id;
 
         // 4. Логирование использования (асинхронно, не блокируем запрос)
         const logUsage = async () => {

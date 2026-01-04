@@ -25,14 +25,14 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Логируем запросы для отладки
-app.use((req, res, next) => {
+// Логируем запросы для отладки (закомментировано для продакшена)
+// app.use((req, res, next) => {
     // Не засоряем логи статикой (картинки, css)
-    if (!req.url.includes('.')) {
-        console.log(`📥 API запрос: ${req.method} ${req.url}`);
-    }
-    next();
-});
+    // if (!req.url.includes('.')) {
+    //     console.log(`📥 API запрос: ${req.method} ${req.url}`);
+    // }
+    // next();
+// });
 
 // --- 2. РОУТИНГ ---
 

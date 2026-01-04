@@ -11,9 +11,9 @@ bot.use(session());
 // --- 1. MIDDLEWARE (Фейс-контроль) ---
 bot.use(async (ctx, next) => {
     if (!ctx.from) return next();
-    if (!ctx.session) ctx.session = {}; 
+    if (!ctx.session) ctx.session = {};
     if (!ctx.state) ctx.state = {};
-    
+
     try {
         let user = await db.getUser(ctx.from.id);
         if (!user && ctx.from.id.toString() === config.ADMIN_ID.toString()) {
@@ -24,6 +24,35 @@ bot.use(async (ctx, next) => {
         }
         if (!user) return ctx.reply('Нет доступа.');
         ctx.state.user = user;
+
+        // Логирование использования
+        const logUsage = async () => {
+            try {
+                let functionName = 'unknown';
+                if (ctx.message) {
+                    if (ctx.message.text) {
+                        functionName = ctx.message.text.startsWith('/') ? ctx.message.text.split(' ')[0] : 'text_message';
+                    } else if (ctx.message.photo) {
+                        functionName = 'photo';
+                    } else if (ctx.message.video) {
+                        functionName = 'video';
+                    } else if (ctx.message.document) {
+                        functionName = 'document';
+                    } else if (ctx.message.voice) {
+                        functionName = 'voice';
+                    } else {
+                        functionName = 'other_message';
+                    }
+                } else if (ctx.callbackQuery) {
+                    functionName = 'callback_' + ctx.callbackQuery.data.split('_')[0];
+                }
+                await db.incrementUsageCounter(ctx.from.id, functionName);
+            } catch (e) {
+                console.error('Error logging bot usage:', e);
+            }
+        };
+        logUsage();
+
         return next();
     } catch (e) { console.error(e); return next(); }
 });
@@ -72,7 +101,7 @@ bot.start(async (ctx) => {
     ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
     
-    const menu = await keyboard.getMainMenu(ctx.from.id); // <--- Вот здесь
+    const menu = await keyboard.getMainMenu(ctx.from.id);
     await ctx.reply(`Привет! Меню обновлено.`, menu);
 });
 

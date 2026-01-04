@@ -20,7 +20,7 @@ router.use(async (req, res, next) => {
             // 3. Если у пользователя привязан Telegram ID — используем его
             if (userRecord && userRecord.telegram_id) {
                 effectiveId = userRecord.telegram_id;
-                console.log(`🔀 Mapping: Web User #${req.user.id} -> Telegram User #${effectiveId}`);
+                // console.log(`🔀 Mapping: Web User #${req.user.id} -> Telegram User #${effectiveId}`);
             }
 
             // 4. Сохраняем итоговый ID для всех запросов
@@ -49,12 +49,7 @@ const safeHandler = (fn) => async (req, res, next) => {
 
 // --- ТРАНЗАКЦИИ ---
 router.get('/transactions', safeHandler(async (req, res) => {
-    // 🔥 И ЭТОТ ЛОГ:
-    console.log(`🔍 Seeking transactions for User ${req.userId}...`);
-    
     const rows = await db.dbAll('SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC', [req.userId]);
-    
-    console.log(`✅ Found ${rows.length} transactions.`); // Покажет, сколько нашел
     res.json(rows);
 }));
 

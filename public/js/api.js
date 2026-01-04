@@ -98,7 +98,7 @@ export const API = {
         getKPI: (month) => request(`/stats/kpi?month=${month}`),
         getUsers: () => request('/admin/users'),
         updateModules: (telegramId, modules) => request('/admin/users/modules', 'POST', { telegramId, modules }),
-        getMe: () => request('/users/me'), // <--- Это вернет 404, если на сервере нет маршрута
+        getMe: () => request('/users/me'),
         getSettings: () => request('/settings'),
         saveSetting: (key, value) => request('/settings', 'POST', { key, value })
     },
