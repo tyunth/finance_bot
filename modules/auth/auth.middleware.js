@@ -25,7 +25,7 @@ module.exports = (req, res, next) => {
         // 4. Логирование использования (асинхронно, не блокируем запрос)
         const logUsage = async () => {
             try {
-                const functionName = req.route ? req.route.path : req.path;
+                const functionName = req.path;
                 await db.incrementUsageCounter(req.userId, functionName);
             } catch (e) {
                 console.error('Error logging usage:', e);

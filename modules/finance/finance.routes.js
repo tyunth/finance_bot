@@ -35,18 +35,7 @@ router.use(async (req, res, next) => {
     next();
 });
 
-// Middleware для логирования использования
-router.use(async (req, res, next) => {
-    if (req.userId) {
-        const functionName = req.route.path || req.path;
-        try {
-            await db.incrementUsageCounter(req.userId, functionName);
-        } catch (e) {
-            console.error('Error logging usage:', e);
-        }
-    }
-    next();
-});
+
 
 // Вспомогательная функция для безопасности
 const safeHandler = (fn) => async (req, res, next) => {
