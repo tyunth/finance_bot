@@ -94,20 +94,22 @@ router.post('/settings', async (req, res) => {
 });
 
 // --- СТАТИСТИКА ИСПОЛЬЗОВАНИЯ ---
-// Средние счетчики по функциям
+// Средние счетчики по функциям (с фильтром по типу и дате)
 router.get('/admin/usage/average', async (req, res) => {
     try {
         if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
-        const stats = await db.getAverageUsageCounters();
+        const { type, startDate, endDate } = req.query;
+        const stats = await db.getAverageUsageCounters(type, startDate, endDate);
         res.json(stats);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Все счетчики для фильтрации по пользователям
+// Все счетчики для фильтрации по пользователям (с фильтром по типу и дате)
 router.get('/admin/usage/all', async (req, res) => {
     try {
         if(req.userId !== config.ADMIN_ID) return res.status(403).json({error: 'Access denied'});
-        const stats = await db.getAllUsageCounters();
+        const { type, startDate, endDate } = req.query;
+        const stats = await db.getAllUsageCounters(type, startDate, endDate);
         res.json(stats);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });

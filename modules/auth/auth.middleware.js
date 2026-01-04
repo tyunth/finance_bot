@@ -26,7 +26,7 @@ module.exports = (req, res, next) => {
         const logUsage = async () => {
             try {
                 const functionName = req.path;
-                await db.incrementUsageCounter(req.userId, functionName);
+                await db.incrementUsageCounter(req.userId, functionName, 'web');
             } catch (e) {
                 console.error('Error logging usage:', e);
             }

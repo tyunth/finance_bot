@@ -104,7 +104,19 @@ export const API = {
     },
     usage: {
         getMyStats: () => request('/usage/me'),
-        getAverageStats: () => request('/admin/usage/average'),
-        getAllStats: () => request('/admin/usage/all')
+        getAverageStats: (type, startDate, endDate) => {
+            const params = new URLSearchParams();
+            if (type) params.append('type', type);
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            return request(`/admin/usage/average?${params}`);
+        },
+        getAllStats: (type, startDate, endDate) => {
+            const params = new URLSearchParams();
+            if (type) params.append('type', type);
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            return request(`/admin/usage/all?${params}`);
+        }
     }
 };

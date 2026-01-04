@@ -149,9 +149,10 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             function_name TEXT,
+            type TEXT DEFAULT 'web',
             count INTEGER DEFAULT 1,
             last_used TEXT,
-            UNIQUE(user_id, function_name)
+            UNIQUE(user_id, function_name, type)
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS one_second_videos (
@@ -938,11 +939,11 @@ async function addSundaysAsRestDays(userId, monthsAhead = 1) {
 
 // --- СЧЕТЧИКИ ИСПОЛЬЗОВАНИЯ ---
 // Увеличить счетчик для функции
-async function incrementUsageCounter(userId, functionName) {
+async function incrementUsageCounter(userId, functionName, type = 'web') {
     const now = new Date().toISOString();
     return dbRun(
-        'INSERT INTO usage_counters (user_id, function_name, count, last_used) VALUES (?, ?, 1, ?) ON CONFLICT(user_id, function_name) DO UPDATE SET count = count + 1, last_used = ?',
-        [userId, functionName, now, now]
+        'INSERT INTO usage_counters (user_id, function_name, type, count, last_used) VALUES (?, ?, ?, 1, ?) ON CONFLICT(user_id, function_name, type) DO UPDATE SET count = count + 1, last_used = ?',
+        [userId, functionName, type, now, now]
     );
 }
 
@@ -952,23 +953,57 @@ async function getUsageCounters(userId) {
 }
 
 // Получить средние счетчики по всем пользователям
-async function getAverageUsageCounters() {
+async function getAverageUsageCounters(type = null, startDate = null, endDate = null) {
+    let where = '';
+    const params = [];
+    if (type) {
+        where += 'WHERE type = ? ';
+        params.push(type);
+    }
+    if (startDate) {
+        where += where ? 'AND ' : 'WHERE ';
+        where += 'last_used >= ? ';
+        params.push(startDate);
+    }
+    if (endDate) {
+        where += where ? 'AND ' : 'WHERE ';
+        where += 'last_used <= ? ';
+        params.push(endDate + 'T23:59:59');
+    }
     return dbAll(`
         SELECT function_name, AVG(count) as avg_count, COUNT(user_id) as user_count
         FROM usage_counters
+        ${where}
         GROUP BY function_name
         ORDER BY avg_count DESC
-    `);
+    `, params);
 }
 
 // Получить все счетчики для админки
-async function getAllUsageCounters() {
+async function getAllUsageCounters(type = null, startDate = null, endDate = null) {
+    let where = '';
+    const params = [];
+    if (type) {
+        where += 'WHERE uc.type = ? ';
+        params.push(type);
+    }
+    if (startDate) {
+        where += where ? 'AND ' : 'WHERE ';
+        where += 'uc.last_used >= ? ';
+        params.push(startDate);
+    }
+    if (endDate) {
+        where += where ? 'AND ' : 'WHERE ';
+        where += 'uc.last_used <= ? ';
+        params.push(endDate + 'T23:59:59');
+    }
     return dbAll(`
-        SELECT u.first_name, uc.function_name, uc.count, uc.last_used
+        SELECT u.first_name, uc.function_name, uc.count, uc.last_used, uc.type
         FROM usage_counters uc
         JOIN users u ON uc.user_id = u.id
+        ${where}
         ORDER BY u.first_name, uc.count DESC
-    `);
+    `, params);
 }
 
 // --- EXPORTS ---

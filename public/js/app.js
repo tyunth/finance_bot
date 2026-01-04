@@ -927,8 +927,8 @@ async function loadAdmin() {
         const [users, settings, avgStats, allStats] = await Promise.all([
             API.system.getUsers(),
             API.system.getSettings(),
-            API.usage.getAverageStats(),
-            API.usage.getAllStats()
+            API.usage.getAverageStats('', '', ''), // type, startDate, endDate
+            API.usage.getAllStats('', '', '') // type, startDate, endDate
         ]);
 
         const container = document.getElementById('admin-users-list');
@@ -938,14 +938,22 @@ async function loadAdmin() {
         const statsHtml = `
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
                 <h2 class="text-xl font-bold mb-4 text-gray-800">📊 Статистика использования функций</h2>
-                <div class="mb-4">
+                <div class="mb-4 flex flex-wrap gap-4">
+                    <select id="stats-filter-type" class="border border-gray-200 rounded-xl p-2">
+                        <option value="">Все типы</option>
+                        <option value="web">Веб-сайт</option>
+                        <option value="bot">Бот</option>
+                    </select>
                     <select id="stats-filter-user" class="border border-gray-200 rounded-xl p-2">
                         <option value="">Средние по всем пользователям</option>
                         ${[...new Set(allStats.map(s => s.first_name))].map(name => `<option value="${name}">${name}</option>`).join('')}
                     </select>
+                    <input type="date" id="stats-start-date" class="border border-gray-200 rounded-xl p-2" placeholder="От даты">
+                    <input type="date" id="stats-end-date" class="border border-gray-200 rounded-xl p-2" placeholder="До даты">
+                    <button id="stats-refresh" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">Обновить</button>
                 </div>
                 <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${renderUsageStats(avgStats, allStats, '')}
+                    ${renderUsageStats(avgStats, allStats, '', '')}
                 </div>
             </div>
         `;
@@ -990,11 +998,29 @@ async function loadAdmin() {
 
         container.innerHTML = statsHtml + settingsHtml + usersHtml;
 
-        // Обработчик фильтра статистики
-        document.getElementById('stats-filter-user').addEventListener('change', (e) => {
-            const selectedUser = e.target.value;
-            document.getElementById('stats-container').innerHTML = renderUsageStats(avgStats, allStats, selectedUser);
-        });
+        // Обработчики фильтров статистики
+        const updateStats = async () => {
+            const type = document.getElementById('stats-filter-type').value;
+            const user = document.getElementById('stats-filter-user').value;
+            const startDate = document.getElementById('stats-start-date').value;
+            const endDate = document.getElementById('stats-end-date').value;
+
+            try {
+                const [newAvgStats, newAllStats] = await Promise.all([
+                    API.usage.getAverageStats(type, startDate, endDate),
+                    API.usage.getAllStats(type, startDate, endDate)
+                ]);
+                document.getElementById('stats-container').innerHTML = renderUsageStats(newAvgStats, newAllStats, user, type);
+            } catch (e) {
+                console.error('Error updating stats:', e);
+            }
+        };
+
+        document.getElementById('stats-filter-type').addEventListener('change', updateStats);
+        document.getElementById('stats-filter-user').addEventListener('change', updateStats);
+        document.getElementById('stats-start-date').addEventListener('change', updateStats);
+        document.getElementById('stats-end-date').addEventListener('change', updateStats);
+        document.getElementById('stats-refresh').addEventListener('click', updateStats);
 
     } catch(e) { console.error('Admin Load Error:', e); }
 }
@@ -1438,7 +1464,7 @@ async function deleteWord(id) {
 window.deleteWord = deleteWord; // Экспортируем в глобальную область
 
 // --- РЕНДЕР СТАТИСТИКИ ИСПОЛЬЗОВАНИЯ ---
-function renderUsageStats(avgStats, allStats, selectedUser) {
+function renderUsageStats(avgStats, allStats, selectedUser, selectedType) {
     if (selectedUser) {
         // Фильтруем по пользователю
         const userStats = allStats.filter(s => s.first_name === selectedUser)
