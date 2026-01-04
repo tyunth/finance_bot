@@ -106,6 +106,11 @@ async function renderMainMenu(ctx) {
         Markup.button.callback('⚙️ Новый план', 'sport_new')
     ]);
 
+    // Управление выходными - всегда добавляем
+    inlineButtons.push([
+        Markup.button.callback('📅 Выходные', 'sport_rest_menu')
+    ]);
+
     try {
         if (ctx.callbackQuery) {
             await ctx.editMessageText(msg, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(inlineButtons) });
