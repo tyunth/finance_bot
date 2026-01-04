@@ -46,7 +46,8 @@ bot.use(async (ctx, next) => {
                 } else if (ctx.callbackQuery) {
                     functionName = 'callback_' + ctx.callbackQuery.data.split('_')[0];
                 }
-                await db.incrementUsageCounter(ctx.from.id, functionName);
+                console.log(`Bot usage: ${ctx.from.id} - ${functionName}`);
+                await db.incrementUsageCounter(ctx.from.id, functionName, 'bot');
             } catch (e) {
                 console.error('Error logging bot usage:', e);
             }
