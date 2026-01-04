@@ -20,10 +20,13 @@ bot.hears('💪 Спорт', checkAccess, (ctx) => sportService.renderMainMenu(c
 // Обработка всех callback-ов, начинающихся на sport_
 bot.action(/^sport_/, (ctx) => sportService.handleCallback(ctx));
 
-// Обработка текста (для загрузки плана)
+// Обработка текста (для загрузки плана и дат выходных)
 bot.on('text', async (ctx, next) => {
     if (ctx.session.state && ctx.session.state.step === 'AWAITING_SPORT_PLAN') {
         return sportService.handlePlanUpload(ctx);
+    }
+    if (ctx.session.state && ctx.session.state.step === 'AWAITING_REST_DATE') {
+        return sportService.handleRestDateInput(ctx);
     }
     return next();
 });
