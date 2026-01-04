@@ -172,6 +172,9 @@ function initializeTables() {
             created_at TEXT,
             UNIQUE(user_id, date)
         )`);
+
+        // Миграция для usage_counters: установить type = 'web' для старых записей
+        db.run("UPDATE usage_counters SET type = 'web' WHERE type IS NULL", () => {});
     
         // Заполним дефолтной ценой урока, если нет
         db.get("SELECT key FROM settings WHERE key = 'lesson_price'", (err, row) => {
@@ -1000,7 +1003,7 @@ async function getAllUsageCounters(type = null, startDate = null, endDate = null
     return dbAll(`
         SELECT u.first_name, uc.function_name, uc.count, uc.last_used, uc.type
         FROM usage_counters uc
-        JOIN users u ON uc.user_id = u.id
+        JOIN users u ON uc.user_id = u.telegram_id
         ${where}
         ORDER BY u.first_name, uc.count DESC
     `, params);
