@@ -144,8 +144,9 @@ function initializeTables() {
         value TEXT
         )`);
 
-        // Таблица счетчиков использования функций
-        db.run(`CREATE TABLE IF NOT EXISTS usage_counters (
+        // Таблица счетчиков использования функций (пересоздаем для добавления type)
+        db.run(`DROP TABLE IF EXISTS usage_counters`);
+        db.run(`CREATE TABLE usage_counters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
             function_name TEXT,
