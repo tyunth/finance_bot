@@ -99,10 +99,10 @@ bot.on('photo', async (ctx) => {
             await sendReceiptPreview(ctx);
         } else {
             ctx.session.awaiting_shop_name = true;
-            
+
             // Тут используем MarkdownV2 и экранирование
             await ctx.reply(
-                `🧐 Я впервые вижу магазин: *"${escape(rawName)}"* \n\nКак называть его в отчетах? (Например: *Магнум*)\n\n_Напиши название или нажми кнопку, чтобы оставить как есть\\._`,
+                `🧐 Я впервые вижу магазин: *"${escape(rawName)}"* \n\nКак называть его в отчетах? \\(Например: *Магнум*\\)\n\n_Напиши название или нажми кнопку, чтобы оставить как есть\\._`,
                 {
                     parse_mode: 'MarkdownV2',
                     ...Markup.inlineKeyboard([
