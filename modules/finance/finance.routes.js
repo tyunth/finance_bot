@@ -133,19 +133,18 @@ router.get('/transactions/export', async (req, res) => {
 // --- АНАЛИТИКА МАГАЗИНОВ ---
 router.get('/analytics/shops', safeHandler(async (req, res) => {
     const sql = `
-        SELECT 
+        SELECT
             COALESCE(a.brand_name, r.shop_name) as shop_name,
-            r.shop_address as address,  -- 🔥 БЫЛО r.address, СТАЛО r.shop_address
-            COUNT(*) as visit_count, 
+            COUNT(*) as visit_count,
             SUM(r.total_sum) as total_spent,
             AVG(r.total_sum) as avg_check
         FROM receipts r
         LEFT JOIN shop_aliases a ON r.shop_name = a.raw_name AND a.user_id = r.user_id
-        WHERE r.user_id = ? 
-        GROUP BY shop_name, r.shop_address -- 🔥 ТУТ ТОЖЕ ВАЖНО ПОМЕНЯТЬ
-        ORDER BY visit_count DESC
+        WHERE r.user_id = ?
+        GROUP BY shop_name
+        ORDER BY total_spent DESC
     `;
-    
+
     const rows = await db.dbAll(sql, [req.userId]);
     res.json(rows);
 }));
