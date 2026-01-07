@@ -20,7 +20,7 @@
         
         <header class="flex flex-col xl:flex-row items-center gap-8 mb-10">
             <div class="flex items-center gap-4">
-                <button id="btn-reload" class="p-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 shadow-sm transition">🏠</button>
+                <button id="btn-reload" class="h-[42px] w-[42px] rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 shadow-sm transition flex items-center justify-center">🏠</button>
                 <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Мои Финансы</h1>
             </div>
             
@@ -220,7 +220,7 @@
                     </div>
                     <div class="flex justify-between items-center">
                         <h2 class="text-2xl font-bold text-gray-900">Ученики</h2>
-                        <button onclick="openStudentModal()" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition">+ Добавить</button>
+                        <button onclick="openStudentModal()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition">+ Добавить</button>
                     </div>
                     <div id="students-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                 </div>
@@ -245,7 +245,7 @@
                             <div class="flex gap-2 w-full md:w-auto">
                                 <input type="text" name="url" class="flex-1 w-full md:w-48 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-url-input" placeholder="Ссылка (URL)">
                                 <input type="number" name="price_estimate" class="w-24 rounded-xl p-3 outline-none border border-blue-200 hidden" id="shop-price-input" placeholder="Цена">
-                                <button type="submit" class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-200 transition text-xl leading-none pt-1 pb-2">+</button>
+                                <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md shadow-blue-200 transition">+</button>
                             </div>
                         </form>
                     </div>
@@ -323,7 +323,7 @@
                         <div id="words-content" class="hidden">
                             <div class="flex justify-between items-center mb-6">
                                 <p class="text-gray-600">Всего слов: <span id="words-count" class="font-bold text-blue-600">0</span></p>
-                                <button id="btn-start-flashcards" class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition">Начать повторение</button>
+                                <button id="btn-start-flashcards" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition">Начать повторение</button>
                             </div>
                             <div id="words-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                         </div>
@@ -366,8 +366,8 @@
                     <div class="p-4 border-b">
                         <form id="form-todo" class="flex gap-2">
                             <input type="text" name="text" id="todo-input" placeholder="Задача..." class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none">
-                            <select id="todo-period-select" class="bg-gray-100 text-xs rounded-xl outline-none w-10"><option value="urgent">🔥</option><option value="medium">⚡</option><option value="later">💤</option></select>
-                            <button type="submit" class="bg-gray-800 text-white px-3 rounded-xl font-bold">+</button>
+                            <select id="todo-period-select" class="bg-gray-100 text-xs rounded-xl outline-none w-12"><option value="urgent">🔥</option><option value="medium">⚡</option><option value="later">💤</option></select>
+                            <button type="submit" class="bg-gray-800 text-white px-4 py-2 rounded-xl font-bold">+</button>
                         </form>
                     </div>
                     <div id="todo-list" class="flex-1 overflow-y-auto p-4 space-y-2"></div>

@@ -996,7 +996,7 @@ async function loadAdmin() {
             </div>
         `;
 
-        container.innerHTML = statsHtml + settingsHtml + usersHtml;
+        container.innerHTML = settingsHtml + usersHtml + statsHtml;
 
         // Обработчики фильтров статистики
         const updateStats = async () => {
