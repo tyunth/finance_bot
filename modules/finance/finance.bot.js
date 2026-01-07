@@ -149,7 +149,7 @@ bot.on('text', async (ctx, next) => {
                 state.step = 'EXPENSE_CATEGORY';
                 const cats = await db.getUserCategories(ctx.from.id, 'expense');
                 const buttons = [];
-                for (let i = 0; i < cats.length; i += 3) buttons.push(cats.slice(i, i + 2));
+                for (let i = 0; i < cats.length; i += 3) buttons.push(cats.slice(i, i + 3));
                 buttons.push(['❌ Отмена']);
                 await ctx.reply('📂 Выберите категорию:', Markup.keyboard(buttons).resize());
             }
