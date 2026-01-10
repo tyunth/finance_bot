@@ -39,10 +39,6 @@ async function getMainMenu(userId) {
     if (hasAccess('sport'))     dynamicButtons.push('💪 Спорт');
     if (hasAccess('students'))  dynamicButtons.push('🎓 Ученики');
     if (hasAccess('calendar'))  dynamicButtons.push('📅 Календарь');
-    if (hasAccess('utilities')) dynamicButtons.push('💡 Быт');
-    if (hasAccess('all')) dynamicButtons.push('📦 Посылки');
-    // Админская кнопка
-    if (isAdmin) dynamicButtons.push('⚙️ Админка');
 
     // Разбиваем динамические кнопки по 3 в ряд
     const dynamicRows = chunk(dynamicButtons, 3);

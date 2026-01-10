@@ -1,6 +1,7 @@
 const db = require('../../db');
 const config = require('../../config');
 const gcal = require('./calendar.driver'); // 🔥 Подключаем локальный драйвер
+const { Markup } = require('telegraf');
 
 async function checkLessons(bot, userId) {
     if (!userId) userId = config.ADMIN_ID;
@@ -86,7 +87,7 @@ async function processCancellation(userId, eventId, summary, reason) {
 
     await db.addLessonHistory({
         userId,
-        studentId: null, 
+        studentId: null,
         studentName: studentName,
         date: new Date().toISOString(),
         status: `cancelled_${reason}`,
@@ -96,13 +97,32 @@ async function processCancellation(userId, eventId, summary, reason) {
 
     await db.markEventProcessed(eventId, summary, 'cancelled');
     try { await gcal.deleteEvent(eventId); } catch(e) {}
-    
+
     return studentName;
 }
 
-module.exports = { 
+async function checkPracticeAndAsk(bot, userId) {
+    try {
+        const events = await gcal.getEventsForDate(new Date());
+        const hasPractice = events.some(event => event.summary && event.summary.toLowerCase().includes('практика'));
+
+        if (hasPractice) {
+            await bot.telegram.sendMessage(userId, 'Как добирался?', {
+                reply_markup: Markup.inlineKeyboard([
+                    [Markup.button.callback('автобус +200тг', 'practice_bus')],
+                    [Markup.button.callback('другое', 'practice_other')]
+                ])
+            });
+        }
+    } catch (e) {
+        console.error('Error in checkPracticeAndAsk:', e);
+    }
+}
+
+module.exports = {
     checkLessons,
     processPayment,
     processDebt,
-    processCancellation
+    processCancellation,
+    checkPracticeAndAsk
 };

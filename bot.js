@@ -125,9 +125,9 @@ bot.hears(['Помощь', '/help'], (ctx) => ctx.replyWithMarkdown(HELP_MSG));
 bot.start(async (ctx) => {
     ctx.session.state = {};
     await db.ensureMainAccount(ctx.from.id);
-    
+
     const menu = await keyboard.getMainMenu(ctx.from.id);
-    await ctx.reply(`Привет! Меню обновлено.`, menu);
+    await ctx.reply(`Привет!`, menu);
 });
 
 bot.hears(['Меню', 'menu'], async (ctx) => {

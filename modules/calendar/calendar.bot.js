@@ -1,5 +1,6 @@
 const { Composer, Markup } = require('telegraf');
 const calendarService = require('./calendar.service'); // Локальный сервис
+const db = require('../../db');
 
 const bot = new Composer();
 
@@ -67,5 +68,25 @@ bot.action(/^cal_cx_([a-z]+)_(.+)$/, async (ctx) => {
 });
 
 bot.action('cal_ignore', (ctx) => ctx.deleteMessage());
+
+// Практика: автобус +200тг
+bot.action('practice_bus', async (ctx) => {
+    const userId = ctx.from.id;
+    await db.addTransaction({
+        userId,
+        type: 'expense',
+        amount: 200,
+        category: 'Транспорт',
+        comment: 'Автобус',
+        sourceAccount: 'Основной',
+        targetAccount: null
+    });
+    await ctx.editMessageText('Записано: автобус +200тг');
+});
+
+// Практика: другое
+bot.action('practice_other', async (ctx) => {
+    await ctx.editMessageText('Записано: другое');
+});
 
 module.exports = bot;

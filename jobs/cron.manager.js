@@ -29,6 +29,11 @@ module.exports = (bot) => {
         // Проверяем уроки для админа (или можно переделать под всех)
         await calendarService.checkLessons(bot, config.ADMIN_ID);
     }, 60 * 60 * 1000);
+
+    // 4. Проверка практики в 12:00 UTC и вопрос о добирании
+    cron.schedule('0 12 * * *', async () => {
+        await calendarService.checkPracticeAndAsk(bot, config.ADMIN_ID);
+    });
 };
 
 // --- ФУНКЦИИ ---
