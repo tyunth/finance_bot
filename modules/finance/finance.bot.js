@@ -38,9 +38,9 @@ bot.command('undo', async (ctx) => {
     if (!last) return ctx.reply('Нет операций для отмены.');
 
     await db.dbRun('DELETE FROM transactions WHERE id = ?', [last.id]);
-    
+
     const { balances } = await db.getBalances(ctx.from.id);
-    
+
     // Формируем красивое сообщение
     let msg = `↩️ *Отменено:* `;
     if (last.type === 'transfer') {
@@ -71,6 +71,19 @@ async function deleteTx(ctx, id) {
     await db.dbRun('DELETE FROM transactions WHERE id = ?', [id]);
     ctx.reply(`🗑 Запись #${id} удалена.`);
 }
+
+bot.command('categories', async (ctx) => {
+    const expenseCats = await db.getUserCategories(ctx.from.id, 'expense');
+    const incomeCats = await db.getUserCategories(ctx.from.id, 'income');
+
+    let msg = '📂 *Ваши категории:*\n\n';
+    msg += '*Расходы:*\n';
+    expenseCats.forEach(cat => msg += `• ${cat}\n`);
+    msg += '\n*Доходы:*\n';
+    incomeCats.forEach(cat => msg += `• ${cat}\n`);
+
+    ctx.reply(msg, { parse_mode: 'Markdown' });
+});
 
 
 // =========================================================
