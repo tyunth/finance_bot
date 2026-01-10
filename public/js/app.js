@@ -924,10 +924,9 @@ function initSnowToggle() {
 
 async function loadAdmin() {
     try {
-        // Загружаем юзеров, настройки и статистику параллельно
-        const [users, settings, avgStats, allStats] = await Promise.all([
+        // Загружаем юзеров и статистику параллельно
+        const [users, avgStats, allStats] = await Promise.all([
             API.system.getUsers(),
-            API.system.getSettings(),
             API.usage.getAverageStats('', '', ''), // type, startDate, endDate
             API.usage.getAllStats('', '', '') // type, startDate, endDate
         ]);
@@ -959,17 +958,7 @@ async function loadAdmin() {
             </div>
         `;
 
-        // 2. Блок Настроек (Цена урока)
-        const settingsHtml = `
-            <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
-                <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Настройки системы</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Настройки убраны -->
-                </div>
-            </div>
-        `;
-
-        // 3. Таблица пользователей
+        // 2. Таблица пользователей
         const usersHtml = `
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-bold">Пользователи</h2>
@@ -991,7 +980,7 @@ async function loadAdmin() {
             </div>
         `;
 
-        container.innerHTML = settingsHtml + usersHtml + statsHtml;
+        container.innerHTML = usersHtml + statsHtml;
 
         // Обработчики фильтров статистики
         const updateStats = async () => {
