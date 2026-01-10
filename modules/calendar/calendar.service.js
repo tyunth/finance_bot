@@ -26,9 +26,11 @@ async function checkLessons(bot, userId) {
             if (!isRelevant) continue;
 
             const { studentName, subject } = gcal.parseLessonInfo(summary);
-            const amount = await db.getSetting('lesson_price', 4000);
+            // Находим ученика и берем его индивидуальную цену
+            const student = students.find(s => s.name === studentName);
+            const amount = student ? (student.price || 4000) : 4000;
 
-            await bot.telegram.sendMessage(userId, 
+            await bot.telegram.sendMessage(userId,
                 `🔔 *Урок завершен:*\n${summary}\n👤 ${studentName}\n📚 ${subject}`,
                 {
                     parse_mode: 'Markdown',
@@ -39,11 +41,11 @@ async function checkLessons(bot, userId) {
                     ]}
                 }
             );
-            
+
             await db.markEventProcessed(event.id, summary, 'pending');
             foundCount++;
         }
-        
+
         return { count: foundCount, message: `Найдено новых: ${foundCount}` };
 
     } catch (e) {
@@ -58,32 +60,46 @@ async function processPayment(userId, eventId, summary) {
     const { studentName, subject } = gcal.parseLessonInfo(summary);
     let lessonType = 'regular';
     if (summary.toLowerCase().includes('пробный')) lessonType = 'trial';
-    
+
+    // Находим ученика и берем его индивидуальную цену
+    const students = await db.getStudents(userId);
+    const student = students.find(s => s.name === studentName);
+    const amount = student ? (student.price || 4000) : 4000;
+
     await db.addTransaction({
-        userId, 
-        type: 'income', 
-        amount: config.LESSON_PRICE, 
+        userId,
+        type: 'income',
+        amount: amount,
         category: 'Репетиторство',
-        tag: `Ученик: ${studentName}`, 
-        comment: `${subject} (${summary})`, 
-        sourceAccount: null, 
+        tag: `Ученик: ${studentName}`,
+        comment: subject,
+        sourceAccount: null,
         targetAccount: 'Основной',
         lesson_type: lessonType
     });
-    
+
     await db.markEventProcessed(eventId, summary, 'paid');
     return studentName;
 }
 
 async function processDebt(userId, eventId, summary) {
     const { studentName, subject } = gcal.parseLessonInfo(summary);
-    await db.addDebt(userId, studentName, subject, config.LESSON_PRICE, eventId);
+    // Находим ученика и берем его индивидуальную цену
+    const students = await db.getStudents(userId);
+    const student = students.find(s => s.name === studentName);
+    const amount = student ? (student.price || 4000) : 4000;
+    await db.addDebt(userId, studentName, subject, amount, eventId);
     await db.markEventProcessed(eventId, summary, 'debt');
     return studentName;
 }
 
 async function processCancellation(userId, eventId, summary, reason) {
     const { studentName } = gcal.parseLessonInfo(summary);
+
+    // Находим ученика и берем его индивидуальную цену
+    const students = await db.getStudents(userId);
+    const student = students.find(s => s.name === studentName);
+    const amount = student ? (student.price || 4000) : 4000;
 
     await db.addLessonHistory({
         userId,
@@ -92,7 +108,7 @@ async function processCancellation(userId, eventId, summary, reason) {
         date: new Date().toISOString(),
         status: `cancelled_${reason}`,
         reason: reason,
-        lostIncome: config.LESSON_PRICE
+        lostIncome: amount
     });
 
     await db.markEventProcessed(eventId, summary, 'cancelled');

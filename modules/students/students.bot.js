@@ -36,7 +36,7 @@ bot.action(/^show_student_(\d+)$/, async (ctx) => {
     if (!s) return ctx.answerCbQuery('Не найден');
 
     await ctx.reply(
-        `👤 *${s.name}*\n📚 Предмет: ${s.subject}\n📞 Тел: ${s.phone || '-'}\n📍 Адрес: ${s.address || '-'}\n📝 Заметки: ${s.notes || '-'}`,
+        `👤 *${s.name}*\n📚 Предмет: ${s.subject}\n💰 Цена урока: ${s.price || 4000} KZT\n📞 Тел: ${s.phone || '-'}\n📍 Адрес: ${s.address || '-'}\n📝 Заметки: ${s.notes || '-'}`,
         { parse_mode: 'Markdown' }
     );
     await ctx.answerCbQuery();

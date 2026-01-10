@@ -30,20 +30,19 @@ router.get('/students/stats', async (req, res) => {
 // Действия (Add/Edit/Delete)
 router.post('/students/action', async (req, res) => {
     try {
-        // Добавил schedule_days в деструктуризацию
-        const { action, id, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days } = req.body;
-        
+        const { action, id, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days, price } = req.body;
+
         if (action === 'add') {
             await db.dbRun(
-                `INSERT INTO students (user_id, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [req.userId, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days]
+                `INSERT INTO students (user_id, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days, price)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [req.userId, name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days, price || 4000]
             );
         } else if (action === 'edit') {
             await db.dbRun(
-                `UPDATE students SET name=?, subject=?, phone=?, parents=?, parent_phone=?, address=?, notes=?, school=?, grade=?, teacher=?, lessons_per_week=?, schedule_days=? 
+                `UPDATE students SET name=?, subject=?, phone=?, parents=?, parent_phone=?, address=?, notes=?, school=?, grade=?, teacher=?, lessons_per_week=?, schedule_days=?, price=?
                  WHERE id=? AND user_id=?`,
-                [name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days, id, req.userId]
+                [name, subject, phone, parents, parent_phone, address, notes, school, grade, teacher, lessons_per_week, schedule_days, price || 4000, id, req.userId]
             );
         } else if (action === 'delete') {
             await db.dbRun('DELETE FROM students WHERE id=? AND user_id=?', [id, req.userId]);

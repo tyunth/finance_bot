@@ -601,6 +601,7 @@ window.openStudentEdit = async (id) => {
         form.school.value = s.school;
         form.grade.value = s.grade;
         form.lessons_per_week.value = s.lessons_per_week;
+        form.price.value = s.price || 4000;
         document.getElementById('btn-delete-student').classList.remove('hidden');
     } else {
         form.id.value = '';
@@ -963,13 +964,7 @@ async function loadAdmin() {
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
                 <h2 class="text-xl font-bold mb-4 text-gray-800">⚙️ Настройки системы</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-bold text-gray-500 mb-1">Цена урока (KZT)</label>
-                        <div class="flex gap-2">
-                            <input type="number" id="conf-lesson-price" value="${settings.lesson_price || 4000}" class="border border-gray-200 rounded-xl p-3 w-full font-bold">
-                            <button onclick="saveConf('lesson_price')" class="bg-blue-600 text-white px-4 rounded-xl font-bold">OK</button>
-                        </div>
-                    </div>
+                    <!-- Настройки убраны -->
                 </div>
             </div>
         `;

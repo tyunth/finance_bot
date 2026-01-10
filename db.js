@@ -70,7 +70,7 @@ function initializeTables() {
 
         // Добавляем user_id
         db.run(`CREATE TABLE IF NOT EXISTS students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT ''
+            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, subject TEXT, parents TEXT, school TEXT, grade TEXT, teacher TEXT, phone TEXT, address TEXT, notes TEXT, parent_phone TEXT, lessons_per_week INTEGER DEFAULT 0, schedule_days TEXT DEFAULT '', price REAL DEFAULT 4000
         )`);
 
         // Добавляем user_id
@@ -220,7 +220,8 @@ function initializeTables() {
         
         // Миграция для students
         db.run(`ALTER TABLE students ADD COLUMN schedule_days TEXT DEFAULT ''`, () => {});
-        
+        db.run(`ALTER TABLE students ADD COLUMN price REAL DEFAULT 4000`, () => {});
+
         // Миграция для utility_readings (comment)
         db.run(`ALTER TABLE utility_readings ADD COLUMN comment TEXT`, () => {});
     
@@ -509,7 +510,7 @@ async function payDebt(debtId) {
         amount: debt.amount,
         category: 'Репетиторство',
         tag: `Ученик: ${debt.student_name}`,
-        comment: `Оплата долга (${debt.subject}) от ${debt.date.slice(0, 10)}`,
+        comment: debt.subject,
         sourceAccount: null,
         targetAccount: 'Основной'
     });
