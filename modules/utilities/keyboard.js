@@ -38,7 +38,7 @@ async function getMainMenu(userId) {
     // Добавляем кнопки, если есть доступ к модулю
     if (hasAccess('sport'))     dynamicButtons.push('💪 Спорт');
     if (hasAccess('students'))  dynamicButtons.push('🎓 Ученики');
-    if (hasAccess('calendar'))  dynamicButtons.push('📅 Календарь');
+    if (hasAccess('shopping'))  dynamicButtons.push('🛒 Маркетплейсы');
 
     // Разбиваем динамические кнопки по 3 в ряд
     const dynamicRows = chunk(dynamicButtons, 3);

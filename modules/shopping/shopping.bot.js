@@ -78,6 +78,7 @@ bot.command('list', (ctx) => renderList(ctx, 'buy'));
 bot.command('wishlist', (ctx) => renderList(ctx, 'wish'));
 bot.hears(['Список', 'Покупки'], (ctx) => renderList(ctx, 'buy'));
 bot.hears(['Вишлист', 'Хотелки'], (ctx) => renderList(ctx, 'wish'));
+bot.hears(['Маркетплейсы'], (ctx) => renderList(ctx, 'market'));
 
 // --- БЫСТРЫЕ КОМАНДЫ (/buy Хлеб) ---
 bot.command('buy', async (ctx) => handleQuickAdd(ctx, 'buy', '🛒'));
