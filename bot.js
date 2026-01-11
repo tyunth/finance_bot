@@ -137,9 +137,6 @@ bot.hears(['Меню', 'menu'], async (ctx) => {
 
 
 
-// Запуск кронов
-require('./jobs/cron.manager')(bot);
-
 bot.launch().then(() => console.log('🚀 Bot V2 Full Power started'));
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
