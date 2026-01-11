@@ -572,14 +572,23 @@ async function loadStudents() {
     loadDebts();
 }
 
+window.openStudentModal = () => {
+    document.getElementById('modal-student').classList.remove('hidden');
+    document.getElementById('modal-student').classList.add('flex');
+    const form = document.getElementById('form-student');
+    form.reset();
+    form.id.value = '';
+    document.getElementById('btn-delete-student').classList.add('hidden');
+};
+
 window.openStudentEdit = async (id) => {
     document.getElementById('modal-student').classList.remove('hidden');
     document.getElementById('modal-student').classList.add('flex');
     const form = document.getElementById('form-student');
     form.reset();
-    
+
     // Находим ученика в списке (он уже загружен в loadStudents, но STATE.students там не обновлялся)
-    // Лучше сделаем fetch detail или найдем в DOM. 
+    // Лучше сделаем fetch detail или найдем в DOM.
     // Упростим: загрузим список снова и найдем.
     const list = await API.students.getAll();
     const s = list.find(x => x.id === id);
