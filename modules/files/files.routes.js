@@ -66,7 +66,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Файл не загружен' });
         }
 
-        const { originalname, filename } = req.file;
+        // Исправляем кодировку имени файла
+        const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+        const { filename } = req.file;
         const userId = req.userId;
         const uploadDate = new Date().toISOString();
         const filePath = path.join(filesDir, filename);
@@ -74,13 +76,13 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         // Сохраняем в БД
         const result = await db.dbRun(
             'INSERT INTO files (user_id, filename, original_name, upload_date, file_path) VALUES (?, ?, ?, ?, ?)',
-            [userId, filename, originalname, uploadDate, filePath]
+            [userId, filename, originalName, uploadDate, filePath]
         );
 
         res.json({
             id: result.lastID,
             filename: filename,
-            original_name: originalname,
+            original_name: originalName,
             upload_date: uploadDate
         });
     } catch (e) {
