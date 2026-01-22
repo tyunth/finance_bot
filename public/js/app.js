@@ -123,7 +123,7 @@ function setupEventListeners() {
     document.getElementById('btn-open-trash')?.addEventListener('click', openTrash);
     document.getElementById('trash-list')?.addEventListener('click', handleTrashClick);
     document.querySelectorAll('.btn-close-modal').forEach(btn => btn.addEventListener('click', closeAllModals));
-    window.onclick = (e) => { if(e.target.id.startsWith('modal-')) closeAllModals(); };
+    window.onclick = (e) => { if(e.target && e.target.id && e.target.id.startsWith('modal-')) closeAllModals(); };
 
     document.getElementById('todo-list')?.addEventListener('change', async (e) => {
         if (e.target.classList.contains('js-change-period')) {
