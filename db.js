@@ -120,14 +120,23 @@ function initializeTables() {
         )`);
 
         db.run(`CREATE TABLE IF NOT EXISTS english_words (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            user_id INTEGER, 
-            word TEXT, 
-            translation TEXT, 
-            definition TEXT, 
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            word TEXT,
+            translation TEXT,
+            definition TEXT,
             example TEXT,
             level TEXT DEFAULT 'B1-B2',
             date TEXT
+        )`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            filename TEXT, -- уникальное имя файла на сервере
+            original_name TEXT, -- оригинальное имя файла
+            upload_date TEXT,
+            file_path TEXT -- путь к файлу
         )`);
 
 

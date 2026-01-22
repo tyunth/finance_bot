@@ -70,6 +70,7 @@ bot.use(require('./modules/reports/reports.bot'));     // 📊 Отчеты
 bot.use(require('./modules/system/system.bot'));       // ⚙️ Админка
 bot.use(require('./modules/calendar/calendar.bot')); // <-- Календарь
 bot.use(require('./modules/sport/sport.bot'));       // <-- Спорт
+bot.use(require('./modules/files/files.bot'));       // 📁 Файлы
 bot.use(require('./modules/media/1se.bot'));
 
 bot.command('last', async (ctx) => {
@@ -110,6 +111,10 @@ const HELP_MSG = `
 /week - Отчет за неделю
 /month - Отчет за месяц
 /categories - Мои категории
+
+📁 *Файлы*
+/sendfile - 📤 Загрузить файл
+/files - 📋 Список файлов
 
 📝 *Разное*
 /todo [текст] - Задача

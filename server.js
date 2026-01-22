@@ -14,6 +14,7 @@ const systemRoutes = require('./modules/system/system.routes');
 const shoppingRoutes = require('./modules/shopping/shopping.routes');
 const utilitiesRoutes = require('./modules/utilities/utilities.routes');
 const todosRoutes = require('./modules/todos/todos.routes');
+const filesRoutes = require('./modules/files/files.routes');
 
 const app = express();
 const HOST = '127.0.0.1';

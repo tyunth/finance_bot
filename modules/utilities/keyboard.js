@@ -36,6 +36,7 @@ async function getMainMenu(userId) {
     const dynamicButtons = [];
 
     // Добавляем кнопки, если есть доступ к модулю
+    dynamicButtons.push('📁 Файлы'); // Файлы доступны всем
     if (hasAccess('sport'))     dynamicButtons.push('💪 Спорт');
     if (hasAccess('students'))  dynamicButtons.push('🎓 Ученики');
     if (hasAccess('shopping'))  dynamicButtons.push('Маркетплейсы');

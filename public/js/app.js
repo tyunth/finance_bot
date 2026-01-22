@@ -75,6 +75,10 @@ function setupEventListeners() {
         document.getElementById(id)?.addEventListener('click', handleShoppingClick);
     });
 
+    // Файлы
+    document.getElementById('form-upload-file')?.addEventListener('submit', handleFileUpload);
+    document.getElementById('files-list')?.addEventListener('click', handleFileClick);
+
     // Слова (flashcards)
     document.getElementById('btn-start-flashcards')?.addEventListener('click', startFlashcards);
     document.getElementById('btn-prev-word')?.addEventListener('click', prevWord);
@@ -217,6 +221,7 @@ function switchTab(tab) {
     // Lazy load
     if(tab === 'utilities') loadUtilities();
     if(tab === 'words') loadWords();
+    if(tab === 'files') loadFiles();
     if(tab === 'admin') loadAdmin();
 }
 
@@ -1456,6 +1461,67 @@ async function deleteWord(id) {
 }
 
 window.deleteWord = deleteWord; // Экспортируем в глобальную область
+
+// --- FILES (ФАЙЛЫ) ---
+async function loadFiles() {
+    try {
+        const files = await API.files.getAll();
+        const container = document.getElementById('files-list');
+        if (files.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 py-8">Нет загруженных файлов</div>';
+            return;
+        }
+
+        container.innerHTML = files.map(f => `
+            <div class="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-md transition relative group" data-id="${f.id}">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-gray-800 truncate">${f.original_name}</div>
+                        <div class="text-xs text-gray-500 mt-1">${new Date(f.upload_date).toLocaleString()}</div>
+                    </div>
+                    <div class="flex gap-2 ml-4">
+                        <a href="/budzet/files/${f.id}" target="_blank" class="text-blue-600 hover:text-blue-800 font-bold px-3 py-1 bg-blue-50 rounded-lg text-sm">📥 Скачать</a>
+                        <button class="js-del-file text-red-400 hover:text-red-600 font-bold px-2 opacity-0 group-hover:opacity-100 transition">×</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('Load files error:', e);
+        document.getElementById('files-list').innerHTML = '<div class="text-center text-red-500 py-8">Ошибка загрузки файлов</div>';
+    }
+}
+
+async function handleFileUpload(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+        await API.files.upload(formData);
+        e.target.reset();
+        loadFiles();
+        alert('Файл успешно загружен!');
+    } catch (e) {
+        console.error('Upload error:', e);
+        alert('Ошибка загрузки файла: ' + e.message);
+    }
+}
+
+async function handleFileClick(e) {
+    if (e.target.classList.contains('js-del-file')) {
+        const fileDiv = e.target.closest('[data-id]');
+        if (!fileDiv) return;
+        const fileId = fileDiv.dataset.id;
+        if (confirm('Удалить этот файл?')) {
+            try {
+                await API.files.delete(fileId);
+                loadFiles();
+            } catch (e) {
+                console.error('Delete file error:', e);
+                alert('Ошибка удаления файла');
+            }
+        }
+    }
+}
 
 // --- РЕНДЕР СТАТИСТИКИ ИСПОЛЬЗОВАНИЯ ---
 function renderUsageStats(avgStats, allStats, selectedUser, selectedType) {

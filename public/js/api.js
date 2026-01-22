@@ -118,5 +118,17 @@ export const API = {
             if (endDate) params.append('endDate', endDate);
             return request(`/admin/usage/all?${params}`);
         }
+    },
+    files: {
+        getAll: () => request('/files'),
+        upload: async (formData) => {
+            const res = await fetchWithAuth(`${BASE_URL}/files/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+            return await res.json();
+        },
+        delete: (id) => request(`/files/${id}`, 'DELETE')
     }
 };
