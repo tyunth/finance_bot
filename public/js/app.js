@@ -1184,18 +1184,6 @@ function openTxModal(tx = null) {
     modal.classList.add('flex');
 }
 
-// --- ФУНКЦИЯ ОБНОВЛЕНИЯ ПОЛЕЙ В МОДАЛКЕ ---
-function updateTxModalFields(type) {
-    const catField = document.getElementById('tx-category-field');
-    if (type === 'income') {
-        catField.style.display = 'none';
-        catField.required = false;
-    } else {
-        catField.style.display = 'block';
-        catField.required = true;
-    }
-}
-
 async function handleTxSubmit(e) {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target).entries());
