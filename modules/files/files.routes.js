@@ -129,16 +129,15 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-// Удаление файла (требует аутентификации и владения)
+// Удаление файла (требует аутентификации)
 router.delete('/:id', async (req, res) => {
     try {
         const fileId = req.params.id;
-        const userId = req.userId;
 
-        const file = await db.dbGet('SELECT * FROM files WHERE id = ? AND user_id = ?', [fileId, userId]);
+        const file = await db.dbGet('SELECT * FROM files WHERE id = ?', [fileId]);
 
         if (!file) {
-            return res.status(404).json({ error: 'Файл не найден или нет доступа' });
+            return res.status(404).json({ error: 'Файл не найден' });
         }
 
         // Удаляем файл с диска
