@@ -41,6 +41,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/auth', authRoutes);
 app.use('/ha', require('./modules/home/home.routes'));
 
+// Открытые маршруты файлов (скачивание без авторизации)
+const filesRoutesPublic = require('./modules/files/files.routes');
+app.use('/files', filesRoutesPublic);
+
 // Б. ЗАЩИТА (все, что ниже, требует входа)
 app.use(authMiddleware);
 
@@ -53,6 +57,7 @@ app.use('/', studentRoutes);   // Ловит /students, /debts
 app.use('/', shoppingRoutes);  // Ловит /shopping
 app.use('/', utilitiesRoutes); // Ловит /utilities
 app.use('/', todosRoutes);     // Ловит /todos
+app.use('/', filesRoutes);     // Файлы под /budzet/files
 
 // Для системных путей (/users/me, /settings) скорее всего тоже нужны полные пути
 // Если в system.routes.js написано router.get('/users/me'), то подключаем к корню:
