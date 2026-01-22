@@ -63,6 +63,9 @@ app.use('/', filesRoutes);     // Файлы под /budzet/files
 // Если в system.routes.js написано router.get('/users/me'), то подключаем к корню:
 app.use('/', systemRoutes);
 
+// Дополнительно под /budzet для совместимости с /budzet интерфейсом
+app.use('/budzet', systemRoutes);
+
 // Если вдруг внутри system.routes.js написано просто router.get('/me'), 
 // то для запроса /users/me нужно раскомментировать строку ниже, а верхнюю убрать:
 // app.use('/users', systemRoutes); 
