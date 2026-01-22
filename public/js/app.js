@@ -167,13 +167,10 @@ async function initData() {
         fillTagSelects();
         loadShopAnalytics();
         
-        // 2. Устанавливаем фильтры дат
-        if (!document.getElementById('filter-date-start').value) {
-            const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
-            document.getElementById('filter-date-end').value = formatDateISO(now);
-        }
+        // 2. Устанавливаем фильтры дат (всегда на сегодняшний день для избежания проблем с кешем)
+        const now = new Date();
+        document.getElementById('filter-date-start').value = formatDateISO(now);
+        document.getElementById('filter-date-end').value = formatDateISO(now);
 
         // 3. Показываем интерфейс
         document.getElementById('filter-panel').classList.remove('hidden');
@@ -192,7 +189,6 @@ async function initData() {
         initCalendar();
 
         // KPI
-        const now = new Date();
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         try {
             const kpiData = await API.system.getKPI(monthKey);
