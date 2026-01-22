@@ -227,7 +227,7 @@ function switchTab(tab) {
 
 function applyModules(modules, role) {
     const isAll = role === 'admin' || modules.includes('all');
-    ['students', 'shopping', 'utilities', 'calendar', 'words', 'admin'].forEach(mod => {
+    ['students', 'shopping', 'utilities', 'calendar', 'words', 'admin', 'files'].forEach(mod => {
         const btn = document.getElementById(`nav-btn-${mod}`);
         if(isAll || modules.includes(mod)) btn?.classList.remove('hidden');
     });
