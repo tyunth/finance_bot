@@ -65,6 +65,7 @@ app.use('/', systemRoutes);
 
 // Дополнительно под /budzet для совместимости с /budzet интерфейсом
 app.use('/budzet', systemRoutes);
+app.use('/budzet', filesRoutes);
 
 // Если вдруг внутри system.routes.js написано просто router.get('/me'), 
 // то для запроса /users/me нужно раскомментировать строку ниже, а верхнюю убрать:

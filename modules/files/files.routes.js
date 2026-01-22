@@ -119,8 +119,10 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Файл не найден на сервере' });
         }
 
-        // Отправляем файл
-        res.download(file.file_path, file.original_name);
+        // Отправляем файл с правильной кодировкой имени
+        const encodedFilename = encodeURIComponent(file.original_name);
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+        res.sendFile(file.file_path);
     } catch (e) {
         console.error('Download error:', e);
         res.status(500).json({ error: e.message });

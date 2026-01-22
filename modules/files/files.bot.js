@@ -64,11 +64,18 @@ bot.on('document', async (ctx) => {
         // Сохраняем файл
         fs.writeFileSync(filePath, buffer);
 
+        // Используем тот же mapping для сохранения
+        let effectiveId = ctx.from.id;
+        const user = await db.getUser(ctx.from.id);
+        if (user && user.telegram_id) {
+            effectiveId = user.telegram_id;
+        }
+
         // Сохраняем в БД
         const uploadDate = new Date().toISOString();
         const result = await db.dbRun(
             'INSERT INTO files (user_id, filename, original_name, upload_date, file_path) VALUES (?, ?, ?, ?, ?)',
-            [ctx.from.id, uniqueName, file.file_name, uploadDate, filePath]
+            [effectiveId, uniqueName, file.file_name, uploadDate, filePath]
         );
 
         await ctx.reply(`✅ Файл "${file.file_name}" успешно загружен!\n📥 Скачать: /budzet/files/${result.lastID}`);
@@ -82,9 +89,18 @@ bot.on('document', async (ctx) => {
 // Команда для просмотра списка файлов
 bot.hears(['📁 Файлы', '/files'], async (ctx) => {
     try {
+        // Используем тот же mapping, что и в веб-интерфейсе
+        let effectiveId = ctx.from.id;
+
+        // Получаем user из базы
+        const user = await db.getUser(ctx.from.id);
+        if (user && user.telegram_id) {
+            effectiveId = user.telegram_id;
+        }
+
         const files = await db.dbAll(
-            'SELECT id, filename, original_name, upload_date FROM files WHERE user_id = ? ORDER BY upload_date DESC LIMIT 10',
-            [ctx.from.id]
+            'SELECT id, filename, original_name, upload_date FROM files WHERE user_id = ? ORDER BY upload_date DESC',
+            [effectiveId]
         );
 
         if (files.length === 0) {
