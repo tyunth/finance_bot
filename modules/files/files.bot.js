@@ -54,7 +54,8 @@ bot.on('document', async (ctx) => {
         // Получаем ссылку на файл
         const fileLink = await ctx.telegram.getFileLink(file.file_id);
         const response = await fetch(fileLink.href);
-        const buffer = await response.buffer();
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
         // Генерируем уникальное имя файла
         const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.file_name);
