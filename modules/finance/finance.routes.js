@@ -94,8 +94,7 @@ router.post('/transactions/edit', safeHandler(async (req, res) => {
 router.get('/categories', safeHandler(async (req, res) => {
     const expenseCats = await db.getUserCategories(req.userId, 'expense');
     const incomeCats = await db.getUserCategories(req.userId, 'income');
-    const allCats = [...new Set([...expenseCats, ...incomeCats])].sort();
-    res.json(allCats);
+    res.json({ expense: expenseCats, income: incomeCats });
 }));
 
 router.get('/balances', safeHandler(async (req, res) => {

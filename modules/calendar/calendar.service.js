@@ -124,10 +124,10 @@ async function checkPracticeAndAsk(bot, userId) {
 
         if (hasPractice) {
             await bot.telegram.sendMessage(userId, 'Как добирался?', {
-                reply_markup: Markup.inlineKeyboard([
-                    [Markup.button.callback('автобус +200тг', 'practice_bus')],
-                    [Markup.button.callback('другое', 'practice_other')]
-                ])
+                reply_markup: { inline_keyboard: [
+                    [{ text: 'автобус +200тг', callback_data: 'practice_bus' }],
+                    [{ text: 'другое', callback_data: 'practice_other' }]
+                ]}
             });
         }
     } catch (e) {
