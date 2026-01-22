@@ -13,8 +13,8 @@ if (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) {
     if (paramId) CURRENT_USER_ID = parseInt(paramId);
 }
 
-// Определяем BASE_URL динамически
-const BASE_URL = window.location.pathname.startsWith('/budzet') ? '/budzet' : '';
+// Определяем BASE_URL
+const BASE_URL = '/budzet';
 
 // 2. Универсальная функция fetch с проверкой авторизации
 export async function fetchWithAuth(url, options = {}) {
