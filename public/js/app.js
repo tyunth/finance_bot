@@ -167,9 +167,10 @@ async function initData() {
         fillTagSelects();
         loadShopAnalytics();
         
-        // 2. Устанавливаем фильтры дат (всегда на сегодняшний день для избежания проблем с кешем)
+        // 2. Устанавливаем фильтры дат (всегда: начало месяца - сегодня для избежания проблем с кешем)
         const now = new Date();
-        document.getElementById('filter-date-start').value = formatDateISO(now);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        document.getElementById('filter-date-start').value = formatDateISO(startOfMonth);
         document.getElementById('filter-date-end').value = formatDateISO(now);
 
         // 3. Показываем интерфейс
