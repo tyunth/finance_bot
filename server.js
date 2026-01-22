@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 
 const authRoutes = require('./modules/auth/auth.routes');
 const authMiddleware = require('./modules/auth/auth.middleware');
+const config = require('./config');
 
 // --- ПОДКЛЮЧЕНИЕ МОДУЛЕЙ ---
 const financeRoutes = require('./modules/finance/finance.routes');
@@ -44,6 +45,14 @@ app.use('/ha', require('./modules/home/home.routes'));
 // Открытые маршруты файлов (скачивание без авторизации)
 const filesRoutesPublic = require('./modules/files/files.routes');
 app.use('/files', filesRoutesPublic);
+
+// Открытый маршрут для конфига (без авторизации)
+app.get('/config', (req, res) => {
+    res.json({ calendarId: process.env.GOOGLE_CALENDAR_ID, adminId: config.ADMIN_ID });
+});
+app.get('/budzet/config', (req, res) => {
+    res.json({ calendarId: process.env.GOOGLE_CALENDAR_ID, adminId: config.ADMIN_ID });
+});
 
 // Б. ЗАЩИТА (все, что ниже, требует входа)
 app.use(authMiddleware);
