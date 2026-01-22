@@ -106,6 +106,10 @@ function initializeTables() {
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, type TEXT, created_at TEXT
         )`);
 
+        // Миграция для заполнения type в существующих категориях
+        db.run("UPDATE categories SET type = 'income' WHERE name IN ('Зарплата', 'Фриланс', 'Подарок', 'Проценты') AND (type IS NULL OR type = '')", () => {});
+        db.run("UPDATE categories SET type = 'expense' WHERE type IS NULL OR type = ''", () => {});
+
         db.run(`CREATE TABLE IF NOT EXISTS health_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             user_id INTEGER, 

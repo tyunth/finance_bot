@@ -42,13 +42,6 @@ function setupEventListeners() {
     // Модалка Транзакции
     document.getElementById('btn-open-add-tx')?.addEventListener('click', () => openTxModal());
     document.getElementById('form-tx')?.addEventListener('submit', handleTxSubmit);
-
-    // Обработчик изменения типа в модалке транзакции
-    document.addEventListener('change', (e) => {
-        if (e.target.matches('#modal-tx select[name="type"]')) {
-            updateTxModalFields(e.target.value);
-        }
-    });
     
     // Дела
     document.getElementById('form-todo')?.addEventListener('submit', handleTodoSubmit);
@@ -448,14 +441,7 @@ function fillTagSelects() {
     if(searchEl) searchEl.innerHTML = '<option value="">Все теги</option>' + opts;
 }
 
-// --- ХЕЛПЕР: Сбор тегов по типу ---
-function fillTagsByType(type) {
-    const tags = new Set();
-    STATE.transactions.filter(t => t.type === type).forEach(t => {
-        if(t.tag && t.tag.trim()) tags.add(t.tag.trim());
-    });
-    return Array.from(tags).sort();
-}
+
 
 // --- ХЕЛПЕР: Топ-10 Трат ---
 function renderTopExpenses(data) {
@@ -1127,12 +1113,9 @@ function renderBalances(balances) {
 }
 
 function fillCategorySelects() {
-    // Для фильтров - все категории
-    const allCats = [...STATE.categories.expense, ...STATE.categories.income];
-    const optsAll = allCats.map(c => `<option value="${c}">${c}</option>`).join('');
-    document.getElementById('filter-category').innerHTML = '<option value="ALL">Все категории</option>' + optsAll;
-
-    // Для модалки - заполнится в openTxModal или при изменении типа
+    const opts = STATE.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    document.getElementById('filter-category').innerHTML = '<option value="ALL">Все категории</option>' + opts;
+    document.querySelector('select[name="category"]').innerHTML = opts;
 }
 
 function renderTable(data) {
@@ -1155,12 +1138,7 @@ function renderTable(data) {
     `).join('');
 }
 
-// --- ФУНКЦИЯ ОБНОВЛЕНИЯ ПОЛЕЙ В МОДАЛКЕ ---
-function updateTxModalFields(type) {
-    const catSelect = document.querySelector('#modal-tx select[name="category"]');
-    const cats = STATE.categories[type] || [];
-    catSelect.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
-}
+
 
 function openTxModal(tx = null) {
     const modal = document.getElementById('modal-tx');
@@ -1178,8 +1156,6 @@ function openTxModal(tx = null) {
         form.id.value = '';
         form.date.value = formatDateISO(new Date());
     }
-    // Обновляем поля после установки типа
-    updateTxModalFields(form.type.value);
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
