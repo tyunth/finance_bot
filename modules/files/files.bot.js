@@ -106,7 +106,7 @@ bot.hears(['📁 Файлы', '/files'], async (ctx) => {
         let msg = '📁 *Файлы:*\n\n';
         files.forEach(f => {
             const date = new Date(f.upload_date).toLocaleDateString('ru-RU');
-            msg += `📄 ${escape(f.original_name)}\n📅 ${date}\n📥 Скачать: /budzet/files/${f.id}\n\n`;
+            msg += `📄 ${escape(f.original_name)}\n📅 ${escape(date)}\n📥 Скачать: ${escape('/budzet/files/' + f.id)}\n\n`;
         });
 
         await ctx.replyWithMarkdownV2(msg);
