@@ -6,6 +6,12 @@ const { getMainMenu } = require('../utilities/keyboard.js');
 
 const bot = new Composer();
 
+// Функция экранирования для MarkdownV2
+const escape = (text) => {
+    if (!text) return '';
+    return text.toString().replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+};
+
 // Создаем директорию для файлов, если не существует
 const filesDir = path.join(__dirname, '../../files');
 if (!fs.existsSync(filesDir)) {
@@ -100,10 +106,10 @@ bot.hears(['📁 Файлы', '/files'], async (ctx) => {
         let msg = '📁 *Файлы:*\n\n';
         files.forEach(f => {
             const date = new Date(f.upload_date).toLocaleDateString('ru-RU');
-            msg += `📄 ${f.original_name}\n📅 ${date}\n📥 Скачать: /budzet/files/${f.id}\n\n`;
+            msg += `📄 ${escape(f.original_name)}\n📅 ${date}\n📥 Скачать: /budzet/files/${f.id}\n\n`;
         });
 
-        await ctx.replyWithMarkdown(msg);
+        await ctx.replyWithMarkdownV2(msg);
     } catch (e) {
         console.error('Files list error:', e);
         await ctx.reply('❌ Ошибка при получении списка файлов.');
