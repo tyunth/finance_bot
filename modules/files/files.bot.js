@@ -89,25 +89,15 @@ bot.on('document', async (ctx) => {
 // Команда для просмотра списка файлов
 bot.hears(['📁 Файлы', '/files'], async (ctx) => {
     try {
-        // Используем тот же mapping, что и в веб-интерфейсе
-        let effectiveId = ctx.from.id;
-
-        // Получаем user из базы
-        const user = await db.getUser(ctx.from.id);
-        if (user && user.telegram_id) {
-            effectiveId = user.telegram_id;
-        }
-
         const files = await db.dbAll(
-            'SELECT id, filename, original_name, upload_date FROM files WHERE user_id = ? ORDER BY upload_date DESC',
-            [effectiveId]
+            'SELECT id, filename, original_name, upload_date FROM files ORDER BY upload_date DESC'
         );
 
         if (files.length === 0) {
-            return ctx.reply('📁 У вас нет загруженных файлов.');
+            return ctx.reply('📁 Нет загруженных файлов.');
         }
 
-        let msg = '📁 *Ваши файлы:*\n\n';
+        let msg = '📁 *Файлы:*\n\n';
         files.forEach(f => {
             const date = new Date(f.upload_date).toLocaleDateString('ru-RU');
             msg += `📄 ${f.original_name}\n📅 ${date}\n📥 Скачать: /budzet/files/${f.id}\n\n`;

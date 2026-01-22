@@ -91,13 +91,11 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 });
 
-// Получить список файлов пользователя (требует аутентификации)
+// Получить список файлов (требует аутентификации)
 router.get('/', async (req, res) => {
     try {
-        const userId = req.userId;
         const files = await db.dbAll(
-            'SELECT id, filename, original_name, upload_date FROM files WHERE user_id = ? ORDER BY upload_date DESC',
-            [userId]
+            'SELECT id, filename, original_name, upload_date FROM files ORDER BY upload_date DESC'
         );
         res.json(files);
     } catch (e) {
