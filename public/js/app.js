@@ -42,6 +42,14 @@ function setupEventListeners() {
     // Модалка Транзакции
     document.getElementById('btn-open-add-tx')?.addEventListener('click', () => openTxModal());
     document.getElementById('form-tx')?.addEventListener('submit', handleTxSubmit);
+
+    // Обработчик изменения типа транзакции в модальном окне
+    const txTypeSelect = document.querySelector('#form-tx select[name="type"]');
+    if (txTypeSelect) {
+        txTypeSelect.addEventListener('change', function() {
+            fillCategorySelects(this.value);
+        });
+    }
     
     // Дела
     document.getElementById('form-todo')?.addEventListener('submit', handleTodoSubmit);
@@ -1117,10 +1125,34 @@ function renderBalances(balances) {
     `).join('');
 }
 
-function fillCategorySelects() {
-    const opts = STATE.categories.map(c => `<option value="${c}">${c}</option>`).join('');
-    document.getElementById('filter-category').innerHTML = '<option value="ALL">Все категории</option>' + opts;
-    document.querySelector('select[name="category"]').innerHTML = opts;
+// Обновленная функция для заполнения селекта категорий с учетом типа транзакции
+function fillCategorySelects(type = null) {
+    // Если тип не указан, показываем все категории (для фильтра)
+    if (!type || type === 'ALL') {
+        const opts = STATE.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        document.getElementById('filter-category').innerHTML = '<option value="ALL">Все категории</option>' + opts;
+    }
+
+    // Для модального окна редактирования/добавления транзакции
+    const categorySelect = document.querySelector('select[name="category"]');
+    if (categorySelect) {
+        if (type === 'income') {
+            // Показываем только категории доходов
+            const incomeCategories = STATE.categories.filter(cat =>
+                ['Зарплата', 'Фриланс', 'Подарок', 'Проценты', 'Стипендия', 'Репетиторство', 'Другое'].includes(cat)
+            );
+            categorySelect.innerHTML = incomeCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else if (type === 'expense') {
+            // Показываем только категории расходов
+            const expenseCategories = STATE.categories.filter(cat =>
+                !['Зарплата', 'Фриланс', 'Подарок', 'Проценты', 'Стипендия', 'Репетиторство', 'Другое'].includes(cat)
+            );
+            categorySelect.innerHTML = expenseCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+            // Показываем все категории (для нового создания)
+            categorySelect.innerHTML = STATE.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+    }
 }
 
 function renderTable(data) {
@@ -1154,12 +1186,16 @@ function openTxModal(tx = null) {
         form.date.value = tx.date.split('T')[0];
         form.type.value = tx.type;
         form.amount.value = tx.amount;
+        // Заполняем категории в зависимости от типа транзакции
+        fillCategorySelects(tx.type);
         form.category.value = tx.category;
         form.tag.value = tx.tag || '';
         form.comment.value = tx.comment || '';
     } else {
         form.id.value = '';
         form.date.value = formatDateISO(new Date());
+        // Для новой транзакции показываем все категории
+        fillCategorySelects();
     }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
