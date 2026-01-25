@@ -250,9 +250,12 @@ bot.on('text', async (ctx, next) => {
 
 // --- СОХРАНЕНИЕ ТРАНЗАКЦИИ (Income/Expense) ---
 async function saveTransaction(ctx, type, amount, category, comment, isAuto = false) {
+    // Используем автотеги для расходов
+    const tag = type === 'income' ? 'Доход' : db.getAutoTag(category);
+
     await db.addTransaction({
         userId: ctx.from.id, type, amount, category,
-        tag: type === 'income' ? 'Доход' : 'Разное',
+        tag: tag,
         comment,
         sourceAccount: type === 'expense' ? 'Основной' : null,
         targetAccount: type === 'income' ? 'Основной' : null

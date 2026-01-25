@@ -582,7 +582,7 @@ async function checkLessonHistoryExists(studentName, dateStr) {
     return !!row;
 }
 
-// Вспомогательная функция (можно добавить прямо перед createReceipt или в конец файла)
+// Вспомогательная функция для определения автотега по категории
 function getAutoTag(category) {
     if (!category) return 'Разное';
     // Проверяем, есть ли такой ключ в AUTO_TAGS
@@ -1036,6 +1036,9 @@ module.exports = {
 
     // Счетчики использования
     incrementUsageCounter, getUsageCounters, getAverageUsageCounters, getAllUsageCounters,
+
+    // Автотеги
+    getAutoTag,
 
     DB_PATH
 };
