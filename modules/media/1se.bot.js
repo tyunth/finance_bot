@@ -96,7 +96,7 @@ bot.command('movie', async (ctx) => {
         await new Promise((resolve, reject) => {
             ffmpeg()
                 .input(listFileName)
-                .inputOptions(['-f concat', '-safe 0'])
+                .inputOptions(['-f concat'])         // Убираем -safe 0 для совместимости с видеофильтрами
                 .outputOptions([
                     '-c:v libx264',                    // Перекодировать видео в H.264
                     '-preset fast',                   // Быстрая перекодировка
