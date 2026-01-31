@@ -194,9 +194,10 @@ async function uploadBlackVideo(userId) {
     }
 }
 
-module.exports = {
-    bot,
-    checkVideoForToday,
-    sendEveningReminder,
-    uploadBlackVideo
-};
+// Экспортируем bot для телеграм-обработчика
+module.exports = bot;
+
+// Экспортируем функции для cron-задач
+module.exports.checkVideoForToday = checkVideoForToday;
+module.exports.sendEveningReminder = sendEveningReminder;
+module.exports.uploadBlackVideo = uploadBlackVideo;
