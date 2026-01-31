@@ -1214,7 +1214,26 @@ function renderDoughnut(id, dataMap, key) {
     if (!ctx) return;
     if (STATE.charts[key]) STATE.charts[key].destroy();
     
-    const sorted = Object.entries(dataMap).sort((a,b) => b[1]-a[1]);
+    // Фильтрация категорий расходов: объединяем категории с суммой < 2000 в "Другое"
+    let sorted = Object.entries(dataMap).sort((a,b) => b[1]-a[1]);
+    
+    // Если это диаграмма расходов (id === 'chartCategories'), применяем фильтрацию
+    if (id === 'chartCategories') {
+        let otherSum = 0;
+        sorted = sorted.filter(([category, amount]) => {
+            if (amount < 2000) {
+                otherSum += amount;
+                return false;
+            }
+            return true;
+        });
+        
+        // Добавляем "Другое" если есть что добавлять
+        if (otherSum > 0) {
+            sorted.push(['Другое', otherSum]);
+        }
+    }
+    
     STATE.charts[key] = new Chart(ctx, {
         type: 'doughnut',
         data: {
