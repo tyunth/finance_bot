@@ -83,28 +83,24 @@ bot.command('movie', async (ctx) => {
         }
 
         // Создаем временный файл-список для FFmpeg (concat demuxer)
-        // Формат: file '/path/to/file.mp4'
+        // Формат: file '/absolute/path/to/file.mp4'
         const listFileName = path.join(VIDEO_DIR, `list_${ctx.from.id}.txt`);
         const outputFileName = path.join(VIDEO_DIR, `movie_${ctx.from.id}_${Date.now()}.mp4`);
         
-        const fileContent = rows.map(r => `file '${r.file_path}'`).join('\n');
+        // Используем абсолютные пути для надежности
+        const fileContent = rows.map(r => `file '${path.resolve(r.file_path)}'`).join('\n');
         fs.writeFileSync(listFileName, fileContent);
 
         // Запускаем FFmpeg
-        // Перекодируем видео для сохранения пропорций вертикальных видео (1080x1920)
+        // Полный отказ от перекодировки - просто склеиваем видео
         
         await new Promise((resolve, reject) => {
             ffmpeg()
                 .input(listFileName)
-                .inputOptions(['-f concat'])         // Убираем -safe 0 для совместимости с видеофильтрами
+                .inputOptions(['-f concat', '-safe 0'])  // Вернуть -safe 0 для безопасности
                 .outputOptions([
-                    '-c:v libx264',                    // Перекодировать видео в H.264
-                    '-preset fast',                   // Быстрая перекодировка
-                    '-crf 23',                       // Качество (23 = сбалансированное)
-                    '-vf "scale=1080:1920"',         // Простое масштабирование для вертикального видео
-                    '-c:a aac',                      // Аудио в AAC
-                    '-b:a 128k',                     // Битрейт аудио
-                    '-movflags +faststart'           // Для лучшей веб-совместимости
+                    '-c copy',           // Копировать без перекодировки
+                    '-movflags +faststart'  // Для лучшей веб-совместимости
                 ])
                 .save(outputFileName)
                 .on('end', resolve)
