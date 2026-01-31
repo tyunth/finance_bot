@@ -13,6 +13,9 @@ if (!fs.existsSync(VIDEO_DIR)) {
     fs.mkdirSync(VIDEO_DIR, { recursive: true });
 }
 
+// Папка для черного видео
+const BLACK_VIDEO_PATH = path.join(VIDEO_DIR, 'black_1sec.mp4');
+
 // 1. ПРИЕМ ВИДЕО
 bot.on('video', async (ctx) => {
     const video = ctx.message.video;
@@ -88,14 +91,21 @@ bot.command('movie', async (ctx) => {
         fs.writeFileSync(listFileName, fileContent);
 
         // Запускаем FFmpeg
-        // Используем concat demuxer (быстро, но требует одинаковых кодеков)
-        // Если видео с разных телефонов, лучше использовать перекодирование (дольше)
+        // Перекодируем видео для сохранения пропорций вертикальных видео (1080x1920)
         
         await new Promise((resolve, reject) => {
             ffmpeg()
                 .input(listFileName)
                 .inputOptions(['-f concat', '-safe 0'])
-                .outputOptions('-c copy') // Копируем кодеки (быстро). Если будут ошибки, убери эту строку (будет перекодировка)
+                .outputOptions([
+                    '-c:v libx264',                    // Перекодировать видео в H.264
+                    '-preset fast',                   // Быстрая перекодировка
+                    '-crf 23',                       // Качество (23 = сбалансированное)
+                    '-vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2"', // Сохранить пропорции для вертикального видео
+                    '-c:a aac',                      // Аудио в AAC
+                    '-b:a 128k',                     // Битрейт аудио
+                    '-movflags +faststart'           // Для лучшей веб-совместимости
+                ])
                 .save(outputFileName)
                 .on('end', resolve)
                 .on('error', reject);
@@ -114,4 +124,79 @@ bot.command('movie', async (ctx) => {
     }
 });
 
-module.exports = bot;
+// --- ФУНКЦИИ ДЛЯ ВЕЧЕРНЕГО НАПОМИНАНИЯ ---
+
+// Проверка, есть ли видео за сегодня у пользователя
+async function checkVideoForToday(userId) {
+    const today = new Date().toISOString().split('T')[0];
+    const row = await db.dbGet(
+        'SELECT id FROM one_second_videos WHERE user_id = ? AND date = ? AND is_automatic = 0',
+        [userId, today]
+    );
+    return !!row; // true если есть реальное видео, false если нет
+}
+
+// Отправка вечернего напоминания
+async function sendEveningReminder(bot, userId) {
+    const hasVideo = await checkVideoForToday(userId);
+    
+    if (!hasVideo) {
+        try {
+            await bot.telegram.sendMessage(
+                userId,
+                '🎬 *Вечернее напоминание!*\nНе забудь загрузить свой кусочек дня!\nВидео должно быть не дольше 3 секунд.\nЕсли не успеешь — вместо него загрузится черное видео.',
+                { parse_mode: 'Markdown' }
+            );
+        } catch (e) {
+            console.error(`Не удалось отправить напоминание юзеру ${userId}:`, e.message);
+        }
+    }
+}
+
+// Автоматическая загрузка черного видео
+async function uploadBlackVideo(userId) {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Проверяем, существует ли черное видео
+    if (!fs.existsSync(BLACK_VIDEO_PATH)) {
+        console.error('Черное видео не найдено:', BLACK_VIDEO_PATH);
+        return false;
+    }
+    
+    // Проверяем, есть ли уже видео за сегодня (реальное или автоматическое)
+    const existingRow = await db.dbGet(
+        'SELECT id FROM one_second_videos WHERE user_id = ? AND date = ?',
+        [userId, today]
+    );
+    
+    if (existingRow) {
+        console.log(`Видео за ${today} уже существует для пользователя ${userId}`);
+        return false;
+    }
+    
+    try {
+        // Копируем черное видео в папку с видео пользователя
+        const fileName = `${today}_${Date.now()}_black.mp4`;
+        const filePath = path.join(VIDEO_DIR, fileName);
+        fs.copyFileSync(BLACK_VIDEO_PATH, filePath);
+        
+        // Сохраняем в БД как автоматическое
+        await db.dbRun(
+            'INSERT INTO one_second_videos (user_id, file_path, date, is_automatic) VALUES (?, ?, ?, 1)',
+            [userId, filePath, today]
+        );
+        
+        console.log(`Черное видео загружено для пользователя ${userId} за ${today}`);
+        return true;
+    } catch (e) {
+        console.error('Ошибка загрузки черного видео:', e);
+        return false;
+    }
+}
+
+module.exports = {
+    bot,
+    checkVideoForToday,
+    sendEveningReminder,
+    uploadBlackVideo
+};

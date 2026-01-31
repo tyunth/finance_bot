@@ -166,6 +166,7 @@ function initializeTables() {
         user_id INTEGER,
         file_path TEXT,
         date TEXT,
+        is_automatic INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
 
