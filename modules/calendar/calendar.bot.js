@@ -77,6 +77,7 @@ bot.action('practice_bus', async (ctx) => {
         type: 'expense',
         amount: 200,
         category: 'Транспорт',
+        tag: 'Транспорт',
         comment: 'Автобус',
         sourceAccount: 'Основной',
         targetAccount: null

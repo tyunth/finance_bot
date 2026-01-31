@@ -141,7 +141,7 @@ router.get('/analytics/shops', safeHandler(async (req, res) => {
         FROM receipts r
         LEFT JOIN shop_aliases a ON r.shop_name = a.raw_name AND a.user_id = r.user_id
         WHERE r.user_id = ?
-        GROUP BY shop_name
+        GROUP BY COALESCE(a.brand_name, r.shop_name)
         ORDER BY total_spent DESC
     `;
 
